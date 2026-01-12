@@ -16,7 +16,7 @@ export default function LoginPage() {
     setError(null);
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      router.push("/dashboard"); // Redirect to dashboard on successful login
+      router.push("/projects"); // Redirect to dashboard on successful login
     } catch (err: any) {
       setError(err.message);
     }

@@ -4,7 +4,7 @@ import React, { useEffect } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "../lib/firebase";
 import { useAuthStore } from "../lib/store/authStore";
-import Navbar from "./Navbaar";
+import { SupabaseProvider } from "./SupabaseProvider"; // Import the new provider
 
 interface AuthContextProviderProps {
   children: React.ReactNode;
@@ -27,9 +27,8 @@ export default function AuthContextProvider({ children }: AuthContextProviderPro
   }
 
   return (
-    <>
-      <Navbar />
+    <SupabaseProvider>
       {children}
-    </>
+    </SupabaseProvider>
   );
 }

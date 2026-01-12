@@ -2,39 +2,40 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import AuthGuard from "../../components/AuthGuard"; // Adjust path as necessary
-import { useAuthStore } from "../../lib/store/authStore"; // Import the auth store
-import { auth } from "../../lib/firebase"; // Import firebase auth instance
+import AuthGuard from "../../components/AuthGuard";
+import { useAuthStore } from "../../lib/store/authStore";
+import { useSupabase } from "../../components/SupabaseProvider"; // Import useSupabase
 
 interface Project {
   id: string;
   name: string;
-  created: string; // This should ideally be a Date or ISO string
-  status: string;
+  created_at: string; // Use created_at from DB
+  status?: string; // Status might not always be present or needed here
 }
 
 export default function ProjectsPage() {
-  const { user, loading: authLoading } = useAuthStore();
+  const { user, loading: authLoading, idToken } = useAuthStore();
+  const { supabase, loading: supabaseLoading } = useSupabase(); // Get supabase client and loading state
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchProjects = async () => {
-      if (!user || authLoading) {
+      if (!user || authLoading || supabaseLoading || !supabase) {
+        // Only proceed if user is authenticated, auth is not loading, supabase client is ready
         setLoading(false);
-        return; // Wait for auth to load or user to be available
+        return;
       }
 
       setLoading(true);
       setError(null);
       try {
-        const idToken = await user.getIdToken(); // Get Firebase ID token
-
+        // Use the authenticated fetch for Next.js API route
         const response = await fetch("/api/projects", {
           method: "GET",
           headers: {
-            Authorization: `Bearer ${idToken}`, // Send ID token
+            Authorization: `Bearer ${idToken}`, // Still send ID token for Next.js API routes
           },
         });
 
@@ -44,10 +45,9 @@ export default function ProjectsPage() {
         }
 
         const data = await response.json();
-        // Assuming the API returns projects with 'created' as a string
         setProjects(data.projects.map((p: any) => ({
           ...p,
-          created: new Date(p.createdAt).toLocaleDateString(), // Format date for display
+          created: new Date(p.created_at).toLocaleDateString(), // Format date for display
         })));
       } catch (err: any) {
         console.error("Error fetching projects:", err);
@@ -58,9 +58,9 @@ export default function ProjectsPage() {
     };
 
     fetchProjects();
-  }, [user, authLoading]); // Re-run when user or authLoading changes
+  }, [user, authLoading, supabase, supabaseLoading, idToken]); // Re-run when dependencies change
 
-  if (loading || authLoading) {
+  if (loading || authLoading || supabaseLoading) {
     return (
       <AuthGuard>
         <div className="min-h-screen bg-gray-50 text-gray-900 p-8 flex justify-center items-center">
@@ -78,6 +78,7 @@ export default function ProjectsPage() {
         </div>
       </AuthGuard>
     );
+
   }
 
   return (
@@ -107,7 +108,7 @@ export default function ProjectsPage() {
               <Link href={`/projects/${project.id}`} key={project.id}>
                 <div className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 cursor-pointer">
                   <h2 className="text-xl font-semibold mb-2">{project.name}</h2>
-                  <p className="text-gray-600 text-sm mb-2">Created: {project.created}</p>
+                  <p className="text-gray-600 text-sm mb-2">Created: {new Date(project.created_at).toLocaleDateString()}</p>
                   <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
                     project.status === "Completed"
                       ? "bg-emerald-100 text-emerald-800"

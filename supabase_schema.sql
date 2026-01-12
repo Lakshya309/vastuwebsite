@@ -5,7 +5,10 @@ CREATE TABLE IF NOT EXISTS projects (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id TEXT NOT NULL,          -- Stores the Firebase UID.
   name TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT now()
+  created_at TIMESTAMPTZ DEFAULT now(),
+  floor_plan_url TEXT,
+  boundary_normalized JSONB,
+  north_direction FLOAT
 );
 
 -- Enable Row Level Security (RLS) for the projects table.
@@ -64,6 +67,7 @@ CREATE TABLE IF NOT EXISTS analysis_items (
   analysis_id UUID NOT NULL REFERENCES analyses(id) ON DELETE CASCADE,
   object TEXT NOT NULL,
   direction TEXT NOT NULL,
+  boundary_normalized JSONB,
   confidence REAL, -- e.g., 0.82 for 82%
   source TEXT NOT NULL, -- 'ai' or 'manual'
   created_at TIMESTAMPTZ DEFAULT now()

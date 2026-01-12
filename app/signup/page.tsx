@@ -15,8 +15,26 @@ export default function SignupPage() {
     e.preventDefault();
     setError(null);
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
-      router.push("/dashboard"); // Redirect to dashboard on successful signup
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // After successful Firebase signup, create or update a profile in Supabase via the verify endpoint
+      const idToken = await user.getIdToken();
+      const response = await fetch('/api/auth/verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // Authorization is handled within the /api/auth/verify endpoint itself by decoding the token
+        },
+        body: JSON.stringify({ token: idToken }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to create or verify user profile.");
+      }
+
+      router.push("/projects"); // Redirect to projects list on successful signup
     } catch (err: any) {
       setError(err.message);
     }

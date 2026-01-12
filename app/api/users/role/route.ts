@@ -11,29 +11,25 @@ export async function POST(req: Request) {
     }
 
     const decoded = await adminAuth.verifyIdToken(token);
-
     const uid = decoded.uid;
-    const email = decoded.email;
 
-    // upsert profile
     const { data, error } = await supabaseAdmin
       .from('profiles')
-      .upsert({
-        id: uid,
-        email,
-        role: 'user' // Default role for new users
-      }, { onConflict: 'id' }) // Ensure upsert by id
-      .select()
-      .single();
+      .select('role')
+      .eq('id', uid);
 
     if (error) {
-      console.error("Supabase upsert profile error:", error);
-      return NextResponse.json({ message: "Failed to create or update profile", error: error.message }, { status: 500 });
+      console.error("Supabase select role error:", error);
+      return NextResponse.json({ message: "Failed to fetch role", error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, profile: data }, { status: 200 });
+    if (!data || data.length === 0) {
+      return NextResponse.json({ message: "Profile not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ role: data[0].role }, { status: 200 });
   } catch (error: any) {
-    console.error("Error in /api/auth/verify:", error);
+    console.error("Error in /api/users/role:", error);
     if (error.code === 'auth/id-token-expired' || error.code === 'auth/id-token-revoked') {
       return NextResponse.json({ message: "Unauthorized: Invalid token", error: error.message }, { status: 401 });
     }
