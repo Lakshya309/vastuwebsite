@@ -1,52 +1,10 @@
-// geometry.ts
-// Vastu Purusha Mandala (45 Devtas) Geometric Computation
-// Uses polar + concentric boundary evolution (NOT grid-based)
+// lib/geometry.ts
+// Pure geometric computations.
 
 export interface Point {
   x: number;
   y: number;
 }
-
-export interface DevtaRegion {
-  id: number;
-  ring: "center" | "middle" | "outer";
-  name: string;
-  polygon: Point[];
-  startAngle?: number;
-  endAngle?: number;
-}
-
-// Configurable scaling ratios for concentric boundaries
-const MIDDLE_BOUNDARY_SCALE = 0.66;
-const INNER_BOUNDARY_SCALE = 0.33;
-
-// Devta names following traditional Vastu mapping
-// Center: 1 Devta
-const CENTER_DEVTA = "Brahma";
-
-// Middle Ring: 12 Devtas (4 occupy 45°, 8 occupy 22.5°)
-const MIDDLE_DEVTAS = [
-  "Shikhi", "Parjanya", // 45° (2 divisions)
-  "Jayanta", // 22.5° (1 division)
-  "Indra", "Surya", // 45° (2 divisions)
-  "Satya", // 22.5° (1 division)
-  "Bhrisha", "Akash", // 45° (2 divisions)
-  "Vayu", // 22.5° (1 division)
-  "Pusha", "Vitatha", // 45° (2 divisions)
-  "Gruhakshat", "Yama", "Gandharva", "Bhringraj", // 22.5° each
-];
-
-// Outer Ring: 32 Devtas (each 11.25°)
-const OUTER_DEVTAS = [
-  "Dishah Shiva", "Soma", "Sthana", "Bhallat",
-  "Mukhya", "Soma", "Bhujag", "Aaditi",
-  "Diti", "Shura", "Apa", "Apavatsa",
-  "Savitri", "Indrajit", "Vivashvana", "Mitra",
-  "Prithvidhara", "Apah", "Aaryama", "Savitar",
-  "Vivasvat", "Indra", "Jaya", "Rudra",
-  "Rajayakshma", "Asura", "Shosha", "Papayakshma",
-  "Roga", "Naga", "Mukhya", "Bhallat"
-];
 
 /**
  * Calculate the centroid (geometric center) of a polygon
@@ -66,7 +24,21 @@ export function calculateCentroid(polygon: Point[]): Point {
     cy += (polygon[i].y + polygon[j].y) * cross;
   }
   
+  // The area is signed, we need absolute value for robust handling
   area *= 0.5;
+
+  // Handle cases where area is zero (e.g., collinear points)
+  if (Math.abs(area) < 1e-10) {
+    // For a line or point, the centroid is the average of the points
+    let avgX = 0;
+    let avgY = 0;
+    for(const p of polygon) {
+      avgX += p.x;
+      avgY += p.y;
+    }
+    return {x: avgX / polygon.length, y: avgY / polygon.length};
+  }
+
   const factor = 1 / (6 * area);
   
   return {
@@ -197,126 +169,9 @@ export function buildAngularSector(
 }
 
 /**
- * Generate all 45 Devta regions using concentric + polar method
- */
-export function generate45Devtas(
-  boundary: Point[],
-  northAngle: number = 0
-): DevtaRegion[] | null {
-  if (boundary.length < 3) return null;
-  
-  const centroid = calculateCentroid(boundary);
-  const regions: DevtaRegion[] = [];
-  let devtaId = 1;
-  
-  // Generate concentric boundaries
-  const outerBoundary = boundary;
-  const middleBoundary = scalePolygon(boundary, centroid, MIDDLE_BOUNDARY_SCALE);
-  const innerBoundary = scalePolygon(boundary, centroid, INNER_BOUNDARY_SCALE);
-  
-  // 1. CENTER: Brahmasthan (1 Devta)
-  regions.push({
-    id: devtaId++,
-    ring: "center",
-    name: CENTER_DEVTA,
-    polygon: innerBoundary
-  });
-  
-  // 2. MIDDLE RING: 12 Devtas
-  // Angular divisions: 16 total (4 Devtas × 2 divisions + 8 Devtas × 1 division)
-  const middleDivisions = 16;
-  const middleAngleStep = 360 / middleDivisions;
-  
-  // Define which Devtas occupy 2 divisions (45°) vs 1 division (22.5°)
-  // Pattern: [2, 1, 2, 1, 2, 1, 2, 1, 1, 1, 1]
-  const middlePattern = [2, 1, 2, 1, 2, 1, 2, 1, 1, 1, 1]; // 12 Devtas
-  
-  let currentMiddleAngle = northAngle;
-  let middleDevtaIndex = 0;
-  
-  for (const divisions of middlePattern) {
-    const angleSpan = divisions * middleAngleStep;
-    const startAngle = currentMiddleAngle % 360;
-    const endAngle = (currentMiddleAngle + angleSpan) % 360;
-    
-    const sector = buildAngularSector(
-      innerBoundary,
-      middleBoundary,
-      startAngle,
-      endAngle > startAngle ? endAngle : endAngle + 360,
-      centroid
-    );
-    
-    if (sector.length > 0) {
-      regions.push({
-        id: devtaId++,
-        ring: "middle",
-        name: MIDDLE_DEVTAS[middleDevtaIndex] || `Middle-${middleDevtaIndex + 1}`,
-        polygon: sector,
-        startAngle,
-        endAngle: endAngle > startAngle ? endAngle : endAngle + 360
-      });
-    }
-    
-    currentMiddleAngle += angleSpan;
-    middleDevtaIndex++;
-  }
-  
-  // 3. OUTER RING: 32 Devtas (each 11.25°)
-  const outerDivisions = 32;
-  const outerAngleStep = 360 / outerDivisions;
-  
-  for (let i = 0; i < outerDivisions; i++) {
-    const startAngle = (northAngle + i * outerAngleStep) % 360;
-    const endAngle = (northAngle + (i + 1) * outerAngleStep) % 360;
-    
-    const sector = buildAngularSector(
-      middleBoundary,
-      outerBoundary,
-      startAngle,
-      endAngle > startAngle ? endAngle : endAngle + 360,
-      centroid
-    );
-    
-    if (sector.length > 0) {
-      regions.push({
-        id: devtaId++,
-        ring: "outer",
-        name: OUTER_DEVTAS[i] || `Outer-${i + 1}`,
-        polygon: sector,
-        startAngle,
-        endAngle: endAngle > startAngle ? endAngle : endAngle + 360
-      });
-    }
-  }
-  
-  return regions;
-}
-
-/**
- * Determine which Devta zone a point belongs to
- */
-export function getZoneForPoint(
-  point: Point,
-  boundary: Point[],
-  northAngle: number
-): string {
-  const devtas = generate45Devtas(boundary, northAngle);
-  if (!devtas) return "Unknown";
-  
-  for (const devta of devtas) {
-    if (pointInPolygon(point, devta.polygon)) {
-      return devta.name;
-    }
-  }
-  
-  return "Outside";
-}
-
-/**
  * Check if a point is inside a polygon using ray casting
  */
-function pointInPolygon(point: Point, polygon: Point[]): boolean {
+export function pointInPolygon(point: Point, polygon: Point[]): boolean {
   let inside = false;
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
     const xi = polygon[i].x, yi = polygon[i].y;
