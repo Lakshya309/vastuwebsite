@@ -6,14 +6,14 @@ import AuthGuard from "../../../../components/AuthGuard";
 import Link from "next/link";
 import { useAuthStore } from "../../../../lib/store/authStore";
 import { Point, toNormalized, toPixels, getEventPixelPosition } from "../../../../lib/coordinates";
-import { 
+import {
   calculateCentroid,
   pointInPolygon,rayPolygonIntersection
 } from "../../../../lib/geometry";
-import { 
-  generate45Devtas, 
+import {
+  generate45Devtas,
   getZoneForPoint,
-  DevtaRegion 
+  DevtaRegion
 } from "../../../../lib/vastu/devtaAnalysis";
 import { useSupabase } from "../../../../components/SupabaseProvider";
 import { MarmaPoint, generateMarmaPoints } from "../../../../lib/vastu/marmaAnalysis";
@@ -29,10 +29,15 @@ interface Project {
 }
 
 interface PlacedObject {
-  id: string;
-  type: string;
-  boundary: Point[];
+  id: string; // UUID
+  project_id: string;
+  object_type: string;
+  boundary_normalized: Point[];
   centroid: Point;
+  devta_zone?: string;
+  marma_distance?: number;
+  vastu_status?: 'good' | 'neutral' | 'bad';
+  issues?: any; // JSONB
 }
 
 const AVAILABLE_OBJECTS = [
@@ -49,6 +54,25 @@ const AVAILABLE_OBJECTS = [
 ];
 
 type ZoneDivision = 8 | 16 | 32 | 0;
+
+// Modern color scheme for Devtas
+const DEVTA_COLORS: Record<string, string> = {
+    "Brahma": "#FFD700", // Gold
+    "Shikhi": "#FF6347", "Parjanya": "#4682B4", "Jayanta": "#32CD32", "Indra": "#FF4500",
+    "Surya": "#FFD700", "Satya": "#8A2BE2", "Bhrisha": "#A52A2A", "Akash": "#87CEEB",
+    "Vayu": "#B0C4DE", "Pusha": "#FFC0CB", "Vitatha": "#DDA0DD", "Gruhakshat": "#696969",
+    "Yama": "#778899", "Gandharva": "#BA55D3", "Bhringraj": "#9932CC", "Marut": "#ADD8E6",
+    "Dishah Shiva": "#F0FFF0", "Soma": "#F5F5DC", "Sthana": "#A9A9A9", "Bhallat": "#FF69B4",
+    "Mukhya": "#4169E1", "Bhujag": "#8B4513", "Aaditi": "#F0E68C", "Diti": "#DAA520",
+    "Shura": "#B22222", "Apa": "#00FFFF", "Apavatsa": "#7FFFD4", "Savitri": "#F0E68C",
+    "Indrajit": "#8B0000", "Vivashvana": "#FF8C00", "Mitra": "#FFDAB9", "Prithvidhara": "#D2B48C",
+
+    "Aaryama": "#FFE4B5", "Savitar": "#FFDEAD", "Vivasvat": "#FFA500", "Jaya": "#ADFF2F",
+    "Rudra": "#DC143C", "Rajayakshma": "#FF0000", "Asura": "#800000", "Shosha": "#F5DEB3",
+    "Papayakshma": "#FFB6C1", "Roga": "#FA8072", "Naga": "#6A5ACD",
+    // Default color
+    "default": "#E0E0E0"
+};
 
 export default function FloorPlanPage() {
   const params = useParams();
@@ -67,12 +91,12 @@ export default function FloorPlanPage() {
   const [northDirection, setNorthDirection] = useState(0);
   const [placedObjects, setPlacedObjects] = useState<PlacedObject[]>([]);
   const [drawingObjectBoundary, setDrawingObjectBoundary] = useState<Point[]>([]);
-  
+
   const [drawingMode, setDrawingMode] = useState<"boundary" | "objects">("boundary");
   const [selectedObjectType, setSelectedObjectType] = useState<string>(AVAILABLE_OBJECTS[0]);
   const [analysisResult, setAnalysisResult] = useState<DevtaRegion[] | null>(null);
   const [analysisMode, setAnalysisMode] = useState<"concentric">("concentric");
-  
+
   // New state for Marma points and UI interaction
   const [marmas, setMarmas] = useState<MarmaPoint[]>([]);
   // const [zoneDivision, setZoneDivision] = useState<ZoneDivision>(0); // Replaced by analysisMode
@@ -111,6 +135,23 @@ export default function FloorPlanPage() {
     fetchProject();
   }, [user, projectId, authLoading, supabaseLoading, idToken]);
 
+  useEffect(() => {
+    const fetchObjects = async () => {
+      if (!projectId || !idToken) return;
+      try {
+        const response = await fetch(`/api/projects/${projectId}/objects`, {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+        if (!response.ok) throw new Error("Failed to fetch objects.");
+        const data = await response.json();
+        setPlacedObjects(data.objects);
+      } catch (err: any) {
+        setError(err.message);
+      }
+    };
+    fetchObjects();
+  }, [projectId, idToken]);
+
   const draw = () => {
     const canvas = canvasRef.current;
     const image = imageRef.current;
@@ -121,7 +162,7 @@ export default function FloorPlanPage() {
 
     canvas.width = image.clientWidth;
     canvas.height = image.clientHeight;
-    
+
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
 
@@ -140,7 +181,7 @@ export default function FloorPlanPage() {
       const divisions = parseInt(analysisMode.split('-')[1] || '0') as ZoneDivision;
       drawZoneLines(ctx, divisions, centroid, boundary, northDirection, dims);
     }
-    
+
     drawMarmas(ctx, marmas, dims);
     drawPlacedObjects(ctx, placedObjects, selectedObject, dims);
     drawBoundary(ctx, boundary, dims);
@@ -151,7 +192,7 @@ export default function FloorPlanPage() {
     if (drawingMode === 'objects' && drawingObjectBoundary.length > 0) {
       drawIncompleteBoundary(ctx, drawingObjectBoundary, dims, "rgba(25, 118, 210, 0.9)");
     }
-    
+
     if (hoveredMarma) {
       drawMarmaTooltip(ctx, hoveredMarma, dims);
     }
@@ -209,7 +250,7 @@ export default function FloorPlanPage() {
     ctx.arc(pixelCentroid.x, pixelCentroid.y, 10, 0, 2 * Math.PI);
     ctx.fill();
   };
-  
+
   const drawNorthLine = (ctx: CanvasRenderingContext2D, centroid: Point, north: number, dims: {width: number, height: number}) => {
     const pixelCentroid = toPixels(centroid, dims);
     const lineLength = 50;
@@ -233,13 +274,10 @@ export default function FloorPlanPage() {
         const pixelPolygon = devta.polygon.map(p => toPixels(p, dims));
         const isSelected = selected?.id === devta.id;
 
-        let fillColor = "rgba(107, 114, 128, 0.1)";
-        if (devta.ring === 'center') fillColor = "rgba(255, 215, 0, 0.2)";
-        else if (devta.ring === 'middle') fillColor = "rgba(199, 210, 254, 0.2)";
-        else if (devta.ring === 'outer') fillColor = "rgba(167, 243, 208, 0.2)";
-        
-        ctx.fillStyle = isSelected ? "rgba(255, 255, 255, 0.3)" : fillColor;
-        ctx.strokeStyle = isSelected ? "#0ea5e9" : "rgba(107, 114, 128, 0.4)";
+        let fillColor = DEVTA_COLORS[devta.name] || DEVTA_COLORS["default"];
+
+        ctx.fillStyle = isSelected ? "rgba(255, 255, 255, 0.3)" : `${fillColor}33`; // 20% opacity
+        ctx.strokeStyle = isSelected ? "#0ea5e9" : `${fillColor}80`; // 50% opacity
         ctx.lineWidth = isSelected ? 3 : 1;
 
         if (pixelPolygon.length > 0) {
@@ -253,7 +291,7 @@ export default function FloorPlanPage() {
           // Draw Devta name
           const devtaCentroid = calculateCentroid(devta.polygon);
           const pixelDevtaCentroid = toPixels(devtaCentroid, dims);
-          
+
           ctx.fillStyle = "rgba(31, 41, 55, 0.75)"; // Dark slate, semi-transparent
           ctx.font = devta.ring === 'outer' ? "8px sans-serif" : "10px sans-serif";
           ctx.textAlign = "center";
@@ -281,7 +319,7 @@ export default function FloorPlanPage() {
     });
     ctx.shadowBlur = 0;
   };
-  
+
   const drawMarmaTooltip = (ctx: CanvasRenderingContext2D, marma: MarmaPoint, dims: {width: number, height: number}) => {
     const p = toPixels(marma.point, dims);
     const text = `Marma: ${marma.angleDeg}° (${marma.strength})`;
@@ -314,7 +352,7 @@ export default function FloorPlanPage() {
 
   const drawPlacedObjects = (ctx: CanvasRenderingContext2D, objects: PlacedObject[], selected: PlacedObject | null, dims: {width: number, height: number}) => {
     objects.forEach(obj => {
-      const pixelBoundary = obj.boundary.map(p => toPixels(p, dims));
+      const pixelBoundary = obj.boundary_normalized.map(p => toPixels(p, dims));
       const isSelected = selected?.id === obj.id;
       ctx.fillStyle = "rgba(55, 65, 81, 0.5)"; // semi-transparent slate
       ctx.strokeStyle = isSelected ? "#0ea5e9" : "#374151"; // highlight if selected
@@ -330,14 +368,14 @@ export default function FloorPlanPage() {
       ctx.font = "bold 11px sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(obj.type, pixelCentroid.x, pixelCentroid.y);
+      ctx.fillText(obj.object_type, pixelCentroid.x, pixelCentroid.y);
     });
   };
-  
+
   const drawObjectAnalysis = (ctx: CanvasRenderingContext2D, obj: PlacedObject, analysis: ObjectAnalysisResult, dims: {width: number, height: number}) => {
     const p = toPixels(obj.centroid, dims);
     const lines = [
-        `Object: ${obj.type}`,
+        `Object: ${obj.object_type}`,
         `Devta: ${analysis.devtaName}`,
     ];
     if(analysis.closestMarma) {
@@ -354,6 +392,19 @@ export default function FloorPlanPage() {
         ctx.setLineDash([]);
     } else {
         lines.push("No influential Marma nearby.");
+    }
+
+    if (analysis.incorrectPoints.length > 0) {
+        lines.push("");
+        lines.push("Incorrect Placements:");
+        analysis.incorrectPoints.forEach(ip => {
+            lines.push(`- Point in ${ip.devtaName}`);
+            const pixelPoint = toPixels(ip.point, dims);
+            ctx.fillStyle = 'red';
+            ctx.beginPath();
+            ctx.arc(pixelPoint.x, pixelPoint.y, 5, 0, 2 * Math.PI);
+            ctx.fill();
+        });
     }
 
     ctx.font = "13px sans-serif";
@@ -377,47 +428,107 @@ export default function FloorPlanPage() {
   };
 
   const drawDevtaInfoBox = (ctx: CanvasRenderingContext2D, rule: VastuRule, dims: {width: number, height: number}) => {
-    const boxX = 20;
+    const boxX = dims.width - 270; // Position on the right side
     const boxY = 20;
     const boxWidth = 250;
+    let currentY = boxY;
+    const padding = 15;
     const lineHeight = 18;
+    const borderRadius = 10;
+
+    const devtaColor = DEVTA_COLORS[rule.devtaName] || DEVTA_COLORS["default"];
+    const textColor = '#1f2937'; // Dark text for readability
+
+    // Calculate total height for the box
+    const descriptionLines = ctx.measureText(rule.description).width > (boxWidth - 2 * padding) ? Math.ceil(ctx.measureText(rule.description).width / (boxWidth - 2 * padding)) : 1;
+    const estimatedHeight = 
+      padding + 
+      lineHeight + // Devta Name
+      lineHeight * descriptionLines + // Description
+      lineHeight + // Empty line
+      lineHeight + // Optimal header
+      rule.optimal.length * lineHeight + 
+      lineHeight + // Empty line
+      lineHeight + // Avoid header
+      rule.avoid.length * lineHeight + 
+      padding;
     
-    const lines = [
-      `Devta: ${rule.devtaName}`,
-      `"${rule.description}"`,
-      '',
-      'Optimal:',
-      ...rule.optimal.map(s => `• ${s}`),
-      '',
-      'Avoid:',
-      ...rule.avoid.map(s => `• ${s}`),
-    ];
-    const boxHeight = lines.length * lineHeight + 20;
+    const boxHeight = estimatedHeight;
 
-    ctx.fillStyle = "rgba(249, 250, 251, 0.95)";
-    ctx.strokeStyle = "rgba(209, 213, 219, 1)";
-    ctx.lineWidth = 1;
-    ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
-    ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+    // Draw card background with rounded corners and shadow
+    ctx.shadowColor = "rgba(0, 0, 0, 0.2)";
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetX = 2;
+    ctx.shadowOffsetY = 2;
+    ctx.fillStyle = "#ffffff"; // White background
+    ctx.beginPath();
+    ctx.roundRect(boxX, boxY, boxWidth, boxHeight, borderRadius);
+    ctx.fill();
+    ctx.shadowColor = "transparent"; // Reset shadow
 
-    ctx.textAlign = 'left';
+    // Draw header with Devta color
+    ctx.fillStyle = devtaColor;
+    ctx.beginPath();
+    ctx.roundRect(boxX, boxY, boxWidth, 35, [borderRadius, borderRadius, 0, 0]); // Top rounded corners
+    ctx.fill();
+
+    // Draw Devta Name in header
+    currentY += padding;
+    ctx.font = "bold 16px sans-serif";
+    ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillStyle = "#1f2937"; 
+    ctx.fillStyle = "white"; // White text for header
+    ctx.fillText(`Devta: ${rule.devtaName}`, boxX + boxWidth / 2, currentY);
 
-    lines.forEach((line, i) => {
-      if (line === 'Optimal:' || line === 'Avoid:') {
-        ctx.font = "bold 13px sans-serif";
-      } else if (line.startsWith('•')) {
-        ctx.font = "13px sans-serif";
-      } else if (line.startsWith('"')) {
-        ctx.font = "italic 13px sans-serif";
+    currentY += 35 - padding + 5; // Move past header area, add some space
+
+    // Draw description
+    ctx.font = "italic 12px sans-serif";
+    ctx.textAlign = 'left';
+    ctx.fillStyle = textColor;
+    // Basic text wrapping (can be improved)
+    const words = rule.description.split(' ');
+    let line = '';
+    for (let n = 0; n < words.length; n++) {
+      const testLine = line + words[n] + ' ';
+      const metrics = ctx.measureText(testLine);
+      const testWidth = metrics.width;
+      if (testWidth > boxWidth - 2 * padding && n > 0) {
+        ctx.fillText(`"${line.trim()}"`, boxX + padding, currentY);
+        line = words[n] + ' ';
+        currentY += lineHeight;
       } else {
-        ctx.font = "bold 14px sans-serif";
+        line = testLine;
       }
-      ctx.fillText(line, boxX + 10, boxY + 10 + i * lineHeight);
+    }
+    ctx.fillText(`"${line.trim()}"`, boxX + padding, currentY);
+    currentY += lineHeight + 5;
+
+    // Optimal section
+    currentY += 5; // Extra space
+    ctx.font = "bold 13px sans-serif";
+    ctx.fillStyle = textColor;
+    ctx.fillText('Optimal:', boxX + padding, currentY);
+    currentY += lineHeight;
+    ctx.font = "13px sans-serif";
+    rule.optimal.forEach(s => {
+      ctx.fillText(`• ${s}`, boxX + padding + 10, currentY);
+      currentY += lineHeight;
+    });
+
+    // Avoid section
+    currentY += 5; // Extra space
+    ctx.font = "bold 13px sans-serif";
+    ctx.fillStyle = textColor;
+    ctx.fillText('Avoid:', boxX + padding, currentY);
+    currentY += lineHeight;
+    ctx.font = "13px sans-serif";
+    rule.avoid.forEach(s => {
+      ctx.fillText(`• ${s}`, boxX + padding + 10, currentY);
+      currentY += lineHeight;
     });
   };
-  
+
   // Effect for auto-generating Marma points when boundary changes
   useEffect(() => {
     if (boundary.length > 2) {
@@ -453,8 +564,8 @@ export default function FloorPlanPage() {
     if (drawingMode === 'boundary') {
       setBoundary([...boundary, normalizedPoint]);
       return;
-    } 
-    
+    }
+
     if (drawingMode === 'objects') {
       setDrawingObjectBoundary([...drawingObjectBoundary, normalizedPoint]);
       return;
@@ -465,7 +576,7 @@ export default function FloorPlanPage() {
       let clickedObject = null;
       for (let i = placedObjects.length - 1; i >= 0; i--) {
         const obj = placedObjects[i];
-        if (pointInPolygon(normalizedPoint, obj.boundary)) {
+        if (pointInPolygon(normalizedPoint, obj.boundary_normalized)) {
           clickedObject = obj;
           break;
         }
@@ -475,7 +586,7 @@ export default function FloorPlanPage() {
         setSelectedObject(clickedObject);
         setSelectedDevta(null); // Deselect Devta
         if (analysisResult) {
-          const analysis = analyzeObjectPlacement(clickedObject.centroid, analysisResult, marmas, boundary);
+          const analysis = analyzeObjectPlacement(clickedObject.boundary_normalized, clickedObject.object_type, analysisResult, marmas, boundary, northDirection);
           setSelectedObjectAnalysis(analysis);
         }
         return;
@@ -498,7 +609,7 @@ export default function FloorPlanPage() {
         setSelectedObjectAnalysis(null);
         return;
       }
-      
+
       // If clicking outside anything, deselect all
       setSelectedObject(null);
       setSelectedObjectAnalysis(null);
@@ -510,7 +621,7 @@ export default function FloorPlanPage() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const pos = getEventPixelPosition(event, canvas);
-    
+
     let marmaFound = null;
     const hoverRadius = 8; // 8px hover radius
     for (const marma of marmas) {
@@ -537,7 +648,7 @@ export default function FloorPlanPage() {
       reader.readAsDataURL(file);
     }
   };
-  
+
   const handleUploadAndSave = async () => {
     if (!projectId || !user || !idToken) {
       setError("Project ID missing, user not authenticated, or token unavailable.");
@@ -565,7 +676,7 @@ export default function FloorPlanPage() {
         const uploadData = await uploadResponse.json();
         setFloorPlanImage(uploadData.url);
       }
-      
+
       await handleSaveBoundaryAndNorth();
     } catch (err: any) {
       console.error("Error during upload or save:", err);
@@ -605,45 +716,39 @@ export default function FloorPlanPage() {
     }
   };
 
-  const handleSaveObjects = async () => {
-    if (!projectId || !user || placedObjects.length === 0 || !idToken) {
-      setError("No objects placed, user not authenticated, or token unavailable.");
+  const handleDeleteObject = async (objectId: string) => {
+    if (!projectId || !idToken) {
+      setError("Cannot delete object: missing project ID or authentication token.");
       return;
     }
     setLoading(true);
     setError(null);
     try {
-      const objectsToSave = placedObjects.map(obj => {
-        // Centroid is already calculated and stored with the object
-        const zone = analysisResult ? getZoneForPoint(obj.centroid, boundary, northDirection) : "Unknown";
-        return {
-          type: obj.type,
-          boundary_normalized: obj.boundary,
-          zone: zone
-        };
+      const response = await fetch(`/api/projects/${projectId}/objects/${objectId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+        },
       });
 
-      const response = await fetch('/api/analysis', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({ projectId, objects: objectsToSave }),
-      });
       if (!response.ok) {
-        throw new Error("Failed to save objects.");
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to delete object.");
       }
-      alert("Objects saved for analysis!");
-      // Decide if we should clear objects after saving. For now, we keep them.
-      // setPlacedObjects([]);
-    } catch (err: any)
-    {
+
+      setPlacedObjects(placedObjects.filter(obj => obj.id !== objectId));
+      setSelectedObject(null);
+      setSelectedObjectAnalysis(null);
+      alert("Object deleted successfully.");
+
+    } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
   };
+
+
 
   return (
     <AuthGuard>
@@ -665,16 +770,16 @@ export default function FloorPlanPage() {
             <div className="relative w-full h-[600px] border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden">
               {floorPlanImage ? (
                 <>
-                  <img 
-                    ref={imageRef} 
-                    src={floorPlanImage} 
-                    alt="Floor Plan" 
-                    className="absolute top-0 left-0 w-full h-full object-contain" 
+                  <img
+                    ref={imageRef}
+                    src={floorPlanImage}
+                    alt="Floor Plan"
+                    className="absolute top-0 left-0 w-full h-full object-contain"
                     onLoad={draw}
                   />
-                  <canvas 
-                    ref={canvasRef} 
-                    className="absolute top-0 left-0 w-full h-full cursor-crosshair" 
+                  <canvas
+                    ref={canvasRef}
+                    className="absolute top-0 left-0 w-full h-full cursor-crosshair"
                     onClick={handleCanvasClick}
                     onMouseMove={handleMouseMove}
                   />
@@ -688,34 +793,34 @@ export default function FloorPlanPage() {
           <div className="bg-white p-8 rounded-2xl shadow-sm">
             <h2 className="text-2xl font-bold mb-6">Controls</h2>
             {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
-            
+
             <div className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Upload Floor Plan
                 </label>
-                <input 
-                  type="file" 
-                  accept="image/*" 
-                  onChange={handleImageUpload} 
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
                   className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
                 />
               </div>
-              
+
               <hr />
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Mode
                 </label>
-                <select 
+                <select
                   onChange={(e) => {
                     setDrawingMode(e.target.value as any);
                     // Deselect object when changing mode
                     setSelectedObject(null);
                     setSelectedObjectAnalysis(null);
-                  }} 
-                  value={drawingMode} 
+                  }}
+                  value={drawingMode}
                   className="w-full p-2 border border-gray-300 rounded-lg"
                 >
                   <option value="boundary">Draw Boundary</option>
@@ -730,14 +835,14 @@ export default function FloorPlanPage() {
                     Boundary Controls
                   </label>
                   <div className="flex space-x-2">
-                    <button 
-                      onClick={() => setBoundary([])} 
+                    <button
+                      onClick={() => setBoundary([])}
                       className="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50"
                     >
                       Reset
                     </button>
-                    <button 
-                      onClick={() => setBoundary(boundary.slice(0, -1))} 
+                    <button
+                      onClick={() => setBoundary(boundary.slice(0, -1))}
                       className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
                     >
                       Undo
@@ -746,65 +851,99 @@ export default function FloorPlanPage() {
                 </div>
               )}
 
-              {drawingMode === 'objects' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Object Controls
-                  </label>
-                  <select 
-                    onChange={(e) => setSelectedObjectType(e.target.value)} 
-                    value={selectedObjectType} 
-                    className="w-full p-2 border border-gray-300 rounded-lg mb-2"
-                  >
-                    {AVAILABLE_OBJECTS.map(obj => (
-                      <option key={obj} value={obj}>{obj}</option>
-                    ))}
-                  </select>
-                  <div className="flex space-x-2 mb-2">
-                    <button 
-                      onClick={() => {
-                        if (drawingObjectBoundary.length > 2) {
-                          const newObject: PlacedObject = {
-                            id: `obj_${Date.now()}`, // Simple unique ID
-                            type: selectedObjectType, 
-                            boundary: drawingObjectBoundary,
-                            centroid: calculateCentroid(drawingObjectBoundary),
-                          };
-                          setPlacedObjects([...placedObjects, newObject]);
-                          setDrawingObjectBoundary([]);
-                        } else {
-                          alert("An object needs at least 3 points.");
-                        }
-                      }} 
-                      className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
-                    >
-                      Finish Object
-                    </button>
-                    <button 
-                      onClick={() => setDrawingObjectBoundary([])} 
-                      className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                    >
-                      Clear Current
-                    </button>
-                  </div>
-                  <button 
-                    onClick={() => setPlacedObjects([])} 
-                    className="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50"
-                  >
-                    Clear All Objects
-                  </button>
-                </div>
-              )}
-              
+                            {drawingMode === 'objects' && (
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Object Controls
+                                </label>
+                                <select
+                                  onChange={(e) => setSelectedObjectType(e.target.value)}
+                                  value={selectedObjectType}
+                                  className="w-full p-2 border border-gray-300 rounded-lg mb-2"
+                                >
+                                  {AVAILABLE_OBJECTS.map(obj => (
+                                    <option key={obj} value={obj}>{obj}</option>
+                                  ))}
+                                </select>
+                                <div className="flex space-x-2 mb-2">
+                                  <button
+                                    onClick={async () => {
+                                      if (drawingObjectBoundary.length > 2 && projectId && idToken) {
+                                        const newObjectData = {
+                                          object_type: selectedObjectType,
+                                          boundary_normalized: drawingObjectBoundary,
+                                          centroid: calculateCentroid(drawingObjectBoundary),
+                                        };
+
+                                        setLoading(true);
+                                        setError(null);
+                                        try {
+                                          const response = await fetch(`/api/projects/${projectId}/objects`, {
+                                            method: 'POST',
+                                            headers: {
+                                              'Content-Type': 'application/json',
+                                              'Authorization': `Bearer ${idToken}`,
+                                            },
+                                            body: JSON.stringify(newObjectData),
+                                          });
+
+                                          if (!response.ok) {
+                                            const errorData = await response.json();
+                                            throw new Error(errorData.message || "Failed to create object.");
+                                          }
+
+                                          const { object: savedObject } = await response.json();
+                                          setPlacedObjects([...placedObjects, savedObject]);
+                                          setDrawingObjectBoundary([]);
+
+                                        } catch (err: any) {
+                                          setError(err.message);
+                                        } finally {
+                                          setLoading(false);
+                                        }
+                                      } else {
+                                        alert("An object needs at least 3 points, a project ID, and for you to be logged in.");
+                                      }
+                                    }}
+                                    className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
+                                  >
+                                    Finish Object
+                                  </button>
+                                  <button
+                                    onClick={() => setDrawingObjectBoundary([])}
+                                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                                  >
+                                    Clear Current
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                             {selectedObject && (
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Selected Object
+                                </label>
+                                <div className="p-2 border border-gray-200 rounded-lg bg-gray-50">
+                                  <p className="font-semibold">{selectedObject.object_type}</p>
+                                  <button
+                                    onClick={() => handleDeleteObject(selectedObject.id)}
+                                    className="mt-2 px-3 py-1 text-sm bg-red-500 text-white rounded-md hover:bg-red-600 w-full"
+                                    disabled={loading}
+                                  >
+                                    {loading ? 'Deleting...' : 'Delete Object'}
+                                  </button>
+                                </div>
+                              </div>
+                            )}
               <hr />
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Analysis Display
                 </label>
-                <select 
-                  onChange={(e) => setAnalysisMode(e.target.value as any)} 
-                  value={analysisMode} 
+                <select
+                  onChange={(e) => setAnalysisMode(e.target.value as any)}
+                  value={analysisMode}
                   className="w-full p-2 border border-gray-300 rounded-lg"
                 >
                   <option value="none">None</option>
@@ -815,9 +954,9 @@ export default function FloorPlanPage() {
                 </select>
               </div>
 
-              <button 
-                onClick={handleGenerateAnalysis} 
-                className="w-full px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold" 
+              <button
+                onClick={handleGenerateAnalysis}
+                className="w-full px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold"
                 disabled={loading || boundary.length < 3}
               >
                 {analysisResult ? "Regenerate Analysis" : "Generate Analysis"}
@@ -827,30 +966,22 @@ export default function FloorPlanPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   North Direction ({northDirection}°)
                 </label>
-                <input 
-                  type="range" 
-                  min="0" 
-                  max="359" 
-                  value={northDirection} 
-                  onChange={(e) => setNorthDirection(Number(e.target.value))} 
+                <input
+                  type="range"
+                  min="0"
+                  max="359"
+                  value={northDirection}
+                  onChange={(e) => setNorthDirection(Number(e.target.value))}
                   className="w-full"
                 />
               </div>
 
-              <button 
-                onClick={handleUploadAndSave} 
-                className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold" 
+              <button
+                onClick={handleUploadAndSave}
+                className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold"
                 disabled={loading}
               >
                 {loading ? "Saving..." : "Save Configuration"}
-              </button>
-              
-              <button 
-                onClick={handleSaveObjects} 
-                className="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold" 
-                disabled={loading || placedObjects.length === 0}
-              >
-                {loading ? "Saving..." : "Save Objects"}
               </button>
             </div>
           </div>
