@@ -96,3 +96,48 @@ export async function POST(req: NextRequest, { params }: { params: { projectId: 
     return NextResponse.json({ message: "Failed to create project object", error: error.message }, { status: 500 });
   }
 }
+
+export async function DELETE(req: NextRequest, { params }: { params: { projectId: string } }) {
+  try {
+    const authorization = req.headers.get("Authorization");
+    if (!authorization || !authorization.startsWith("Bearer ")) {
+      return NextResponse.json({ message: "Unauthorized: No token provided" }, { status: 401 });
+    }
+    const idToken = authorization.split("Bearer ")[1];
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const uid = decodedToken.uid;
+    const { projectId } = params;
+
+    // Verify that the user has access to the project
+    const { data: project, error: projectError } = await supabaseAdmin
+      .from("projects")
+      .select("id")
+      .eq("id", projectId)
+      .eq("user_id", uid)
+      .single();
+
+    if (projectError || !project) {
+      return NextResponse.json({ message: "Project not found or you do not have permission to delete its objects." }, { status: 404 });
+    }
+
+    // Delete all objects for the given project
+    const { error: deleteError } = await supabaseAdmin
+      .from("project_objects")
+      .delete()
+      .eq("project_id", projectId);
+
+    if (deleteError) {
+      console.error("Supabase delete error:", deleteError);
+      return NextResponse.json({ message: "Failed to delete project objects.", error: deleteError.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ message: "All objects for the project have been deleted." }, { status: 200 });
+  } catch (error: any)
+{
+    console.error("Error deleting project objects:", error);
+    if (error.code === 'auth/id-token-expired' || error.code === 'auth/id-token-revoked') {
+      return NextResponse.json({ message: "Unauthorized: Invalid token", error: error.message }, { status: 401 });
+    }
+    return NextResponse.json({ message: "Failed to delete project objects", error: error.message }, { status: 500 });
+  }
+}

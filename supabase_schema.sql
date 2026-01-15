@@ -89,4 +89,62 @@ USING (
   )
 );
 
+-- Add analysis_result, vastu_status, and devta_zone to project_objects table
+-- This assumes the project_objects table already exists.
+-- If not, it needs to be created first, e.g.:
+-- CREATE TABLE IF NOT EXISTS project_objects (
+--   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+--   project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+--   object_type TEXT NOT NULL,
+--   boundary_normalized JSONB,
+--   centroid JSONB,
+--   created_at TIMESTAMPTZ DEFAULT now()
+-- );
+
+ALTER TABLE project_objects ADD COLUMN IF NOT EXISTS analysis_result JSONB;
+ALTER TABLE project_objects ADD COLUMN IF NOT EXISTS vastu_status TEXT;
+ALTER TABLE project_objects ADD COLUMN IF NOT EXISTS devta_zone TEXT;
+
+-- Add RLS policies for project_objects
+ALTER TABLE project_objects ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their own project objects"
+ON project_objects FOR SELECT
+USING (
+  EXISTS (
+    SELECT 1 FROM projects
+    WHERE projects.id = project_objects.project_id
+    AND projects.user_id = auth.uid()::text
+  )
+);
+
+CREATE POLICY "Users can create their own project objects"
+ON project_objects FOR INSERT
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM projects
+    WHERE projects.id = project_objects.project_id
+    AND projects.user_id = auth.uid()::text
+  )
+);
+
+CREATE POLICY "Users can update their own project objects"
+ON project_objects FOR UPDATE
+USING (
+  EXISTS (
+    SELECT 1 FROM projects
+    WHERE projects.id = project_objects.project_id
+    AND projects.user_id = auth.uid()::text
+  )
+);
+
+CREATE POLICY "Users can delete their own project objects"
+ON project_objects FOR DELETE
+USING (
+  EXISTS (
+    SELECT 1 FROM projects
+    WHERE projects.id = project_objects.project_id
+    AND projects.user_id = auth.uid()::text
+  )
+);
 ```

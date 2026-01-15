@@ -11,6 +11,7 @@
   "dependencies": {
     "@firebase/firestore": "^4.9.3",
     "@supabase/supabase-js": "^2.89.0",
+    "antd": "^6.2.0",
     "firebase": "^12.7.0",
     "firebase-admin": "^13.6.0",
     "martinez-polygon-clipping": "^0.8.1",
@@ -18,13 +19,14 @@
     "polygon-offset": "^0.3.2",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "recharts": "^3.6.0",
     "simplify-js": "^1.2.4",
     "zustand": "^5.0.9"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
+    "@types/node": "^20.19.29",
+    "@types/react": "^19.2.8",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.1",
