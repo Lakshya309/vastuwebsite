@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import AuthGuard from "../../../../components/AuthGuard";
 import Link from "next/link";
 import { useAuthStore } from "../../../../lib/store/authStore";
+import { useProjectStore } from "../../../../lib/store/projectStore"; // Import the new project store
 import {
   getEventPixelPosition,
   Point,
@@ -40,14 +41,13 @@ interface Project {
   north_direction: number | null;
 }
 
+// The PlacedObject interface is now purely geometric.
 interface PlacedObject {
-  id: string; // UUID
+  id: string; // Can be a temporary string for new objects or UUID for saved ones
   project_id: string;
   object_type: string;
   boundary_normalized: Point[];
   centroid: Point;
-  // Existing fields (if any)
-  analysis_result?: ObjectAnalysisResult; // Store the full analysis result
 }
 
 const AVAILABLE_OBJECTS = [
@@ -121,6 +121,7 @@ export default function FloorPlanPage() {
   const projectId = params.projectId as string;
   const { user, idToken, loading: authLoading } = useAuthStore();
   const { supabase, loading: supabaseLoading } = useSupabase();
+  const { liveNorthDirection, setLiveNorthDirection } = useProjectStore();
 
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
@@ -130,7 +131,6 @@ export default function FloorPlanPage() {
   const [floorPlanImage, setFloorPlanImage] = useState<string | null>(null);
 
   const [boundary, setBoundary] = useState<Point[]>([]);
-  const [northDirection, setNorthDirection] = useState(0);
   const [placedObjects, setPlacedObjects] = useState<PlacedObject[]>([]);
   const [objectsToDelete, setObjectsToDelete] = useState<string[]>([]);
   const [drawingObjectBoundary, setDrawingObjectBoundary] = useState<Point[]>(
@@ -143,71 +143,106 @@ export default function FloorPlanPage() {
   const [selectedObjectType, setSelectedObjectType] = useState<string>(
     AVAILABLE_OBJECTS[0],
   );
-  const [analysisResult, setAnalysisResult] = useState<DevtaRegion[] | null>(
+  const [devtaRegions, setDevtaRegions] = useState<DevtaRegion[] | null>(
     null,
   );
   const [analysisMode, setAnalysisMode] = useState<"concentric">("concentric");
 
   // New state for Marma points and UI interaction
   const [marmas, setMarmas] = useState<MarmaPoint[]>([]);
-  // const [zoneDivision, setZoneDivision] = useState<ZoneDivision>(0); // Replaced by analysisMode
   const [hoveredMarma, setHoveredMarma] = useState<MarmaPoint | null>(null);
   const [selectedObject, setSelectedObject] = useState<PlacedObject | null>(
     null,
   );
-  const [selectedObjectAnalysis, setSelectedObjectAnalysis] = useState<
-    ObjectAnalysisResult | null
-  >(null);
+  const [objectAnalyses, setObjectAnalyses] = useState<Record<string, ObjectAnalysisResult>>({});
   const [selectedDevta, setSelectedDevta] = useState<DevtaRegion | null>(null);
+
 
   const imageRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    const fetchProject = async () => {
-      if (!user || !projectId || authLoading || supabaseLoading || !idToken) {
-        return;
-      }
+    const fetchProjectAndObjects = async () => {
+      if (!user || !projectId || authLoading || !idToken) return;
       setLoading(true);
       try {
-        const response = await fetch(`/api/projects/${projectId}`, {
+        // Fetch project details
+        const projectResponse = await fetch(`/api/projects/${projectId}`, {
           headers: { Authorization: `Bearer ${idToken}` },
         });
-        if (!response.ok) throw new Error("Failed to fetch project data.");
-        const data = await response.json();
-        setProject(data.project);
-        setFloorPlanImage(data.project.floor_plan_url);
-        if (data.project.boundary_normalized) {
-          setBoundary(data.project.boundary_normalized);
+        if (!projectResponse.ok) throw new Error("Failed to fetch project data.");
+        const projectData = await projectResponse.json();
+        setProject(projectData.project);
+        setFloorPlanImage(projectData.project.floor_plan_url);
+        if (projectData.project.boundary_normalized) {
+          setBoundary(projectData.project.boundary_normalized);
         }
-        if (data.project.north_direction !== null) {
-          setNorthDirection(data.project.north_direction);
+        if (projectData.project.north_direction !== null) {
+          // Initialize the live direction from the last saved value
+          setLiveNorthDirection(projectData.project.north_direction);
         }
+
+        // Fetch project objects
+        const objectsResponse = await fetch(`/api/projects/${projectId}/objects`, {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+        if (!objectsResponse.ok) throw new Error("Failed to fetch objects.");
+        const objectsData = await objectsResponse.json();
+        setPlacedObjects(objectsData.objects);
+
       } catch (err: any) {
         setError(err.message);
       } finally {
         setLoading(false);
       }
     };
-    fetchProject();
-  }, [user, projectId, authLoading, supabaseLoading, idToken]);
+    fetchProjectAndObjects();
+  }, [user, projectId, authLoading, idToken, setLiveNorthDirection]);
+
+  // --- CORE REAL-TIME ANALYSIS ENGINE ---
+  useEffect(() => {
+    if (boundary.length < 3) return;
+
+    // 1. Recalculate Vastu grids based on liveNorthDirection
+    const newDevtas = generate45Devtas(boundary, liveNorthDirection) || [];
+    setDevtaRegions(newDevtas);
+    const newMarmas = generateMarmaPoints(boundary, liveNorthDirection);
+    setMarmas(newMarmas);
+
+    if (newDevtas.length === 0) return;
+
+    // 2. Recalculate analysis for all placed objects
+    const newAnalyses: Record<string, ObjectAnalysisResult> = {};
+    for (const obj of placedObjects) {
+      newAnalyses[obj.id] = analyzeObjectPlacement(
+        obj.boundary_normalized,
+        obj.object_type,
+        newDevtas,
+        newMarmas,
+        boundary,
+        liveNorthDirection,
+      );
+    }
+    setObjectAnalyses(newAnalyses);
+
+  }, [liveNorthDirection, boundary, placedObjects]);
 
   useEffect(() => {
-    const fetchObjects = async () => {
-      if (!projectId || !idToken) return;
-      try {
-        const response = await fetch(`/api/projects/${projectId}/objects`, {
-          headers: { Authorization: `Bearer ${idToken}` },
-        });
-        if (!response.ok) throw new Error("Failed to fetch objects.");
-        const data = await response.json();
-        setPlacedObjects(data.objects);
-      } catch (err: any) {
-        setError(err.message);
-      }
-    };
-    fetchObjects();
-  }, [projectId, idToken]);
+    draw();
+  }, [
+    boundary,
+    placedObjects,
+    floorPlanImage,
+    liveNorthDirection,
+    drawingObjectBoundary,
+    devtaRegions,
+    marmas,
+    analysisMode,
+    hoveredMarma,
+    selectedObject,
+    objectAnalyses,
+    selectedDevta,
+  ]);
 
   const draw = () => {
     const canvas = canvasRef.current;
@@ -235,20 +270,20 @@ export default function FloorPlanPage() {
     const centroid = calculateCentroid(boundary);
 
     // --- RENDER LAYERS ---
-    if (analysisMode === "concentric" && analysisResult) {
-      drawDevtaRegions(ctx, analysisResult, dims, selectedDevta);
+    if (analysisMode === "concentric" && devtaRegions) {
+      drawDevtaRegions(ctx, devtaRegions, dims, selectedDevta);
     } else if (analysisMode.startsWith("zones-")) {
       const divisions = parseInt(
         analysisMode.split("-")[1] || "0",
       ) as ZoneDivision;
-      drawZoneLines(ctx, divisions, centroid, boundary, northDirection, dims);
+      drawZoneLines(ctx, divisions, centroid, boundary, liveNorthDirection, dims);
     }
 
     drawMarmas(ctx, marmas, dims);
     drawPlacedObjects(ctx, placedObjects, selectedObject, dims);
     drawBoundary(ctx, boundary, dims);
     drawBrahmasthan(ctx, centroid, dims);
-    drawNorthLine(ctx, centroid, northDirection, dims);
+    drawNorthLine(ctx, centroid, liveNorthDirection, dims);
 
     // --- RENDER UI/UX LAYERS ---
     if (drawingMode === "objects" && drawingObjectBoundary.length > 0) {
@@ -264,8 +299,8 @@ export default function FloorPlanPage() {
       drawMarmaTooltip(ctx, hoveredMarma, dims);
     }
 
-    if (selectedObject && selectedObjectAnalysis) {
-      drawObjectAnalysis(ctx, selectedObject, selectedObjectAnalysis, dims);
+    if (selectedObject && objectAnalyses[selectedObject.id]) {
+      drawObjectAnalysis(ctx, selectedObject, objectAnalyses[selectedObject.id], dims);
     }
 
     if (selectedDevta) {
@@ -671,17 +706,17 @@ export default function FloorPlanPage() {
   // Effect for auto-generating Marma points when boundary changes
   useEffect(() => {
     if (boundary.length > 2) {
-      const newMarmas = generateMarmaPoints(boundary, northDirection);
+      const newMarmas = generateMarmaPoints(boundary, liveNorthDirection);
       setMarmas(newMarmas);
     } else {
       setMarmas([]);
     }
-  }, [boundary, northDirection]);
+  }, [boundary, liveNorthDirection]);
 
   const handleGenerateAnalysis = () => {
     if (boundary.length > 2) {
-      const result = generate45Devtas(boundary, northDirection);
-      setAnalysisResult(result);
+      const result = generate45Devtas(boundary, liveNorthDirection);
+      setDevtaRegions(result);
       if (!result) {
         alert(
           "Could not generate 45 Devtas analysis. Please check the boundary polygon.",
@@ -698,14 +733,14 @@ export default function FloorPlanPage() {
     boundary,
     placedObjects,
     floorPlanImage,
-    northDirection,
+    liveNorthDirection,
     drawingObjectBoundary,
-    analysisResult,
+    devtaRegions,
     marmas,
     analysisMode,
     hoveredMarma,
     selectedObject,
-    selectedObjectAnalysis,
+    objectAnalyses,
     selectedDevta,
   ]);
 
@@ -744,24 +779,13 @@ export default function FloorPlanPage() {
       if (clickedObject) {
         setSelectedObject(clickedObject);
         setSelectedDevta(null); // Deselect Devta
-        if (analysisResult) {
-          const analysis = analyzeObjectPlacement(
-            clickedObject.boundary_normalized,
-            clickedObject.object_type,
-            analysisResult,
-            marmas,
-            boundary,
-            northDirection,
-          );
-          setSelectedObjectAnalysis(analysis);
-        }
         return;
       }
 
       // If no object clicked, check for Devta selection
       let clickedDevta = null;
-      if (analysisResult) {
-        for (const devta of analysisResult) {
+      if (devtaRegions) {
+        for (const devta of devtaRegions) {
           if (pointInPolygon(normalizedPoint, devta.polygon)) {
             clickedDevta = devta;
             break;
@@ -772,13 +796,11 @@ export default function FloorPlanPage() {
       if (clickedDevta) {
         setSelectedDevta(clickedDevta);
         setSelectedObject(null); // Deselect object
-        setSelectedObjectAnalysis(null);
         return;
       }
 
       // If clicking outside anything, deselect all
       setSelectedObject(null);
-      setSelectedObjectAnalysis(null);
       setSelectedDevta(null);
     }
   };
@@ -823,62 +845,47 @@ export default function FloorPlanPage() {
     }
   };
 
-  const handleFinishConfiguration = async () => {
-    if (!projectId || !user || !idToken) {
-      setError(
-        "Project ID missing, user not authenticated, or token unavailable.",
-      );
+    const handleSaveChanges = async () => {
+    if (!projectId || !idToken) {
+      setError("Project ID missing or user not authenticated.");
       return;
     }
     setLoading(true);
     setError(null);
-
     try {
-      const objectsToSave = placedObjects.map((obj) => {
-        if (!obj.analysis_result && analysisResult && marmas && boundary) {
-          const vastuAnalysis = analyzeObjectPlacement(
-            obj.boundary_normalized,
-            obj.object_type,
-            analysisResult,
-            marmas,
-            boundary,
-            northDirection,
-          );
-          return {
-            ...obj,
-            analysis_result: vastuAnalysis,
-            vastu_status: vastuAnalysis.incorrectPoints.length > 0
-              ? "bad"
-              : "good",
-            devta_zone: vastuAnalysis.devtaName,
-          };
-        }
-        return obj;
+      // 1. Save North Direction and main boundary
+      const projectUpdateResponse = await fetch(`/api/projects/${projectId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({
+          boundary_normalized: boundary,
+          north_direction: liveNorthDirection,
+        }),
       });
+      if (!projectUpdateResponse.ok) throw new Error("Failed to save project settings (North direction).");
+
+      // 2. Save object geometry changes (creations/deletions)
+      const newObjects = placedObjects.filter(obj => obj.id.includes("T")); // Temporary IDs are timestamps
 
       const response = await fetch(`/api/projects/${projectId}/objects/batch`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${idToken}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
         body: JSON.stringify({
-          objectsToSave: objectsToSave,
+          objectsToSave: newObjects,
           objectsToDelete: objectsToDelete,
         }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(
-          errorData.message || "Failed to save object configuration.",
-        );
+        throw new Error(errorData.message || "Failed to save object configuration.");
       }
 
       const { objects: savedObjects } = await response.json();
-      setPlacedObjects(savedObjects);
+      setPlacedObjects(savedObjects); // Refresh local objects with ones from DB (with real UUIDs)
       setObjectsToDelete([]); // Clear the delete list
       alert("Configuration saved successfully!");
+
     } catch (err: any) {
       console.error("Error during configuration save:", err);
       setError(err.message);
@@ -886,78 +893,25 @@ export default function FloorPlanPage() {
       setLoading(false);
     }
   };
-
-  const handleSaveBoundaryAndNorth = async () => {
-    if (!projectId || !user || !idToken) {
-      setError(
-        "Project ID missing, user not authenticated, or token unavailable.",
-      );
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch(`/api/projects/${projectId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({
-          boundary_normalized: boundary,
-          north_direction: northDirection,
-        }),
-      });
-      if (!response.ok) {
-        throw new Error("Failed to save boundary.");
-      }
-      alert("Configuration saved successfully!");
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   
   const handleAddObject = () => {
     if (drawingObjectBoundary.length < 3) {
       alert("Please draw an object with at least 3 points.");
       return;
     }
-    if (!projectId || !idToken) {
-      alert("You must be logged in to add an object.");
-      return;
-    }
-    if (!boundary || boundary.length < 3) {
-      alert("Please draw the main boundary first.");
-      return;
-    }
-    if (!analysisResult) {
-      alert("Please generate the analysis before adding objects.");
-      return;
-    }
-    if (!marmas) {
-      alert("Marma points could not be calculated. Please check the boundary.");
+    if (!projectId) {
+      alert("Project not loaded correctly.");
       return;
     }
 
-    const vastuAnalysis = analyzeObjectPlacement(
-      drawingObjectBoundary,
-      selectedObjectType,
-      analysisResult,
-      marmas,
-      boundary,
-      northDirection,
-    );
-
+    // Create the object with only its geometric data.
+    // The main `useEffect` will automatically analyze it.
     const newObjectData: PlacedObject = {
-      id: new Date().toISOString(), // Temporary ID for local state
+      id: `T${new Date().toISOString()}`, // Temporary ID for local state
       project_id: projectId,
       object_type: selectedObjectType,
       boundary_normalized: drawingObjectBoundary,
       centroid: calculateCentroid(drawingObjectBoundary),
-      analysis_result: vastuAnalysis,
     };
     setPlacedObjects([...placedObjects, newObjectData]);
     setDrawingObjectBoundary([]);
@@ -995,7 +949,6 @@ export default function FloorPlanPage() {
       setPlacedObjects([]);
       setObjectsToDelete([]);
       setSelectedObject(null);
-      setSelectedObjectAnalysis(null);
       alert("All objects have been reset.");
     } catch (err: any) {
       setError(err.message);
@@ -1004,11 +957,13 @@ export default function FloorPlanPage() {
     }
   };
 
-  const handleDeleteObject = async (objectId: string) => {
-    setObjectsToDelete([...objectsToDelete, objectId]);
+  const handleDeleteObject = (objectId: string) => {
+    // If the object has a real UUID (not a temporary one), mark it for deletion from DB
+    if (!objectId.includes("T")) {
+        setObjectsToDelete([...objectsToDelete, objectId]);
+    }
     setPlacedObjects(placedObjects.filter((obj) => obj.id !== objectId));
     setSelectedObject(null);
-    setSelectedObjectAnalysis(null);
   };
 
 
@@ -1021,7 +976,7 @@ export default function FloorPlanPage() {
         <div className="border-b border-gray-200 mb-8">
           <nav className="-mb-px flex space-x-8" aria-label="Tabs">
             <Link href={`/projects/${projectId}`}>Overview</Link>
-            <Link href={`/projects/${projectId}/floor-plan`}>Floor Plan</Link>np
+            <Link href={`/projects/${projectId}/floor-plan`}>Floor Plan</Link>
             <Link href={`/projects/${projectId}/report`}>Report</Link>
           </nav>
         </div>
@@ -1037,7 +992,6 @@ export default function FloorPlanPage() {
                       src={floorPlanImage}
                       alt="Floor Plan"
                       className="absolute top-0 left-0 w-full h-full object-contain"
-                      onLoad={draw}
                     />
                     <canvas
                       ref={canvasRef}
@@ -1072,14 +1026,26 @@ export default function FloorPlanPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
+                  North Direction ({liveNorthDirection}°)
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="359"
+                  value={liveNorthDirection}
+                  onChange={(e) => setLiveNorthDirection(Number(e.target.value))}
+                  className="w-full"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Mode
                 </label>
                 <select
                   onChange={(e) => {
                     setDrawingMode(e.target.value as any);
-                    // Deselect object when changing mode
                     setSelectedObject(null);
-                    setSelectedObjectAnalysis(null);
                   }}
                   value={drawingMode}
                   className="w-full p-2 border border-gray-300 rounded-lg"
@@ -1131,7 +1097,7 @@ export default function FloorPlanPage() {
                       onClick={handleAddObject}
                       className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
                     >
-                      Add Object to Configuration
+                      Add Object
                     </button>
                     <button
                       onClick={() => setDrawingObjectBoundary([])}
@@ -1145,7 +1111,7 @@ export default function FloorPlanPage() {
                     className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold"
                     disabled={loading}
                   >
-                    Reset Objects
+                    Reset All Objects
                   </button>
                 </div>
               )}
@@ -1188,33 +1154,11 @@ export default function FloorPlanPage() {
               </div>
 
               <button
-                onClick={handleGenerateAnalysis}
-                className="w-full px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold"
-                disabled={loading || boundary.length < 3}
-              >
-                {analysisResult ? "Regenerate Analysis" : "Generate Analysis"}
-              </button>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  North Direction ({northDirection}°)
-                </label>
-                <input
-                  type="range"
-                  min="0"
-                  max="359"
-                  value={northDirection}
-                  onChange={(e) => setNorthDirection(Number(e.target.value))}
-                  className="w-full"
-                />
-              </div>
-
-              <button
-                onClick={handleFinishConfiguration}
+                onClick={handleSaveChanges}
                 className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold"
                 disabled={loading}
               >
-                {loading ? "Saving..." : "Finish Configuration"}
+                {loading ? "Saving..." : "Save Changes"}
               </button>
             </div>
           </div>

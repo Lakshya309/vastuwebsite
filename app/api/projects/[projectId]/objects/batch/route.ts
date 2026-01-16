@@ -40,26 +40,24 @@ export async function POST(req: NextRequest, { params }: { params: { projectId: 
       }
     }
 
-    // 2. Handle Upsertions
+    // 2. Handle Insertions for new objects
     if (objectsToSave && objectsToSave.length > 0) {
-      const objectsToUpsert = objectsToSave.map((obj: any) => {
-        // If the ID is a temporary one (like a date string), remove it so the DB can generate a UUID
-        const isTempId = isNaN(Date.parse(obj.id));
-        if (!isTempId) {
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const { id, ...rest } = obj;
-          return { ...rest, project_id: projectId };
-        }
-        return { ...obj, project_id: projectId };
+      const objectsToInsert = objectsToSave.map((obj: any) => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { id, ...rest } = obj; // Remove the temporary ID from the client
+        return {
+          ...rest,
+          project_id: projectId,
+        };
       });
 
-      const { error: upsertError } = await supabaseAdmin
+      const { error: insertError } = await supabaseAdmin
         .from("project_objects")
-        .upsert(objectsToUpsert, { onConflict: "id", ignoreDuplicates: false });
+        .insert(objectsToInsert);
 
-      if (upsertError) {
-        console.error("Supabase upsert error:", upsertError);
-        return NextResponse.json({ message: "Failed to save objects.", error: upsertError.message }, { status: 500 });
+      if (insertError) {
+        console.error("Supabase insert error:", insertError);
+        return NextResponse.json({ message: "Failed to save new objects.", error: insertError.message }, { status: 500 });
       }
     }
 
