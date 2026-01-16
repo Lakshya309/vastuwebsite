@@ -1,103 +1,119 @@
-// lib/vastu/marmaAnalysis.ts
-import { Point, calculateCentroid, scalePolygon, rayPolygonIntersection } from '../geometry';
-import { INNER_BOUNDARY_SCALE, MIDDLE_BOUNDARY_SCALE } from './devtaAnalysis';
+import { Point, rotatePoint } from '../coordinates';
+import { DevtaAnalysisResult } from './devtaAnalysis';
 
-/**
- * A MarmaPoint represents a sensitive energy junction point in the Vastu grid.
- */
+// #region Types
 export interface MarmaPoint {
-  id: string; // e.g., "primary-45-outer"
-  angleDeg: number;
+  id: string; // e.g., "middle-22.5-deg"
   point: Point;
-  ring: "inner" | "middle" | "outer";
-  strength: "high" | "medium" | "low";
 }
 
-// Define the angular divisions for each Marma category
-const MARMA_ANGLES = {
-  primary: Array.from({ length: 8 }, (_, i) => i * 45),    // 8 divisions (0, 45, 90, ...)
-  secondary: Array.from({ length: 16 }, (_, i) => i * 22.5), // 16 divisions (0, 22.5, 45, ...)
-  tertiary: Array.from({ length: 32 }, (_, i) => i * 11.25), // 32 divisions (0, 11.25, 22.5, ...)
-};
+export interface ClosestMarmaResult {
+  closestMarma: MarmaPoint;
+  distance: number;
+}
+// #endregion
 
-type MarmaCategory = keyof typeof MARMA_ANGLES;
-
+// #region Private Helper
 /**
- * Generates all Marma points by finding intersections of angular rays 
- * with concentric boundary rings.
- *
- * @param boundary The main floor plan boundary polygon.
- * @param northDirection The angle of North in degrees (0° = top, clockwise).
- * @returns An array of all calculated MarmaPoint objects.
+ * Generates the set of unique Marma points on the canonical Mandala grid.
+ * Marma points are the vertices of the Devta polygons before transformation.
+ * This function is kept private as consumers should use the transformed points.
  */
-export function generateMarmaPoints(
-  boundary: Point[],
-  northDirection: number
-): MarmaPoint[] {
-  if (boundary.length < 3) {
-    return [];
-  }
-
-  const brahmasthan = calculateCentroid(boundary);
-  const marmaPoints: MarmaPoint[] = [];
-
-  // Define the three concentric boundaries based on scaling factors
-  const boundaries = {
-    outer: boundary,
-    middle: scalePolygon(boundary, brahmasthan, MIDDLE_BOUNDARY_SCALE),
-    inner: scalePolygon(boundary, brahmasthan, INNER_BOUNDARY_SCALE),
-  };
-
-  const ringStrengths: Record<keyof typeof boundaries, MarmaPoint['strength']> = {
-    inner: "high",
-    middle: "medium",
-    outer: "low",
-  };
-
-  // Iterate through each category of Marmas (primary, secondary, tertiary)
-  for (const category in MARMA_ANGLES) {
-    const angles = MARMA_ANGLES[category as MarmaCategory];
-
-    // For each angle in the category, find intersections on all 3 rings
-    for (const angle of angles) {
-      // Correct the angle with the north direction offset
-      const correctedAngle = (angle + northDirection) % 360;
-
-      for (const ringName in boundaries) {
-        const ring = ringName as keyof typeof boundaries;
-        const ringPolygon = boundaries[ring];
-
-        // Find the intersection point of the ray with the current ring's polygon
-        const intersectionPoint = rayPolygonIntersection(
-          correctedAngle,
-          ringPolygon,
-          brahmasthan
-        );
-
-        if (intersectionPoint) {
-          // If an intersection is found, create a new MarmaPoint
-          marmaPoints.push({
-            id: `${category}-${angle}-${ring}`,
-            angleDeg: angle, // Store the base angle, not the corrected one
-            point: intersectionPoint,
-            ring: ring,
-            strength: ringStrengths[ring],
-          });
-        }
+function getCanonicalMarmaPoints(): Point[] {
+  const points = new Map<string, Point>();
+  
+  const MANDALA_SIZE = 100;
+  const HALF_SIZE = MANDALA_SIZE / 2;
+  const BRAHMA_BOUNDARY_HALF_SIZE = HALF_SIZE / 2; // 25
+  const MIDDLE_BOUNDARY_HALF_SIZE = HALF_SIZE * 0.75; // 37.5
+  
+  const boundaries = [BRAHMA_BOUNDARY_HALF_SIZE, MIDDLE_BOUNDARY_HALF_SIZE, HALF_SIZE];
+  
+  // Angles for the 32 divisions of the outer ring
+  const outerAngleStep = 11.25;
+  
+  for (let i = 0; i < 32; i++) {
+    const angle = -outerAngleStep / 2 + i * outerAngleStep;
+    for (const boundary of boundaries) {
+      // We can reuse the intersection logic from mandala.ts in a generalized way
+      const angleRad = (angle - 90) * Math.PI / 180;
+      const cos = Math.cos(angleRad);
+      const sin = Math.sin(angleRad);
+      const t_x = boundary / Math.abs(cos);
+      const t_y = boundary / Math.abs(sin);
+      const t = Math.min(t_x, t_y);
+      const point = { x: t * cos, y: t * sin };
+      
+      // Use a key to ensure uniqueness and avoid floating point issues
+      const key = `${point.x.toFixed(5)},${point.y.toFixed(5)}`;
+      if (!points.has(key)) {
+        points.set(key, point);
       }
     }
   }
+  
+  return Array.from(points.values());
+}
+// #endregion
 
-  // Deduplicate points. Multiple categories can generate points at the same angle (e.g., 45° is in all 3).
-  // We can decide on a precedence, e.g., primary > secondary > tertiary, but for now, we just filter them.
-  // A simple way is to create a Set of unique identifiers, for example, angle+ring.
-  const uniquePoints = new Map<string, MarmaPoint>();
-  marmaPoints.forEach(p => {
-    const key = `${p.angleDeg}-${p.ring}`;
-    // This will implicitly keep the last one seen, which is fine for this purpose.
-    // Or, we could add logic to keep the one with the highest "rank" (primary).
-    uniquePoints.set(key, p);
+/**
+ * Generates and transforms the Marma points based on the plot analysis.
+ *
+ * @param analysisResult - The result from a `analyzePlot` call, containing the transformation.
+ * @returns An array of MarmaPoint objects with their final positions on the plot.
+ */
+export function generateTransformedMarmaPoints(analysisResult: DevtaAnalysisResult): MarmaPoint[] {
+  const canonicalPoints = getCanonicalMarmaPoints();
+  const { scale, translation, northAngle } = analysisResult.transform;
+  const center: Point = { x: 0, y: 0 };
+
+  return canonicalPoints.map((p, index) => {
+    // 1. Rotate
+    const rotatedP = rotatePoint(p, center, -northAngle);
+    // 2. Scale and Translate
+    const transformedP = {
+      x: rotatedP.x * scale + translation.x,
+      y: rotatedP.y * scale + translation.y,
+    };
+    return {
+      id: `marma-${index}`,
+      point: transformedP,
+    };
   });
+}
 
-  return Array.from(uniquePoints.values());
+/**
+ * Finds the closest Marma point to a given object's location and the distance to it.
+ * This helps evaluate the influence of sensitive Marma points on objects.
+ *
+ * @param objectPoint - The location of the object to evaluate.
+ * @param transformedMarmaPoints - The array of Marma points from `generateTransformedMarmaPoints`.
+ * @returns An object containing the closest Marma point and the distance, or null if no points are provided.
+ */
+export function findClosestMarma(
+  objectPoint: Point,
+  transformedMarmaPoints: MarmaPoint[]
+): ClosestMarmaResult | null {
+  if (transformedMarmaPoints.length === 0) {
+    return null;
+  }
+
+  let closestMarma: MarmaPoint = transformedMarmaPoints[0];
+  let minDistance = Infinity;
+
+  for (const marmaPoint of transformedMarmaPoints) {
+    const dx = objectPoint.x - marmaPoint.point.x;
+    const dy = objectPoint.y - marmaPoint.point.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance < minDistance) {
+      minDistance = distance;
+      closestMarma = marmaPoint;
+    }
+  }
+
+  return {
+    closestMarma,
+    distance: minDistance,
+  };
 }

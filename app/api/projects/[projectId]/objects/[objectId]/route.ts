@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "../../../../../../lib/firebaseAdmin";
 import { supabaseAdmin } from "../../../../../../lib/supabaseAdmin";
 
-export async function PUT(req: NextRequest, { params }: { params: { projectId: string, objectId: string } }) {
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ projectId: string, objectId: string }> }) {
   try {
     const authorization = req.headers.get("Authorization");
     if (!authorization || !authorization.startsWith("Bearer ")) {
@@ -50,7 +50,7 @@ export async function PUT(req: NextRequest, { params }: { params: { projectId: s
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { projectId: string, objectId: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ projectId: string, objectId: string }> }) {
   try {
     const authorization = req.headers.get("Authorization");
     if (!authorization || !authorization.startsWith("Bearer ")) {

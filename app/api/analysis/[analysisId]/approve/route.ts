@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebaseAdmin";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-export async function PUT(req: NextRequest, { params }: { params: { analysisId: string } }) {
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ analysisId: string }> }) {
   try {
     const authorization = req.headers.get("Authorization");
     if (!authorization || !authorization.startsWith("Bearer ")) {
@@ -10,7 +10,8 @@ export async function PUT(req: NextRequest, { params }: { params: { analysisId: 
     const idToken = authorization.split("Bearer ")[1];
     const decodedToken = await adminAuth.verifyIdToken(idToken);
     const uid = decodedToken.uid;
-    const { analysisId } = params;
+    const awaitedParams = await params;
+    const { analysisId } = awaitedParams;
 
     // 1. Check if the user is an astrologer
     const { data: profile, error: profileError } = await supabaseAdmin

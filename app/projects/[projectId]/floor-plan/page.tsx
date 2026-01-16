@@ -18,14 +18,16 @@ import {
   rayPolygonIntersection,
 } from "../../../../lib/geometry";
 import {
-  DevtaRegion,
-  generate45Devtas,
-  getZoneForPoint,
+  DevtaAnalysisResult,
+  analyzePlot,
+  getDevtaForObject,
+  ClippedDevta,
 } from "../../../../lib/vastu/devtaAnalysis";
 import { useSupabase } from "../../../../components/SupabaseProvider";
 import {
-  generateMarmaPoints,
+  generateTransformedMarmaPoints,
   MarmaPoint,
+  ClosestMarmaResult,
 } from "../../../../lib/vastu/marmaAnalysis";
 import {
   analyzeObjectPlacement,
@@ -143,10 +145,10 @@ export default function FloorPlanPage() {
   const [selectedObjectType, setSelectedObjectType] = useState<string>(
     AVAILABLE_OBJECTS[0],
   );
-  const [devtaRegions, setDevtaRegions] = useState<DevtaRegion[] | null>(
-    null,
-  );
-  const [analysisMode, setAnalysisMode] = useState<"concentric">("concentric");
+  const [devtaAnalysisResult, setDevtaAnalysisResult] = useState<
+    DevtaAnalysisResult | null
+  >(null);
+  const [analysisMode, setAnalysisMode] = useState<string>("concentric");
 
   // New state for Marma points and UI interaction
   const [marmas, setMarmas] = useState<MarmaPoint[]>([]);
@@ -155,7 +157,7 @@ export default function FloorPlanPage() {
     null,
   );
   const [objectAnalyses, setObjectAnalyses] = useState<Record<string, ObjectAnalysisResult>>({});
-  const [selectedDevta, setSelectedDevta] = useState<DevtaRegion | null>(null);
+  const [selectedDevta, setSelectedDevta] = useState<ClippedDevta | null>(null);
 
 
   const imageRef = useRef<HTMLImageElement>(null);
@@ -204,12 +206,13 @@ export default function FloorPlanPage() {
     if (boundary.length < 3) return;
 
     // 1. Recalculate Vastu grids based on liveNorthDirection
-    const newDevtas = generate45Devtas(boundary, liveNorthDirection) || [];
-    setDevtaRegions(newDevtas);
-    const newMarmas = generateMarmaPoints(boundary, liveNorthDirection);
+    const result = analyzePlot(boundary, liveNorthDirection);
+    setDevtaAnalysisResult(result);
+    
+    const newMarmas = generateTransformedMarmaPoints(result);
     setMarmas(newMarmas);
 
-    if (newDevtas.length === 0) return;
+    if (!result || result.clippedDevtas.length === 0) return;
 
     // 2. Recalculate analysis for all placed objects
     const newAnalyses: Record<string, ObjectAnalysisResult> = {};
@@ -217,14 +220,10 @@ export default function FloorPlanPage() {
       newAnalyses[obj.id] = analyzeObjectPlacement(
         obj.boundary_normalized,
         obj.object_type,
-        newDevtas,
-        newMarmas,
-        boundary,
-        liveNorthDirection,
+        result, // Pass the entire analysis result
       );
     }
     setObjectAnalyses(newAnalyses);
-
   }, [liveNorthDirection, boundary, placedObjects]);
 
   useEffect(() => {
@@ -235,7 +234,7 @@ export default function FloorPlanPage() {
     floorPlanImage,
     liveNorthDirection,
     drawingObjectBoundary,
-    devtaRegions,
+    devtaAnalysisResult,
     marmas,
     analysisMode,
     hoveredMarma,
@@ -270,8 +269,8 @@ export default function FloorPlanPage() {
     const centroid = calculateCentroid(boundary);
 
     // --- RENDER LAYERS ---
-    if (analysisMode === "concentric" && devtaRegions) {
-      drawDevtaRegions(ctx, devtaRegions, dims, selectedDevta);
+    if (analysisMode === "concentric" && devtaAnalysisResult) {
+      drawDevtaRegions(ctx, devtaAnalysisResult, dims, selectedDevta);
     } else if (analysisMode.startsWith("zones-")) {
       const divisions = parseInt(
         analysisMode.split("-")[1] || "0",
@@ -395,40 +394,46 @@ export default function FloorPlanPage() {
 
   const drawDevtaRegions = (
     ctx: CanvasRenderingContext2D,
-    devtas: DevtaRegion[],
+    analysisResult: DevtaAnalysisResult,
     dims: { width: number; height: number },
-    selected: DevtaRegion | null,
+    selected: ClippedDevta | null,
   ) => {
-    devtas.forEach((devta) => {
-      const pixelPolygon = devta.polygon.map((p) => toPixels(p, dims));
-      const isSelected = selected?.id === devta.id;
+    analysisResult.clippedDevtas.forEach((devta) => {
+      const isSelected = selected?.name === devta.name;
 
       let fillColor = DEVTA_COLORS[devta.name] || DEVTA_COLORS["default"];
 
-      ctx.fillStyle = isSelected
-        ? "rgba(255, 255, 255, 0.3)"
-        : `${fillColor}33`; // 20% opacity
-      ctx.strokeStyle = isSelected ? "#0ea5e9" : `${fillColor}80`; // 50% opacity
-      ctx.lineWidth = isSelected ? 3 : 1;
+      // Draw each clipped polygon part
+      devta.clippedPolygons.forEach(polygon => {
+        const pixelPolygon = polygon.map((p) => toPixels(p, dims));
 
-      if (pixelPolygon.length > 0) {
-        ctx.beginPath();
-        ctx.moveTo(pixelPolygon[0].x, pixelPolygon[0].y);
-        for (let i = 1; i < pixelPolygon.length; i++) {
-          ctx.lineTo(pixelPolygon[i].x, pixelPolygon[i].y);
+        if (pixelPolygon.length > 0) {
+          ctx.fillStyle = isSelected
+            ? "rgba(255, 255, 255, 0.3)"
+            : `${fillColor}33`; // 20% opacity
+          ctx.strokeStyle = isSelected ? "#0ea5e9" : `${fillColor}80`; // 50% opacity
+          ctx.lineWidth = isSelected ? 3 : 1;
+
+          ctx.beginPath();
+          ctx.moveTo(pixelPolygon[0].x, pixelPolygon[0].y);
+          for (let i = 1; i < pixelPolygon.length; i++) {
+            ctx.lineTo(pixelPolygon[i].x, pixelPolygon[i].y);
+          }
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
         }
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
+      });
 
-        // Draw Devta name
-        const devtaCentroid = calculateCentroid(devta.polygon);
+      // Draw Devta name once per devta (use the first polygon for centroid calculation)
+      if (devta.clippedPolygons.length > 0) {
+        const devtaCentroid = calculateCentroid(devta.clippedPolygons[0]);
         const pixelDevtaCentroid = toPixels(devtaCentroid, dims);
 
         ctx.fillStyle = "rgba(31, 41, 55, 0.75)"; // Dark slate, semi-transparent
-        ctx.font = devta.ring === "outer"
-          ? "8px sans-serif"
-          : "10px sans-serif";
+        ctx.font = devta.name === "Brahma"
+          ? "12px sans-serif"
+          : (devta.name.includes("OuterDevta") ? "8px sans-serif" : "10px sans-serif"); // Adjust font size based on name or if it's Brahma
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(devta.name, pixelDevtaCentroid.x, pixelDevtaCentroid.y);
@@ -441,16 +446,12 @@ export default function FloorPlanPage() {
     marmas: MarmaPoint[],
     dims: { width: number; height: number },
   ) => {
-    const marmaColors: Record<MarmaPoint["strength"], string> = {
-      high: "#f87171", // Red
-      medium: "#fb923c", // Orange
-      low: "#4ade80", // Green
-    };
+    // MarmaPoint no longer has a 'strength' property, so using a default color.
+    const defaultMarmaColor = "#3b82f6"; // Blue
     marmas.forEach((marma) => {
       const p = toPixels(marma.point, dims);
-      const color = marmaColors[marma.strength];
-      ctx.fillStyle = color;
-      ctx.shadowColor = color;
+      ctx.fillStyle = defaultMarmaColor;
+      ctx.shadowColor = defaultMarmaColor;
       ctx.shadowBlur = 6;
       ctx.beginPath();
       ctx.arc(p.x, p.y, 3.5, 0, 2 * Math.PI);
@@ -465,7 +466,7 @@ export default function FloorPlanPage() {
     dims: { width: number; height: number },
   ) => {
     const p = toPixels(marma.point, dims);
-    const text = `Marma: ${marma.angleDeg}° (${marma.strength})`;
+    const text = `Marma Point ID: ${marma.id}`;
     ctx.font = "12px sans-serif";
     const textWidth = ctx.measureText(text).width;
     ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
@@ -540,11 +541,11 @@ export default function FloorPlanPage() {
     const p = toPixels(obj.centroid, dims);
     const lines = [
       `Object: ${obj.object_type}`,
-      `Devta: ${analysis.devtaName}`,
+      `Devta: ${analysis.devtaName || 'N/A'}`,
     ];
     if (analysis.closestMarma) {
       lines.push(
-        `Marma: ${analysis.closestMarma.angleDeg}° (${analysis.marmaStrength})`,
+        `Marma ID: ${analysis.closestMarma.id}`,
       );
       lines.push(`Dist: ${analysis.marmaDistance?.toFixed(2)} units`);
       const marmaPixel = toPixels(analysis.closestMarma.point, dims);
@@ -598,6 +599,11 @@ export default function FloorPlanPage() {
     rule: VastuRule,
     dims: { width: number; height: number },
   ) => {
+    // Check if the rule corresponds to the currently selected devta
+    if (!selectedDevta || selectedDevta.name !== rule.devtaName) {
+      return; // Only draw if the info box matches the selected devta
+    }
+
     const boxX = dims.width - 270; // Position on the right side
     const boxY = 20;
     const boxWidth = 250;
@@ -703,46 +709,11 @@ export default function FloorPlanPage() {
     });
   };
 
-  // Effect for auto-generating Marma points when boundary changes
-  useEffect(() => {
-    if (boundary.length > 2) {
-      const newMarmas = generateMarmaPoints(boundary, liveNorthDirection);
-      setMarmas(newMarmas);
-    } else {
-      setMarmas([]);
-    }
-  }, [boundary, liveNorthDirection]);
 
-  const handleGenerateAnalysis = () => {
-    if (boundary.length > 2) {
-      const result = generate45Devtas(boundary, liveNorthDirection);
-      setDevtaRegions(result);
-      if (!result) {
-        alert(
-          "Could not generate 45 Devtas analysis. Please check the boundary polygon.",
-        );
-      }
-    } else {
-      alert("Please draw a valid boundary with at least 3 points.");
-    }
-  };
 
-  useEffect(() => {
-    draw();
-  }, [
-    boundary,
-    placedObjects,
-    floorPlanImage,
-    liveNorthDirection,
-    drawingObjectBoundary,
-    devtaRegions,
-    marmas,
-    analysisMode,
-    hoveredMarma,
-    selectedObject,
-    objectAnalyses,
-    selectedDevta,
-  ]);
+
+
+
 
   const handleCanvasClick = (
     event: React.MouseEvent<HTMLCanvasElement, MouseEvent>,
@@ -783,13 +754,16 @@ export default function FloorPlanPage() {
       }
 
       // If no object clicked, check for Devta selection
-      let clickedDevta = null;
-      if (devtaRegions) {
-        for (const devta of devtaRegions) {
-          if (pointInPolygon(normalizedPoint, devta.polygon)) {
-            clickedDevta = devta;
-            break;
+      let clickedDevta: ClippedDevta | null = null;
+      if (devtaAnalysisResult) {
+        for (const devta of devtaAnalysisResult.clippedDevtas) {
+          for (const polygon of devta.clippedPolygons) {
+            if (pointInPolygon(normalizedPoint, polygon)) {
+              clickedDevta = devta;
+              break;
+            }
           }
+          if (clickedDevta) break;
         }
       }
 

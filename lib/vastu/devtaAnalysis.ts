@@ -1,153 +1,148 @@
-// lib/vastu/devtaAnalysis.ts
-import {
-    Point,
-    calculateCentroid,
-    scalePolygon,
-    rayPolygonIntersection, // Ensure this is imported
-    buildAngularSector,
-    pointInPolygon // Ensure this is imported
-} from '../geometry';
+import { Point } from '../coordinates';
+import { calculateCentroid, pointInPolygon } from '../geometry';
+import { clip } from '../geometry/clip';
+import { generateMandala, Polygon } from '../geometry/mandala';
 
-export interface DevtaRegion {
-  id: number;
-  ring: "center" | "middle" | "outer";
+// #region Types
+export interface ClippedDevta {
   name: string;
-  polygon: Point[];
-  startAngle?: number;
-  endAngle?: number;
+  // The clipped polygon can be fragmented into multiple disjoint polygons.
+  clippedPolygons: Polygon[];
 }
 
-// Configurable scaling ratios for concentric boundaries
-export const MIDDLE_BOUNDARY_SCALE = 0.66;
-export const INNER_BOUNDARY_SCALE = 0.33;
+export interface DevtaAnalysisResult {
+  clippedDevtas: ClippedDevta[];
+  // Store the transformation for use with other elements, like Marma points.
+  transform: {
+    scale: number;
+    translation: Point; // The centroid of the plot
+    northAngle: number;
+  };
+}
 
-// Devta names following traditional Vastu mapping
-// Center: 1 Devta
-const CENTER_DEVTA = "Brahma";
+interface BoundingBox {
+  min: Point;
+  max: Point;
+  width: number;
+  height: number;
+}
+// #endregion
 
-// Middle Ring: 16 Devtas, each occupying 22.5°
-const MIDDLE_DEVTAS = [
-  "Shikhi", "Parjanya", "Jayanta", "Indra", 
-  "Surya", "Satya", "Bhrisha", "Akash", 
-  "Vayu", "Pusha", "Vitatha", "Gruhakshat", 
-  "Yama", "Gandharva", "Bhringraj", "Marut" // Corrected to 16 Devtas
-];
-
-// Outer Ring: 32 Devtas (each 11.25°)
-const OUTER_DEVTAS = [
-    "Dishah Shiva", "Soma", "Sthana", "Bhallat",
-    "Mukhya", "Soma", "Bhujag", "Aaditi",
-    "Diti", "Shura", "Apa", "Apavatsa",
-    "Savitri", "Indrajit", "Vivashvana", "Mitra",
-    "Prithvidhara", "Apah", "Aaryama", "Savitar",
-    "Vivasvat", "Indra", "Jaya", "Rudra",
-    "Rajayakshma", "Asura", "Shosha", "Papayakshma",
-    "Roga", "Naga", "Mukhya", "Bhallat"
-];
-
+// #region Helper Functions
 /**
- * Generate all 45 Devta regions using concentric + polar method
+ * Calculates the bounding box of a polygon.
  */
-export function generate45Devtas(
-  boundary: Point[],
-  northAngle: number = 0
-): DevtaRegion[] | null {
-  if (boundary.length < 3) return null;
-  
-  const centroid = calculateCentroid(boundary);
-  const regions: DevtaRegion[] = [];
-  let devtaId = 1;
-  
-  // Generate concentric boundaries
-  const outerBoundary = boundary;
-  const middleBoundary = scalePolygon(boundary, centroid, MIDDLE_BOUNDARY_SCALE);
-  const innerBoundary = scalePolygon(boundary, centroid, INNER_BOUNDARY_SCALE);
-  
-  // 1. CENTER: Brahmasthan (1 Devta)
-  regions.push({
-    id: devtaId++,
-    ring: "center",
-    name: CENTER_DEVTA,
-    polygon: innerBoundary
-  });
-  
-  // 2. MIDDLE RING: 16 Devtas (each 22.5°)
-  const middleDivisions = 16;
-  const middleAngleStep = 360 / middleDivisions;
-  
-  for (let i = 0; i < middleDivisions; i++) {
-    const startAngle = (northAngle + i * middleAngleStep) % 360;
-    const endAngle = (northAngle + (i + 1) * middleAngleStep) % 360;
-    
-    const sector = buildAngularSector(
-      innerBoundary,
-      middleBoundary,
-      startAngle,
-      endAngle > startAngle ? endAngle : endAngle + 360,
-      centroid
-    );
-    
-    if (sector.length > 0) {
-      regions.push({
-        id: devtaId++,
-        ring: "middle",
-        name: MIDDLE_DEVTAS[i] || `Middle-${i + 1}`,
-        polygon: sector,
-        startAngle,
-        endAngle: endAngle > startAngle ? endAngle : endAngle + 360
-      });
-    }
+function getBoundingBox(polygon: Polygon): BoundingBox {
+  if (polygon.length === 0) {
+    return { min: { x: 0, y: 0 }, max: { x: 0, y: 0 }, width: 0, height: 0 };
   }
-  
-  // 3. OUTER RING: 32 Devtas (each 11.25°)
-  const outerDivisions = 32;
-  const outerAngleStep = 360 / outerDivisions;
-  
-  for (let i = 0; i < outerDivisions; i++) {
-    const startAngle = (northAngle + i * outerAngleStep) % 360;
-    const endAngle = (northAngle + (i + 1) * outerAngleStep) % 360;
-    
-    const sector = buildAngularSector(
-      middleBoundary,
-      outerBoundary,
-      startAngle,
-      endAngle > startAngle ? endAngle : endAngle + 360,
-      centroid
-    );
-    
-    if (sector.length > 0) {
-      regions.push({
-        id: devtaId++,
-        ring: "outer",
-        name: OUTER_DEVTAS[i] || `Outer-${i + 1}`,
-        polygon: sector,
-        startAngle,
-        endAngle: endAngle > startAngle ? endAngle : endAngle + 360
-      });
-    }
+
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+  for (const p of polygon) {
+    minX = Math.min(minX, p.x);
+    minY = Math.min(minY, p.y);
+    maxX = Math.max(maxX, p.x);
+    maxY = Math.max(maxY, p.y);
   }
-  
-  return regions;
+
+  return {
+    min: { x: minX, y: minY },
+    max: { x: maxX, y: maxY },
+    width: maxX - minX,
+    height: maxY - minY,
+  };
 }
 
 /**
- * Determine which Devta zone a point belongs to
+ * Applies scale and translation to a polygon.
  */
-export function getZoneForPoint(
-  point: Point,
-  boundary: Point[],
-  northAngle: number
-): string {
-  // This function regenerates devtas on every call. For performance, consider memoization
-  // or passing the generated devtas as an argument if this is called frequently.
-  const devtas = generate45Devtas(boundary, northAngle);
-  if (!devtas) return "Unknown";
-  
-  for (const devta of devtas) {
-    if (pointInPolygon(point, devta.polygon)) {
-      return devta.name;
+function transformPolygon(polygon: Polygon, scale: number, translation: Point): Polygon {
+  return polygon.map(p => ({
+    x: p.x * scale + translation.x,
+    y: p.y * scale + translation.y,
+  }));
+}
+// #endregion
+
+/**
+ * Performs the Vastu analysis by generating, transforming, and clipping the Mandala.
+ *
+ * @param plotPolygon - The polygon representing the plot boundary.
+ * @param northAngle - The clockwise rotation of the plot from true North.
+ * @returns A `DevtaAnalysisResult` containing the clipped Devta polygons and transformation info.
+ */
+export function analyzePlot(plotPolygon: Polygon, northAngle: number): DevtaAnalysisResult {
+  console.log("--- Starting Vastu Analysis ---");
+
+  // 1. Generate the canonical, rotated Mandala
+  const canonicalMandala = generateMandala(northAngle);
+  console.log("Generated canonical mandala:", canonicalMandala);
+
+  // 2. Calculate transformation parameters
+  const plotCentroid = calculateCentroid(plotPolygon);
+  const plotBbox = getBoundingBox(plotPolygon);
+  console.log("Plot Centroid:", plotCentroid);
+  console.log("Plot BBox:", plotBbox);
+
+  // The canonical mandala is 100x100.
+  // We need to scale it to fit the plot's bounding box.
+  // We use the larger of the width/height ratios to ensure the mandala covers the entire plot.
+  const scaleX = plotBbox.width / 100;
+  const scaleY = plotBbox.height / 100;
+  const scale = Math.max(scaleX, scaleY);
+  console.log("Calculated Scale:", scale);
+
+  // 3. Transform and Clip all devtas
+  const clippedDevtas: ClippedDevta[] = [];
+  for (const devta of canonicalMandala.allDevtas) {
+    // Apply the same scale and translation to each devta polygon
+    const transformedDevtaPolygon = transformPolygon(devta.polygon, scale, plotCentroid);
+
+    // Clip the transformed devta against the plot boundary
+    const intersectedPolygons = clip(transformedDevtaPolygon, plotPolygon);
+
+    if (intersectedPolygons.length > 0) {
+      clippedDevtas.push({
+        name: devta.name,
+        clippedPolygons: intersectedPolygons,
+      });
     }
   }
-  
-  return "Outside";
+
+  console.log("Clipped Devtas Count:", clippedDevtas.length);
+  if (clippedDevtas.length === 0) {
+    console.warn("Warning: No devtas were clipped. This might indicate an issue with scaling, translation, or the clipping process.");
+  }
+
+  const analysisResult = {
+    clippedDevtas,
+    transform: {
+      scale,
+      translation: plotCentroid,
+      northAngle,
+    },
+  };
+
+  console.log("--- Vastu Analysis Complete ---", analysisResult);
+  return analysisResult;
+}
+
+/**
+ * Finds which Devta an object (represented by a point) belongs to.
+ *
+ * @param point - The location of the object.
+ * @param analysisResult - The result from a `analyzePlot` call.
+ * @returns The name of the containing Devta, or null if not found.
+ */
+export function getDevtaForObject(point: Point, analysisResult: DevtaAnalysisResult): string | null {
+  for (const devta of analysisResult.clippedDevtas) {
+    // A devta can be fragmented, so we check each fragment.
+    for (const polygon of devta.clippedPolygons) {
+      if (pointInPolygon(point, polygon)) {
+        return devta.name;
+      }
+    }
+  }
+  return null;
 }

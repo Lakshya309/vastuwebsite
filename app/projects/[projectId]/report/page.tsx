@@ -15,8 +15,8 @@ import {
   analyzeObjectPlacement,
   ObjectAnalysisResult,
 } from "../../../../lib/vastu/objectAnalysis";
-import { generate45Devtas } from "../../../../lib/vastu/devtaAnalysis";
-import { generateMarmaPoints } from "../../../../lib/vastu/marmaAnalysis";
+import { analyzePlot, DevtaAnalysisResult } from "../../../../lib/vastu/devtaAnalysis";
+import { generateTransformedMarmaPoints } from "../../../../lib/vastu/marmaAnalysis";
 
 // --- INTERFACES ---
 
@@ -105,18 +105,15 @@ export default function ReportPage() {
     if (!project || !project.boundary_normalized || project.boundary_normalized.length < 3) return;
 
     const { boundary_normalized } = project;
-    const devtaRegions = generate45Devtas(boundary_normalized, liveNorthDirection) || [];
-    const marmaPoints = generateMarmaPoints(boundary_normalized, liveNorthDirection);
+    const devtaAnalysisResult = analyzePlot(boundary_normalized, liveNorthDirection);
+    const marmaPoints = generateTransformedMarmaPoints(devtaAnalysisResult);
 
     const newAnalyses: Record<string, ObjectAnalysisResult> = {};
     for (const obj of placedObjects) {
       newAnalyses[obj.id] = analyzeObjectPlacement(
         obj.boundary_normalized,
         obj.object_type,
-        devtaRegions,
-        marmaPoints,
-        boundary_normalized,
-        liveNorthDirection,
+        devtaAnalysisResult, // Pass the entire analysis result
       );
     }
     setReportAnalyses(newAnalyses);
@@ -168,7 +165,7 @@ export default function ReportPage() {
             <h2 className="text-2xl font-bold mb-4">Overall Vastu Score</h2>
             <ResponsiveContainer width="100%" height={250}>
               <RadialBarChart innerRadius="90%" outerRadius="70%" barSize={20} data={radialData} startAngle={180} endAngle={0}>
-                <RadialBar background clockWise dataKey="uv" />
+                <RadialBar background  dataKey="uv" />
               </RadialBarChart>
             </ResponsiveContainer>
             <p className="text-5xl font-bold" style={{ color: radialData[0].fill }}>{overallScore.toFixed(0)}%</p>
@@ -178,7 +175,7 @@ export default function ReportPage() {
             <h2 className="text-2xl font-bold mb-4">Object Status Distribution</h2>
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
-                <Pie data={dataForPie} cx="50%" cy="50%" labelLine={false} outerRadius={100} fill="#8884d8" dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                <Pie data={dataForPie} cx="50%" cy="50%" labelLine={false} outerRadius={100} fill="#8884d8" dataKey="value" label={({ name, percent }) => `${name} ${percent ? (percent * 100).toFixed(0) : 0}%`}>
                   {dataForPie.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[entry.name.toLowerCase() as keyof typeof COLORS]} />
                   ))}
