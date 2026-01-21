@@ -9,11 +9,9 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@firebase/firestore": "^4.9.3",
-    "@supabase/supabase-js": "^2.89.0",
+    "@supabase/ssr": "^0.8.0",
+    "@supabase/supabase-js": "^2.91.0",
     "antd": "^6.2.0",
-    "firebase": "^12.7.0",
-    "firebase-admin": "^13.6.0",
     "martinez-polygon-clipping": "^0.8.1",
     "next": "16.1.1",
     "polygon-offset": "^0.3.2",

@@ -2,38 +2,27 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../../lib/firebase"; // Adjust path as necessary
+import { createClient } from "@supabase/supabase-js"
 
 export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-
-      // After successful Firebase signup, create or update a profile in Supabase via the verify endpoint
-      const idToken = await user.getIdToken();
-      const response = await fetch('/api/auth/verify', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          // Authorization is handled within the /api/auth/verify endpoint itself by decoding the token
-        },
-        body: JSON.stringify({ token: idToken }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to create or verify user profile.");
-      }
-
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+      })
+      if (error) throw error
       router.push("/projects"); // Redirect to projects list on successful signup
     } catch (err: any) {
       setError(err.message);

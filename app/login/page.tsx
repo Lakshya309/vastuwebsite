@@ -2,20 +2,25 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../../lib/firebase"; // Adjust path as necessary
+import { createBrowserClient } from '@supabase/ssr'
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const supabase = createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+      if (error) throw error
       router.push("/projects"); // Redirect to dashboard on successful login
     } catch (err: any) {
       setError(err.message);

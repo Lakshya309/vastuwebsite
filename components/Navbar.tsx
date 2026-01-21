@@ -1,19 +1,9 @@
-"use client";
-
-import React from "react";
 import Link from "next/link";
-import { useAuthStore } from "../lib/store/authStore";
-import { auth } from "../lib/firebase";
-import { useRouter } from "next/navigation";
+import { getUser } from "../lib/auth";
+import LogoutButton from "./LogoutButton";
 
-const Navbar = () => {
-  const { user } = useAuthStore();
-  const router = useRouter();
-
-  const handleLogout = async () => {
-    await auth.signOut();
-    router.push("/login");
-  };
+const Navbar = async () => {
+  const user = await getUser();
 
   return (
     <nav className="bg-white shadow-md">
@@ -49,12 +39,7 @@ const Navbar = () => {
                   <span className="text-gray-700 text-sm mr-4">
                     {user.email}
                   </span>
-                  <button
-                    onClick={handleLogout}
-                    className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded"
-                  >
-                    Logout
-                  </button>
+                  <LogoutButton />
                 </>
               ) : (
                 <div className="space-x-4">

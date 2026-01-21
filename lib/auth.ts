@@ -1,19 +1,11 @@
-"use client";
+import { createServerSupabaseClient } from './supabase';
 
-import { onAuthStateChanged, User } from "firebase/auth";
-import { auth } from "./firebase";
-import { useEffect, useState } from "react";
+export async function getUser() {
+  const supabase = await createServerSupabaseClient();
 
-export function useUser() {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  useEffect(() => {
-    return onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      setLoading(false);
-    });
-  }, []);
-
-  return { user, loading };
+  return user;
 }

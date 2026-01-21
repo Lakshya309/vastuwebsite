@@ -1,8 +1,7 @@
 "use client";
 
 import React from "react";
-import { useRouter, useParams } from "next/navigation";
-import AuthGuard from "../../../components/AuthGuard"; // Adjust path as necessary
+import { useRouter, useParams } from "next/navigation";// Adjust path as necessary
 import Link from "next/link";
 
 export default function ProjectOverviewPage() {
@@ -20,7 +19,6 @@ export default function ProjectOverviewPage() {
   };
 
   return (
-    <AuthGuard>
       <div className="min-h-screen bg-gray-50 text-gray-900 p-8">
         <h1 className="text-4xl font-bold mb-4">Project: {project.name}</h1>
         <p className="text-gray-600 mb-8">ID: {project.id}</p>
@@ -49,6 +47,5 @@ export default function ProjectOverviewPage() {
           {/* Add more project details here */}
         </div>
       </div>
-    </AuthGuard>
   );
 }

@@ -2,9 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import AuthGuard from "../../../../components/AuthGuard";
+
 import Link from "next/link";
-import { useAuthStore } from "../../../../lib/store/authStore";
 import { useProjectStore } from "../../../../lib/store/projectStore"; // Import the project store
 import {
   PieChart, Pie, Cell, ResponsiveContainer, RadialBarChart,
@@ -46,7 +45,6 @@ const COLORS = {
 export default function ReportPage() {
   const params = useParams();
   const projectId = params.projectId as string;
-  const { user, idToken } = useAuthStore();
   const { liveNorthDirection, setLiveNorthDirection } = useProjectStore();
 
   // --- STATE ---
@@ -65,15 +63,13 @@ export default function ReportPage() {
   // --- DATA FETCHING ---
   useEffect(() => {
     const fetchProjectAndObjects = async () => {
-      if (!user || !projectId || !idToken) return;
+      if (  !projectId) return;
       setLoading(true);
       try {
         const [projectResponse, objectsResponse] = await Promise.all([
           fetch(`/api/projects/${projectId}`, {
-            headers: { Authorization: `Bearer ${idToken}` },
           }),
           fetch(`/api/projects/${projectId}/objects`, {
-            headers: { Authorization: `Bearer ${idToken}` },
           }),
         ]);
 
@@ -98,7 +94,7 @@ export default function ReportPage() {
       }
     };
     fetchProjectAndObjects();
-  }, [user, projectId, idToken, setLiveNorthDirection]);
+  }, [ projectId, setLiveNorthDirection]);
 
   // --- REAL-TIME ANALYSIS ENGINE (for Report) ---
   useEffect(() => {
@@ -151,7 +147,6 @@ export default function ReportPage() {
   }
 
   return (
-    <AuthGuard>
       <div className="min-h-screen bg-gray-100 text-gray-900 p-8">
         <h1 className="text-4xl font-bold mb-4">Vastu Analysis Report for {project?.name}</h1>
         <div className="border-b border-gray-200 mb-8">
@@ -168,7 +163,7 @@ export default function ReportPage() {
             <h2 className="text-2xl font-bold mb-4">Overall Vastu Score</h2>
             <ResponsiveContainer width="100%" height={250}>
               <RadialBarChart innerRadius="90%" outerRadius="70%" barSize={20} data={radialData} startAngle={180} endAngle={0}>
-                <RadialBar background clockWise dataKey="uv" />
+                <RadialBar background  dataKey="uv" />
               </RadialBarChart>
             </ResponsiveContainer>
             <p className="text-5xl font-bold" style={{ color: radialData[0].fill }}>{overallScore.toFixed(0)}%</p>
@@ -231,6 +226,5 @@ export default function ReportPage() {
           </div>
         </div>
       </div>
-    </AuthGuard>
   );
 }
