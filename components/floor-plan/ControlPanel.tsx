@@ -6,6 +6,8 @@ import Link from "next/link";
 import { AVAILABLE_OBJECTS } from "@/lib/floorPlanConstants";
 import { PlacedObject } from "@/lib/floorPlanInterfaces";
 import { ZoneDivision } from "@/lib/floorPlanInterfaces";
+import { useState } from "react";
+import { Point } from "@/lib/coordinates";
 
 interface ControlPanelProps {
   projectId: string;
@@ -29,6 +31,8 @@ interface ControlPanelProps {
   handleDeleteObject: (objectId: string) => void;
   analysisMode: "concentric" | "zones-8" | "zones-16" | "zones-32" | "none";
   setAnalysisMode: (mode: "concentric" | "zones-8" | "zones-16" | "zones-32" | "none") => void;
+  onRunAnalysis: (projectId: string, objects: PlacedObject[]) => Promise<void>; // New prop
+  placedObjects: PlacedObject[]; // Pass placedObjects from parent
 }
 
 export function ControlPanel({
@@ -53,11 +57,34 @@ export function ControlPanel({
   handleDeleteObject,
   analysisMode,
   setAnalysisMode,
+  onRunAnalysis, // Destructure new prop
+  placedObjects, // Destructure new prop
 }: ControlPanelProps) {
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisMessage, setAnalysisMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const handleRunAnalysisClick = async () => {
+    setAnalysisLoading(true);
+    setAnalysisMessage(null);
+    try {
+      await onRunAnalysis(projectId, placedObjects);
+      setAnalysisMessage({ type: 'success', text: 'Analysis initiated successfully!' });
+    } catch (err: any) {
+      setAnalysisMessage({ type: 'error', text: err.message || 'Failed to run analysis.' });
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
+
   return (
     <div className="bg-white p-8 rounded-2xl shadow-sm">
       <h2 className="text-2xl font-bold mb-6">Controls</h2>
       {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+      {analysisMessage && (
+        <p className={`text-sm mb-4 ${analysisMessage.type === 'error' ? 'text-red-500' : 'text-green-500'}`}>
+          {analysisMessage.text}
+        </p>
+      )}
 
       <div className="space-y-6">
         <div>
@@ -202,6 +229,14 @@ export function ControlPanel({
             <option value="zones-32">32 Directions</option>
           </select>
         </div>
+
+        <button
+          onClick={handleRunAnalysisClick}
+          className="w-full px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold"
+          disabled={analysisLoading || loading}
+        >
+          {analysisLoading ? "Running Analysis..." : "Run Vastu Analysis"}
+        </button>
 
         <button
           onClick={handleSaveChanges}

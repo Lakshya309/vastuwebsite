@@ -1,6 +1,5 @@
 // lib/vastu/marmaAnalysis.ts
-import { Point, calculateCentroid, scalePolygon, rayPolygonIntersection } from '../geometry';
-import { INNER_BOUNDARY_SCALE, MIDDLE_BOUNDARY_SCALE } from './devtaAnalysis';
+import { Point, calculateCentroid, scalePolygon, rayPolygonIntersection, INNER_BOUNDARY_SCALE, MIDDLE_BOUNDARY_SCALE } from '../geometry';
 
 /**
  * A MarmaPoint represents a sensitive energy junction point in the Vastu grid.

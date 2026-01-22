@@ -1,3 +1,4 @@
+// app/projects/[projectId]/floor-plan/page.tsx
 "use client";
 
 import React, { useRef, useState, useEffect } from "react";
@@ -10,8 +11,9 @@ import { ControlPanel } from "../../../../components/floor-plan/ControlPanel";
 import { PlacedObject } from "../../../../lib/floorPlanInterfaces";
 import { calculateCentroid } from "../../../../lib/geometry";
 import { Point } from "@/lib/coordinates";
-import { MarmaPoint } from "@/utils/floorPlanUtils";
-import { DevtaRegion } from "@/utils/floorPlanUtils";
+import { MarmaPoint } from "@/lib/vastu/marmaAnalysis";
+import { DevtaRegion } from "../../../../lib/geometry";
+
 export default function FloorPlanPage() {
   const params = useParams();
   const projectId = params.projectId as string;
@@ -231,6 +233,36 @@ export default function FloorPlanPage() {
     setSelectedObject(null);
   };
 
+  // Function to run the Vastu analysis
+  const handleRunAnalysis = async (projectId: string, objects: PlacedObject[]) => {
+    if (objects.length === 0) {
+      throw new Error("Cannot run analysis with no placed objects.");
+    }
+
+    try {
+      const response = await fetch("/api/analysis", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ projectId, objects }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to run analysis.");
+      }
+
+      const data = await response.json();
+      console.log("Analysis successful:", data);
+      // Optionally, you might want to refresh analysis data or navigate to report
+      // For now, a successful call means credit was consumed if applicable.
+    } catch (err: any) {
+      console.error("Error during analysis run:", err);
+      throw err; // Re-throw to be caught by ControlPanel's handleRunAnalysisClick
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 p-8">
       <h1 className="text-4xl font-bold mb-4">
@@ -292,6 +324,8 @@ export default function FloorPlanPage() {
           handleDeleteObject={handleDeleteObject}
           analysisMode={analysisMode}
           setAnalysisMode={setAnalysisMode}
+          onRunAnalysis={handleRunAnalysis} // Pass the new function
+          placedObjects={placedObjects} // Pass placedObjects
         />
       </div>
     </div>

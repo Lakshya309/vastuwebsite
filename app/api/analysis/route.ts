@@ -25,6 +25,67 @@ export async function POST(req: NextRequest) {
     }
     const uid = user.id;
 
+    // Fetch user profile
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .select("role, valid_from, valid_to")
+      .eq("id", uid)
+      .single();
+
+    if (profileError || !profile) {
+      console.error("Supabase profile fetch error:", profileError);
+      return NextResponse.json(
+        { message: "Failed to fetch user profile." },
+        { status: 500 }
+      );
+    }
+
+    // Initialize allowed_to_analyze flag
+    let allowed_to_analyze = false;
+    let blocking_message = "Analysis blocked.";
+
+    if (profile.role === "astrologer") {
+      const now = new Date();
+      const validFrom = profile.valid_from ? new Date(profile.valid_from) : null;
+      const validTo = profile.valid_to ? new Date(profile.valid_to) : null;
+
+      if (validFrom && validTo && now >= validFrom && now <= validTo) {
+        allowed_to_analyze = true;
+      } else {
+        blocking_message = "Astrologer access expired or not yet valid.";
+      }
+    } else if (profile.role === "user") {
+      // Call the deduct_credit function via Supabase RPC
+      const { data: deductResult, error: deductError } = await supabaseAdmin.rpc(
+        "deduct_credit",
+        { p_user_id: uid }
+      );
+
+      if (deductError) {
+        console.error("Supabase deduct_credit error:", deductError);
+        // Check if the error is due to insufficient credits (this depends on how the DB function reports it)
+        if (deductError.message.includes("insufficient credits")) {
+             blocking_message = "Insufficient credits to perform analysis. Please upgrade or contact support.";
+        } else {
+            blocking_message = "Failed to deduct credit due to an internal error.";
+        }
+      } else if (deductError && deductError.message.includes("Insufficient credits")) {
+        blocking_message = "Insufficient credits to perform analysis. Please upgrade or contact support.";
+      } else if (deductResult) { // If deductResult is true, then credit was deducted
+        allowed_to_analyze = true;
+      } else {
+         // This else case might catch unexpected scenarios, log for debugging
+         console.error("Unexpected deduct_credit result:", { deductResult, deductError });
+         blocking_message = "An unknown error occurred during credit deduction.";
+      }
+    } else {
+      blocking_message = "Unsupported user role. Analysis blocked.";
+    }
+
+    if (!allowed_to_analyze) {
+      return NextResponse.json({ message: blocking_message }, { status: 403 });
+    }
+
     const { projectId, objects } = await req.json();
 
     if (

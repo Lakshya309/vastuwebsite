@@ -19,8 +19,8 @@ import {
   drawPlacedObjects,
   drawZoneLines,
   MarmaPoint,
-  DevtaRegion,
-} from "@/utils/floorPlanUtils"; // All drawing utilities
+} from "@/utils/floorPlanUtils";
+import { DevtaRegion } from "@/lib/vastu/devtaAnalysis"; // Corrected import path
 import { useProjectStore } from "@/lib/store/projectStore";
 
 

@@ -6,13 +6,14 @@ import {
 } from "../lib/vastu/devtaAnalysis";
 import { MarmaPoint } from "@/lib/vastu/marmaAnalysis"; 
 import { ObjectAnalysisResult } from "@/lib/vastu/objectAnalysis";
-import { VastuRule } from "@/lib/vastuRules";// Assuming DevtaRegion and MarmaPoint are also exported from vastuAnalysis or similar
+import { VastuRule } from "../lib/vastu/vastuRules";// Assuming DevtaRegion and MarmaPoint are also exported from vastuAnalysis or similar
 import { DEVTA_COLORS } from "../lib/floorPlanConstants";
 import { ZoneDivision } from "../lib/floorPlanInterfaces";
 import { PlacedObject } from "../lib/floorPlanInterfaces";
+import { rayPolygonIntersection } from "../lib/geometry";
 
 // Re-export specific types if they were only used internally before
-export type { DevtaRegion, MarmaPoint, ObjectAnalysisResult, VastuRule };
+// export type { DevtaRegion, MarmaPoint, ObjectAnalysisResult, VastuRule }; // Removed this line
 
 export const drawBoundary = (
   ctx: CanvasRenderingContext2D,
@@ -202,8 +203,7 @@ export const drawZoneLines = (
   }
 };
 
-// Assuming rayPolygonIntersection is also a utility
-import { rayPolygonIntersection } from "../lib/geometry";
+
 
 export const drawPlacedObjects = (
   ctx: CanvasRenderingContext2D,

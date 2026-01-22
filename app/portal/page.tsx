@@ -1,7 +1,6 @@
 "use client";
 
-import React from "react";
-import AuthGuard from "../../components/AuthGuard"; // Adjust path as necessary
+import React from "react"; // Adjust path as necessary
 import Link from "next/link";
 
 export default function AstrologerPortalPage() {
@@ -13,7 +12,7 @@ export default function AstrologerPortalPage() {
   ];
 
   return (
-    <AuthGuard>
+
       <div className="min-h-screen bg-gray-50 text-gray-900 p-8">
         <h1 className="text-4xl font-bold mb-8">Astrologer Portal</h1>
 
@@ -36,6 +35,5 @@ export default function AstrologerPortalPage() {
           </ul>
         </div>
       </div>
-    </AuthGuard>
   );
 }
