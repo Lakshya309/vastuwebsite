@@ -1,5 +1,6 @@
 // lib/vastu/marmaAnalysis.ts
-import { Point, calculateCentroid, scalePolygon, rayPolygonIntersection, INNER_BOUNDARY_SCALE, MIDDLE_BOUNDARY_SCALE } from '../geometry';
+import { Point, calculateCentroid, scalePolygon, rayPolygonIntersection } from '../geometry';
+import { INNER_BOUNDARY_SCALE, MIDDLE_BOUNDARY_SCALE } from '../floorPlanConstants';
 
 /**
  * A MarmaPoint represents a sensitive energy junction point in the Vastu grid.
@@ -37,14 +38,14 @@ export function generateMarmaPoints(
     return [];
   }
 
-  const brahmasthan = calculateCentroid(boundary);
+  const centroid = calculateCentroid(boundary);
   const marmaPoints: MarmaPoint[] = [];
 
   // Define the three concentric boundaries based on scaling factors
   const boundaries = {
     outer: boundary,
-    middle: scalePolygon(boundary, brahmasthan, MIDDLE_BOUNDARY_SCALE),
-    inner: scalePolygon(boundary, brahmasthan, INNER_BOUNDARY_SCALE),
+    middle: scalePolygon(boundary, centroid, MIDDLE_BOUNDARY_SCALE),
+    inner: scalePolygon(boundary, centroid, INNER_BOUNDARY_SCALE),
   };
 
   const ringStrengths: Record<keyof typeof boundaries, MarmaPoint['strength']> = {
@@ -70,7 +71,7 @@ export function generateMarmaPoints(
         const intersectionPoint = rayPolygonIntersection(
           correctedAngle,
           ringPolygon,
-          brahmasthan
+          centroid
         );
 
         if (intersectionPoint) {
@@ -88,13 +89,11 @@ export function generateMarmaPoints(
   }
 
   // Deduplicate points. Multiple categories can generate points at the same angle (e.g., 45° is in all 3).
-  // We can decide on a precedence, e.g., primary > secondary > tertiary, but for now, we just filter them.
   // A simple way is to create a Set of unique identifiers, for example, angle+ring.
   const uniquePoints = new Map<string, MarmaPoint>();
   marmaPoints.forEach(p => {
     const key = `${p.angleDeg}-${p.ring}`;
     // This will implicitly keep the last one seen, which is fine for this purpose.
-    // Or, we could add logic to keep the one with the highest "rank" (primary).
     uniquePoints.set(key, p);
   });
 

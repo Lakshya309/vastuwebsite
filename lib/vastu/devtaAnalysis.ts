@@ -1,22 +1,96 @@
-// lib/vastu/devtaAnalysis.ts
-// This file acts as a re-export and wrapper for Vastu-specific analysis functions,
-// which are now primarily defined in lib/geometry.ts for consolidation as requested.
-
 import {
-  DevtaRegion,
-  generate45Devtas as _generate45Devtas,
-  getZoneForPoint as _getZoneForPoint,
-  Point
+  calculateCentroid,
+  scalePolygon,
+  buildAngularSector,
+  pointInPolygon,
+  calculateAngularMass,
+  redistributeZones,
 } from "../geometry";
+import type { Point } from "../geometry";
+import {
+  BRAHMA_DEVTA_NAME,
+  MIDDLE_RING_DEVTA_NAMES,
+  OUTER_RING_DEVTA_NAMES,
+} from "../vastu";
+import { MIDDLE_BOUNDARY_SCALE, INNER_BOUNDARY_SCALE } from '../floorPlanConstants';
 
-// Re-export the DevtaRegion interface and Point type
-export type { DevtaRegion, Point };
+export function getZoneForPoint(
+  point: Point,
+  boundary: Point[],
+  northAngle: number
+): string {
+  const devtas = generate45Devtas(boundary, northAngle);
+  if (!devtas) return "Unknown";
+  
+  for (const devta of devtas) {
+    if (pointInPolygon(point, devta.polygon)) {
+      return devta.name;
+    }
+  }
+  
+  return "Outside";
+}
 
-// Re-export the main Devta generation function
-export const generate45Devtas = _generate45Devtas;
 
-// Re-export the function to get zone for a point
-export const getZoneForPoint = _getZoneForPoint;
+export function generate45Devtas(
+  boundary: Point[],
+  northAngle: number = 0
+): DevtaRegion[] {
+  const centroid = calculateCentroid(boundary);
 
-// Export other Vastu specific utilities or types if needed here
-// For example, if you have specific object analysis functions or Marma points, they could remain here.
+  const middleRingBoundary = scalePolygon(boundary, centroid, MIDDLE_BOUNDARY_SCALE);
+  const innerRingBoundary = scalePolygon(boundary, centroid, INNER_BOUNDARY_SCALE);
+
+  const devtas: DevtaRegion[] = [];
+  let devtaId = 1;
+
+  // Brahma
+  devtas.push({
+    id: devtaId++,
+    name: BRAHMA_DEVTA_NAME,
+    polygon: innerRingBoundary,
+    ring: "center",
+  });
+
+  const angularMass = calculateAngularMass(boundary, centroid);
+  
+  const middleRingZones = redistributeZones(angularMass, 12, northAngle);
+  for (let i = 0; i < 12; i++) {
+    const zone = middleRingZones[i];
+    const sector = buildAngularSector(
+      innerRingBoundary,
+      middleRingBoundary,
+      zone.startAngle,
+      zone.endAngle,
+      centroid
+    );
+    devtas.push({
+      id: devtaId++,
+      name: MIDDLE_RING_DEVTA_NAMES[i] || `Middle ${i + 1}`,
+      polygon: sector,
+      ring: "middle",
+    });
+  }
+
+  const outerRingZones = redistributeZones(angularMass, 32, northAngle);
+  for (let i = 0; i < 32; i++) {
+    const zone = outerRingZones[i];
+    const sector = buildAngularSector(
+      middleRingBoundary,
+      boundary,
+      zone.startAngle,
+      zone.endAngle,
+      centroid
+    );
+    devtas.push({
+      id: devtaId++,
+      name: OUTER_RING_DEVTA_NAMES[i] || `Outer ${i + 1}`,
+      polygon: sector,
+      ring: "outer",
+    });
+  }
+
+  return devtas;
+}
+
+export type { Point, DevtaRegion };

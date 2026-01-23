@@ -1,6 +1,6 @@
 // utils/floorPlanUtils.ts
 import { Point, toPixels } from "../lib/coordinates";
-import { calculateCentroid } from "../lib/geometry";
+import { calculateCentroid, rayPolygonIntersection } from "../lib/geometry";
 import {
   DevtaRegion
 } from "../lib/vastu/devtaAnalysis";
@@ -10,7 +10,7 @@ import { VastuRule } from "../lib/vastu/vastuRules";// Assuming DevtaRegion and 
 import { DEVTA_COLORS } from "../lib/floorPlanConstants";
 import { ZoneDivision } from "../lib/floorPlanInterfaces";
 import { PlacedObject } from "../lib/floorPlanInterfaces";
-import { rayPolygonIntersection } from "../lib/geometry";
+
 
 // Re-export specific types if they were only used internally before
 // export type { DevtaRegion, MarmaPoint, ObjectAnalysisResult, VastuRule }; // Removed this line

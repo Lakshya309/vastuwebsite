@@ -62,3 +62,6 @@ export const DEVTA_COLORS: Record<string, string> = {
   // Default color
   "default": "#E0E0E0",
 };
+
+export const MIDDLE_BOUNDARY_SCALE = 0.66;
+export const INNER_BOUNDARY_SCALE = 0.33;
