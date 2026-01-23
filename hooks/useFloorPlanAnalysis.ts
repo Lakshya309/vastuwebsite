@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import { PlacedObject, ZoneDivision, FloorPlanAnalysisData } from "../lib/floorPlanInterfaces";
 import { Point } from "../lib/coordinates";
-import { DevtaRegion, generate45Devtas } from "../lib/vastu/devtaAnalysis";
+import { DevtaRegion } from "../lib/floorPlanInterfaces";
+import { generate45Devtas } from "../lib/vastu/devtaAnalysis";
 import { generateMarmaPoints, MarmaPoint } from "../lib/vastu/marmaAnalysis";
 import { analyzeObjectPlacement, ObjectAnalysisResult } from "../lib/vastu/objectAnalysis";
 

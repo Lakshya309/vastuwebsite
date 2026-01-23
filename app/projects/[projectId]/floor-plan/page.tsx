@@ -12,7 +12,7 @@ import { PlacedObject } from "../../../../lib/floorPlanInterfaces";
 import { calculateCentroid } from "../../../../lib/geometry";
 import { Point } from "@/lib/coordinates";
 import { MarmaPoint } from "@/lib/vastu/marmaAnalysis";
-import { DevtaRegion } from "../../../../lib/geometry";
+import { DevtaRegion } from "../../../../lib/floorPlanInterfaces";
 
 export default function FloorPlanPage() {
   const params = useParams();

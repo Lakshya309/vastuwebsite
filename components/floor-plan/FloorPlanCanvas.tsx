@@ -18,9 +18,9 @@ import {
   drawObjectAnalysis,
   drawPlacedObjects,
   drawZoneLines,
-  MarmaPoint,
 } from "@/utils/floorPlanUtils";
-import { DevtaRegion } from "@/lib/vastu/devtaAnalysis"; // Corrected import path
+import { MarmaPoint } from "@/lib/vastu/marmaAnalysis";
+import { DevtaRegion } from "@/lib/floorPlanInterfaces"; // Corrected import path
 import { useProjectStore } from "@/lib/store/projectStore";
 
 

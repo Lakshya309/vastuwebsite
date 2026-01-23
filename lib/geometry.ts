@@ -1,3 +1,5 @@
+import * as martinez from 'martinez-polygon-clipping';
+
 // lib/geometry.ts
 // Pure geometric computations.
 
@@ -5,12 +7,14 @@ export interface Point {
   x: number;
   y: number;
 }
+// ... (rest of the file is the same)
+
 
 /**
  * Calculate the centroid (geometric center) of a polygon
  */
 export function calculateCentroid(polygon: Point[]): Point {
-  if (polygon.length === 0) return { x: 0, y: 0 };
+  if (!polygon || polygon.length === 0) return { x: 0, y: 0 };
   
   let area = 0;
   let cx = 0;
@@ -264,4 +268,86 @@ export function redistributeZones(
   zones.push({ startAngle: zoneStartAngle, endAngle: northAngle });
 
   return zones;
+}
+
+/**
+ * Calculates the axis-aligned bounding box of a polygon.
+ * @param polygon The polygon to measure.
+ * @returns An object with the min and max points of the bounding box.
+ */
+
+export function getAABB(polygon: Point[]): { min: Point; max: Point } {
+    if (!polygon || polygon.length === 0) {
+        return { min: { x: 0, y: 0 }, max: { x: 0, y: 0 } };
+    }
+
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    for (const point of polygon) {
+        minX = Math.min(minX, point.x);
+        minY = Math.min(minY, point.y);
+        maxX = Math.max(maxX, point.x);
+        maxY = Math.max(maxY, point.y);
+    }
+
+    return { min: { x: minX, y: minY }, max: { x: maxX, y: maxY } };
+}
+
+
+import { Polygon } from 'martinez-polygon-clipping';
+
+type Position = [number, number];
+type Ring = Position[];
+
+export function slicePolygon(polygon: Point[], axis: 'x' | 'y', value: number): Point[][] {
+    if (!polygon || polygon.length === 0) {
+        return [];
+    }
+    const aabb = getAABB(polygon);
+    
+    const geoJsonPolygon: Polygon = [polygon.map(p => [p.x, p.y])];
+    
+    const line: Polygon =
+        axis === 'x'
+            ? [[[value, aabb.min.y - 1], [value, aabb.max.y + 1]]]
+            : [[[aabb.min.x - 1, value], [aabb.max.x + 1, value]]];
+
+    const clipped = martinez.intersection(geoJsonPolygon, line);
+
+    if (!clipped || clipped.length === 0) {
+        return [];
+    }
+
+    const result: Point[][] = [];
+    for (const multiPolygon of clipped) {
+        const poly: Point[] = [];
+        for (const ring of multiPolygon) {
+            for (const pos of ring) {
+                poly.push({ x: pos[0], y: pos[1] });
+            }
+        }
+        result.push(poly);
+    }
+
+    return result;
+}
+
+/**
+ * Creates a rectangle polygon.
+ * @param x The x-coordinate of the top-left corner.
+ * @param y The y-coordinate of the top-left corner.
+ * @param width The width of the rectangle.
+ * @param height The height of the rectangle.
+ * @returns A polygon representing the rectangle.
+ */
+export function createRectangle(x: number, y: number, width: number, height: number): Point[] {
+    return [
+        { x, y },
+        { x: x + width, y },
+        { x: x + width, y: y + height },
+        { x, y: y + height },
+    ];
 }

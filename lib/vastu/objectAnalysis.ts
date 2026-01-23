@@ -1,6 +1,7 @@
 // lib/vastu/objectAnalysis.ts
 import { Point, pointInPolygon } from '../geometry';
-import { DevtaRegion, getZoneForPoint } from './devtaAnalysis';
+import { DevtaRegion } from '../floorPlanInterfaces';
+import { getZoneForPoint } from './devtaAnalysis';
 import { MarmaPoint } from './marmaAnalysis';
 import { vastuRules } from './vastuRules';
 

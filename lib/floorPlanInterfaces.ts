@@ -1,8 +1,14 @@
 // lib/floorPlanInterfaces.ts
 import { Point } from "./coordinates";
 import { ObjectAnalysisResult } from "./vastu/objectAnalysis";
-import { DevtaRegion } from "./vastu/devtaAnalysis";
 import { MarmaPoint } from "./vastu/marmaAnalysis";
+
+export interface DevtaRegion {
+  id: number;
+  name: string;
+  polygon: Point[];
+  ring: "center" | "middle" | "outer";
+}
 
 export interface Project {
   id: string;

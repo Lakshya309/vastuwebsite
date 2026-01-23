@@ -20,7 +20,7 @@ export const drawBoundary = (
   boundary: Point[],
   dims: { width: number; height: number },
 ) => {
-  const pixelBoundary = boundary.map((p) => toPixels(p, dims));
+  const pixelBoundary = boundary.map((p: Point) => toPixels(p, dims));
   ctx.strokeStyle = "#1f2937";
   ctx.lineWidth = 2;
   ctx.beginPath();
@@ -38,9 +38,9 @@ export const drawIncompleteBoundary = (
   dims: { width: number; height: number },
   color = "#1f2937",
 ) => {
-  const pixelBoundary = boundary.map((p) => toPixels(p, dims));
+  const pixelBoundary = boundary.map((p: Point) => toPixels(p, dims));
   ctx.fillStyle = color;
-  pixelBoundary.forEach((p) => {
+  pixelBoundary.forEach((p: Point) => {
     ctx.beginPath();
     ctx.arc(p.x, p.y, 5, 0, 2 * Math.PI);
     ctx.fill();
@@ -103,7 +103,7 @@ export const drawDevtaRegions = (
   selected: DevtaRegion | null,
 ) => {
   devtas.forEach((devta) => {
-    const pixelPolygon = devta.polygon.map((p) => toPixels(p, dims));
+    const pixelPolygon = devta.polygon.map((p: Point) => toPixels(p, dims));
     const isSelected = selected?.id === devta.id;
 
     let fillColor = DEVTA_COLORS[devta.name] || DEVTA_COLORS["default"];
@@ -212,7 +212,7 @@ export const drawPlacedObjects = (
   dims: { width: number; height: number },
 ) => {
   objects.forEach((obj) => {
-    const pixelBoundary = obj.boundary_normalized.map((p) =>
+    const pixelBoundary = obj.boundary_normalized.map((p: Point) =>
       toPixels(p, dims)
     );
     const isSelected = selected?.id === obj.id;
