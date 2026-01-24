@@ -1,21 +1,11 @@
 // lib/vastu/objectAnalysis.ts
-import { Point, pointInPolygon } from '../geometry';
-import { DevtaRegion } from '../floorPlanInterfaces';
-import { getZoneForPoint } from './devtaAnalysis';
+import { Point, pointInPolygon, calculateCentroid } from '../geometry';
 import { MarmaPoint } from './marmaAnalysis';
-import { vastuRules } from './vastuRules';
-
-export interface IncorrectPoint {
-    point: Point;
-    devtaName: string;
-}
 
 export interface ObjectAnalysisResult {
-  devtaName: string;
   marmaDistance: number | null;
   marmaStrength: MarmaPoint['strength'] | null;
   closestMarma: MarmaPoint | null;
-  incorrectPoints: IncorrectPoint[];
 }
 
 /**
@@ -38,30 +28,19 @@ function getMarmaThreshold(boundary: Point[]): number {
  *
  * @param objectPolygon The polygon of the object to analyze.
  * @param objectType The type of the object (e.g., "Bedroom").
- * @param devtas An array of all Devta regions.
  * @param marmas An array of all Marma points.
  * @param boundary The main boundary of the plot, for threshold calculation.
- * @returns An analysis result object containing the Devta name and closest Marma info.
+ * @returns An analysis result object containing the closest Marma info.
  */
 export function analyzeObjectPlacement(
   objectPolygon: Point[],
   objectType: string,
-  devtas: DevtaRegion[],
   marmas: MarmaPoint[],
   boundary: Point[],
   northAngle: number
 ): ObjectAnalysisResult {
-  // 1. Find which Devta the object's centroid falls into
+  // 1. Find the closest Marma point to the object's centroid
   const objectCentroid = objectPolygon.reduce((acc, p) => ({ x: acc.x + p.x / objectPolygon.length, y: acc.y + p.y / objectPolygon.length }), { x: 0, y: 0 });
-  let devtaName = 'Outside Plot';
-  for (const devta of devtas) {
-    if (pointInPolygon(objectCentroid, devta.polygon)) {
-      devtaName = devta.name;
-      break;
-    }
-  }
-
-  // 2. Find the closest Marma point to the object's centroid
   let closestMarma: MarmaPoint | null = null;
   let minDistance = Infinity;
 
@@ -75,39 +54,21 @@ export function analyzeObjectPlacement(
       closestMarma = marma;
     }
   }
-  
-    // 3. Analyze each point of the object's polygon
-    const incorrectPoints: IncorrectPoint[] = [];
-    const rule = Object.values(vastuRules).find(r => r.optimal.includes(objectType) || r.avoid.includes(objectType));
 
-    if (rule) {
-        for (const point of objectPolygon) {
-            const pointDevtaName = getZoneForPoint(point, boundary, northAngle);
-            if (rule.avoid.includes(pointDevtaName)) {
-                incorrectPoints.push({ point, devtaName: pointDevtaName });
-            }
-        }
-    }
-
-
-  // 4. Check if the closest Marma is within the influence threshold
+  // 2. Check if the closest Marma is within the influence threshold
   const threshold = getMarmaThreshold(boundary);
   if (closestMarma && minDistance <= threshold) {
     return {
-      devtaName: devtaName,
       marmaDistance: minDistance,
       marmaStrength: closestMarma.strength,
       closestMarma: closestMarma,
-      incorrectPoints,
     };
   }
 
   // If no Marma is close enough, return null for Marma-related fields
   return {
-    devtaName: devtaName,
     marmaDistance: null,
     marmaStrength: null,
     closestMarma: null,
-    incorrectPoints,
   };
 }

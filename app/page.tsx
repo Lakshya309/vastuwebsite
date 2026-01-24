@@ -17,7 +17,7 @@ export default function Home() {
             animate={{ opacity: 1, y: 0 }}
             className="inline-block px-4 py-1.5 mb-6 border border-emerald-500/30 rounded-full bg-emerald-500/5 text-emerald-400 text-sm font-medium tracking-wide"
           >
-            Precision 45 Devta Mandala Analysis
+            Precision Mandala Analysis
           </motion.div>
           
           <h1 className="text-6xl md:text-8xl font-extrabold tracking-tight mb-6 bg-gradient-to-b from-white to-slate-500 bg-clip-text text-transparent">
@@ -26,7 +26,7 @@ export default function Home() {
           
           <p className="text-xl text-slate-400 max-w-3xl mx-auto mb-12 leading-relaxed">
             The first MVP-ready Vastu engine that dynamically maps Marma points onto irregular layouts. 
-            Transform your floor plan with instant Devta-zone insights.
+            Transform your floor plan with instant insights.
           </p>
 
           <div className="flex flex-col sm:flex-row justify-center gap-4">
@@ -78,7 +78,7 @@ export default function Home() {
               <ul className="space-y-4 text-slate-400">
                 <li className="flex items-start gap-3">
                   <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_10px_#10b981]" />
-                  <span>Real-time Devta zone detection for irregular plots.</span>
+                  <span>Real-time zone detection for irregular plots.</span>
                 </li>
                 <li className="flex items-start gap-3">
                   <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_10px_#10b981]" />

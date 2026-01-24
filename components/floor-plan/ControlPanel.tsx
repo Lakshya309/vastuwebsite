@@ -1,4 +1,3 @@
-// components/floor-plan/ControlPanel.tsx
 "use client";
 
 import React from "react";
@@ -29,8 +28,6 @@ interface ControlPanelProps {
   handleSaveChanges: () => Promise<void>;
   selectedObject: PlacedObject | null;
   handleDeleteObject: (objectId: string) => void;
-  analysisMode: "concentric" | "zones-8" | "zones-16" | "zones-32" | "none";
-  setAnalysisMode: (mode: "concentric" | "zones-8" | "zones-16" | "zones-32" | "none") => void;
   onRunAnalysis: (projectId: string, objects: PlacedObject[]) => Promise<void>; // New prop
   placedObjects: PlacedObject[]; // Pass placedObjects from parent
 }
@@ -55,8 +52,6 @@ export function ControlPanel({
   handleSaveChanges,
   selectedObject,
   handleDeleteObject,
-  analysisMode,
-  setAnalysisMode,
   onRunAnalysis, // Destructure new prop
   placedObjects, // Destructure new prop
 }: ControlPanelProps) {
@@ -218,12 +213,11 @@ export function ControlPanel({
             Analysis Display
           </label>
           <select
-            onChange={(e) => setAnalysisMode(e.target.value as any)}
-            value={analysisMode}
+            onChange={(e) => {}}
+            value={"zones-8"}
             className="w-full p-2 border border-gray-300 rounded-lg"
           >
             <option value="none">None</option>
-            <option value="concentric">Concentric (45 Devtas)</option>
             <option value="zones-8">8 Directions</option>
             <option value="zones-16">16 Directions</option>
             <option value="zones-32">32 Directions</option>

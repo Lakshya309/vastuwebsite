@@ -52,12 +52,3 @@ export const VASTU_DIRECTIONS = [
   { name: "W8", startAngle: 343.125, endAngle: 354.375 },
 ];
 
-export const OUTER_RING_DEVTA_NAMES = [
-    "Shikhi", "Parjanya", "Jayant", "Mahendra", "Surya", "Satya", "Brisha", "Akash", "Anil", "Pusha", "Vitatha", "Grihaspatya", "Yama", "Gandharv", "Bhringraj", "Mrigha", "Pitra", "Dauwarik", "Sugriva", "Pushpadanta", "Varuna", "Asur", "Shosha", "Papayakshma", "Roga", "Naga", "Mukhya", "Bhallaat", "Soma", "Sarpa", "Aditi", "Diti"
-];
-
-export const MIDDLE_RING_DEVTA_NAMES = [
-    "Bhudhar", "Aryama", "Vivaswaan", "Mitra", "Apaha", "Apahavatsa", "Savita", "Savitra", "Indra", "Jaya", "Rudra", "Rajyakshma"
-];
-
-export const BRAHMA_DEVTA_NAME = "Brahma";

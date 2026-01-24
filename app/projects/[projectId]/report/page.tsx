@@ -14,7 +14,6 @@ import {
   analyzeObjectPlacement,
   ObjectAnalysisResult,
 } from "../../../../lib/vastu/objectAnalysis";
-import { generate45Devtas } from "../../../../lib/vastu/devtaAnalysis";
 import { generateMarmaPoints } from "../../../../lib/vastu/marmaAnalysis";
 
 // --- INTERFACES ---
@@ -101,7 +100,6 @@ export default function ReportPage() {
     if (!project || !project.boundary_normalized || project.boundary_normalized.length < 3) return;
 
     const { boundary_normalized } = project;
-    const devtaRegions = generate45Devtas(boundary_normalized, liveNorthDirection) || [];
     const marmaPoints = generateMarmaPoints(boundary_normalized, liveNorthDirection);
 
     const newAnalyses: Record<string, ObjectAnalysisResult> = {};
@@ -109,7 +107,6 @@ export default function ReportPage() {
       newAnalyses[obj.id] = analyzeObjectPlacement(
         obj.boundary_normalized,
         obj.object_type,
-        devtaRegions,
         marmaPoints,
         boundary_normalized,
         liveNorthDirection,
@@ -122,7 +119,7 @@ export default function ReportPage() {
 
   // --- DERIVED DATA FOR CHARTS ---
   const analysisValues = Object.values(reportAnalyses);
-  const goodObjectsCount = analysisValues.filter(a => a.incorrectPoints.length === 0).length;
+  const goodObjectsCount = analysisValues.filter(a => a.marmaDistance === null).length;
   const badObjectsCount = analysisValues.length - goodObjectsCount;
   
   const overallScore = analysisValues.length > 0 ? (goodObjectsCount / analysisValues.length) * 100 : 0;
@@ -192,8 +189,7 @@ export default function ReportPage() {
               <thead className="bg-gray-50">
                 <tr>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Object Type</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Devta Zone (Centroid)</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Incorrect Placements</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Marma Influence</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Overall Status</th>
                 </tr>
               </thead>
@@ -201,18 +197,11 @@ export default function ReportPage() {
                 {placedObjects.map((obj) => {
                   const analysis = reportAnalyses[obj.id];
                   if (!analysis) return null; // Don't render if analysis isn't ready
-                  const isBad = analysis.incorrectPoints.length > 0;
+                  const isBad = analysis.marmaDistance !== null;
                   return (
                     <tr key={obj.id}>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{obj.object_type}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{analysis.devtaName || "N/A"}</td>
-                      <td className="px-6 py-4 text-sm text-gray-500">
-                        {isBad ? (
-                          <ul className="list-disc list-inside text-red-600">
-                            {analysis.incorrectPoints.map((ip, index) => <li key={index}>{ip.devtaName}</li>)}
-                          </ul>
-                        ) : "None"}
-                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{analysis.marmaDistance ? `${analysis.marmaStrength} (${analysis.marmaDistance.toFixed(2)})` : "None"}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" style={{ backgroundColor: `${isBad ? COLORS.bad : COLORS.good}20`, color: isBad ? COLORS.bad : COLORS.good }}>
                           {isBad ? "Bad" : "Good"}

@@ -1,25 +1,17 @@
 // utils/floorPlanUtils.ts
 import { Point, toPixels } from "../lib/coordinates";
-import { calculateCentroid, rayPolygonIntersection } from "../lib/geometry";
-import {
-  DevtaRegion
-} from "../lib/vastu/devtaAnalysis";
+import { calculateCentroid, rayPolygonIntersection, getAABB } from "../lib/geometry";
 import { MarmaPoint } from "@/lib/vastu/marmaAnalysis"; 
 import { ObjectAnalysisResult } from "@/lib/vastu/objectAnalysis";
-import { VastuRule } from "../lib/vastu/vastuRules";// Assuming DevtaRegion and MarmaPoint are also exported from vastuAnalysis or similar
-import { DEVTA_COLORS } from "../lib/floorPlanConstants";
 import { ZoneDivision } from "../lib/floorPlanInterfaces";
 import { PlacedObject } from "../lib/floorPlanInterfaces";
-
-
-// Re-export specific types if they were only used internally before
-// export type { DevtaRegion, MarmaPoint, ObjectAnalysisResult, VastuRule }; // Removed this line
 
 export const drawBoundary = (
   ctx: CanvasRenderingContext2D,
   boundary: Point[],
   dims: { width: number; height: number },
 ) => {
+// ... keep the rest of the file
   const pixelBoundary = boundary.map((p: Point) => toPixels(p, dims));
   ctx.strokeStyle = "#1f2937";
   ctx.lineWidth = 2;
@@ -94,49 +86,6 @@ export const drawNorthLine = (
     endX + 15 * Math.cos(angleRad),
     endY + 15 * Math.sin(angleRad),
   );
-};
-
-export const drawDevtaRegions = (
-  ctx: CanvasRenderingContext2D,
-  devtas: DevtaRegion[],
-  dims: { width: number; height: number },
-  selected: DevtaRegion | null,
-) => {
-  devtas.forEach((devta) => {
-    const pixelPolygon = devta.polygon.map((p: Point) => toPixels(p, dims));
-    const isSelected = selected?.id === devta.id;
-
-    let fillColor = DEVTA_COLORS[devta.name] || DEVTA_COLORS["default"];
-
-    ctx.fillStyle = isSelected
-      ? "rgba(255, 255, 255, 0.3)"
-      : `${fillColor}33`; // 20% opacity
-    ctx.strokeStyle = isSelected ? "#0ea5e9" : `${fillColor}80`; // 50% opacity
-    ctx.lineWidth = isSelected ? 3 : 1;
-
-    if (pixelPolygon.length > 0) {
-      ctx.beginPath();
-      ctx.moveTo(pixelPolygon[0].x, pixelPolygon[0].y);
-      for (let i = 1; i < pixelPolygon.length; i++) {
-        ctx.lineTo(pixelPolygon[i].x, pixelPolygon[i].y);
-      }
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-
-      // Draw Devta name
-      const devtaCentroid = calculateCentroid(devta.polygon);
-      const pixelDevtaCentroid = toPixels(devtaCentroid, dims);
-
-      ctx.fillStyle = "rgba(31, 41, 55, 0.75)"; // Dark slate, semi-transparent
-      ctx.font = devta.ring === "outer"
-        ? "8px sans-serif"
-        : "10px sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(devta.name, pixelDevtaCentroid.x, pixelDevtaCentroid.y);
-    }
-  });
 };
 
 export const drawMarmas = (
@@ -245,7 +194,6 @@ export const drawObjectAnalysis = (
   const p = toPixels(obj.centroid, dims);
   const lines = [
     `Object: ${obj.object_type}`,
-    `Devta: ${analysis.devtaName}`,
   ];
   if (analysis.closestMarma) {
     lines.push(
@@ -265,19 +213,6 @@ export const drawObjectAnalysis = (
     lines.push("No influential Marma nearby.");
   }
 
-  if (analysis.incorrectPoints.length > 0) {
-    lines.push("");
-    lines.push("Incorrect Placements:");
-    analysis.incorrectPoints.forEach((ip) => {
-      lines.push(`- Point in ${ip.devtaName}`);
-      const pixelPoint = toPixels(ip.point, dims);
-      ctx.fillStyle = "red";
-      ctx.beginPath();
-      ctx.arc(pixelPoint.x, pixelPoint.y, 5, 0, 2 * Math.PI);
-      ctx.fill();
-    });
-  }
-
   ctx.font = "13px sans-serif";
   const width = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 20;
   const height = lines.length * 18 + 10;
@@ -295,115 +230,5 @@ export const drawObjectAnalysis = (
   ctx.textBaseline = "top";
   lines.forEach((line, i) => {
     ctx.fillText(line, x + 10, y + 8 + i * 18);
-  });
-};
-
-export const drawDevtaInfoBox = (
-  ctx: CanvasRenderingContext2D,
-  rule: VastuRule,
-  dims: { width: number; height: number },
-) => {
-  const boxX = dims.width - 270; // Position on the right side
-  const boxY = 20;
-  const boxWidth = 250;
-  let currentY = boxY;
-  const padding = 15;
-  const lineHeight = 18;
-  const borderRadius = 10;
-
-  const devtaColor = DEVTA_COLORS[rule.devtaName] || DEVTA_COLORS["default"];
-  const textColor = "#1f2937"; // Dark text for readability
-
-  // Calculate total height for the box
-  const descriptionLines =
-    ctx.measureText(rule.description).width > (boxWidth - 2 * padding)
-      ? Math.ceil(
-        ctx.measureText(rule.description).width / (boxWidth - 2 * padding),
-      )
-      : 1;
-  const estimatedHeight = padding +
-    lineHeight + // Devta Name
-    lineHeight * descriptionLines + // Description
-    lineHeight + // Empty line
-    lineHeight + // Optimal header
-    rule.optimal.length * lineHeight +
-    lineHeight + // Empty line
-    lineHeight + // Avoid header
-    rule.avoid.length * lineHeight +
-    padding;
-
-  const boxHeight = estimatedHeight;
-
-  // Draw card background with rounded corners and shadow
-  ctx.shadowColor = "rgba(0, 0, 0, 0.2)";
-  ctx.shadowBlur = 10;
-  ctx.shadowOffsetX = 2;
-  ctx.shadowOffsetY = 2;
-  ctx.fillStyle = "#ffffff"; // White background
-  ctx.beginPath();
-  ctx.roundRect(boxX, boxY, boxWidth, boxHeight, borderRadius);
-  ctx.fill();
-  ctx.shadowColor = "transparent"; // Reset shadow
-
-  // Draw header with Devta color
-  ctx.fillStyle = devtaColor;
-  ctx.beginPath();
-  ctx.roundRect(boxX, boxY, boxWidth, 35, [borderRadius, borderRadius, 0, 0]); // Top rounded corners
-  ctx.fill();
-
-  // Draw Devta Name in header
-  currentY += padding;
-  ctx.font = "bold 16px sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "top";
-  ctx.fillStyle = "white"; // White text for header
-  ctx.fillText(`Devta: ${rule.devtaName}`, boxX + boxWidth / 2, currentY);
-
-  currentY += 35 - padding + 5; // Move past header area, add some space
-
-  // Draw description
-  ctx.font = "italic 12px sans-serif";
-  ctx.textAlign = "left";
-  ctx.fillStyle = textColor;
-  // Basic text wrapping (can be improved)
-  const words = rule.description.split(" ");
-  let line = "";
-  for (let n = 0; n < words.length; n++) {
-    const testLine = line + words[n] + " ";
-    const metrics = ctx.measureText(testLine);
-    const testWidth = metrics.width;
-    if (testWidth > boxWidth - 2 * padding && n > 0) {
-      ctx.fillText(`"${line.trim()}"`, boxX + padding, currentY);
-      line = words[n] + " ";
-      currentY += lineHeight;
-    } else {
-      line = testLine;
-    }
-  }
-  ctx.fillText(`"${line.trim()}"`, boxX + padding, currentY);
-  currentY += lineHeight + 5;
-
-  // Optimal section
-  currentY += 5; // Extra space
-  ctx.font = "bold 13px sans-serif";
-  ctx.fillStyle = textColor;
-  ctx.fillText("Optimal:", boxX + padding, currentY);
-  currentY += lineHeight;
-  ctx.font = "13px sans-serif";
-  rule.optimal.forEach((s) => {
-    ctx.fillText(`• ${s}`, boxX + padding + 10, currentY);
-    currentY += lineHeight;
-  });
-
-  // Avoid section
-  currentY += 5; // Extra space
-  ctx.font = "bold 13px sans-serif";
-  ctx.fillStyle = textColor;
-  ctx.fillText("Avoid:", boxX + padding, currentY);
-  currentY += lineHeight;
-  ctx.font = "13px sans-serif";
-  rule.avoid.forEach((s) => {
-    ctx.fillText(`• ${s}`, boxX + padding + 10, currentY);
-    currentY += lineHeight;
   });
 };

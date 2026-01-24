@@ -1,7 +1,5 @@
 // lib/floorPlanInterfaces.ts
 import { Point } from "./coordinates";
-import { ObjectAnalysisResult } from "./vastu/objectAnalysis";
-import { MarmaPoint } from "./vastu/marmaAnalysis";
 
 export interface DevtaRegion {
   id: number;
@@ -29,7 +27,6 @@ export interface PlacedObject {
 export type ZoneDivision = 8 | 16 | 32 | 0;
 
 export interface FloorPlanAnalysisData {
-  devtaRegions: DevtaRegion[] | null;
   marmas: MarmaPoint[];
   objectAnalyses: Record<string, ObjectAnalysisResult>;
 }
