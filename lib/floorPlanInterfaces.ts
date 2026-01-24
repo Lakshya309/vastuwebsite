@@ -1,13 +1,6 @@
 // lib/floorPlanInterfaces.ts
 import { Point } from "./coordinates";
 
-export interface DevtaRegion {
-  id: number;
-  name: string;
-  polygon: Point[];
-  ring: "center" | "middle" | "outer";
-}
-
 export interface Project {
   id: string;
   name: string;
@@ -27,6 +20,5 @@ export interface PlacedObject {
 export type ZoneDivision = 8 | 16 | 32 | 0;
 
 export interface FloorPlanAnalysisData {
-  marmas: MarmaPoint[];
   objectAnalyses: Record<string, ObjectAnalysisResult>;
 }

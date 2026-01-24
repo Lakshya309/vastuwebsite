@@ -1,6 +1,5 @@
 // utils/floorPlanUtils.ts
 import { Point, toPixels } from "../lib/coordinates";
-import { calculateCentroid, rayPolygonIntersection, getAABB } from "../lib/geometry";
 import { MarmaPoint } from "@/lib/vastu/marmaAnalysis"; 
 import { ObjectAnalysisResult } from "@/lib/vastu/objectAnalysis";
 import { ZoneDivision } from "../lib/floorPlanInterfaces";
@@ -49,45 +48,6 @@ export const drawIncompleteBoundary = (
   }
 };
 
-export const drawBrahmasthan = (
-  ctx: CanvasRenderingContext2D,
-  centroid: Point,
-  dims: { width: number; height: number },
-) => {
-  const pixelCentroid = toPixels(centroid, dims);
-  ctx.fillStyle = "rgba(255, 215, 0, 0.25)"; // Gold
-  ctx.beginPath();
-  ctx.arc(pixelCentroid.x, pixelCentroid.y, 10, 0, 2 * Math.PI);
-  ctx.fill();
-};
-
-export const drawNorthLine = (
-  ctx: CanvasRenderingContext2D,
-  centroid: Point,
-  north: number,
-  dims: { width: number; height: number },
-) => {
-  const pixelCentroid = toPixels(centroid, dims);
-  const lineLength = 50;
-  const angleRad = (north - 90) * (Math.PI / 180);
-  const endX = pixelCentroid.x + lineLength * Math.cos(angleRad);
-  const endY = pixelCentroid.y + lineLength * Math.sin(angleRad);
-  ctx.strokeStyle = "#374151";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(pixelCentroid.x, pixelCentroid.y);
-  ctx.lineTo(endX, endY);
-  ctx.stroke();
-  ctx.fillStyle = "#374151";
-  ctx.font = "bold 14px sans-serif";
-  ctx.textAlign = "center";
-  ctx.fillText(
-    "N",
-    endX + 15 * Math.cos(angleRad),
-    endY + 15 * Math.sin(angleRad),
-  );
-};
-
 export const drawMarmas = (
   ctx: CanvasRenderingContext2D,
   marmas: MarmaPoint[],
@@ -125,34 +85,6 @@ export const drawMarmaTooltip = (
   ctx.fillStyle = "white";
   ctx.fillText(text, p.x + 15, p.y - 5);
 };
-
-export const drawZoneLines = (
-  ctx: CanvasRenderingContext2D,
-  divisions: ZoneDivision,
-  centroid: Point,
-  boundary: Point[],
-  north: number,
-  dims: { width: number; height: number },
-) => {
-  if (divisions === 0) return;
-  const pixelCentroid = toPixels(centroid, dims);
-  const angleStep = 360 / divisions;
-  ctx.strokeStyle = "rgba(75, 85, 99, 0.3)";
-  ctx.lineWidth = 1;
-  for (let i = 0; i < divisions; i++) {
-    const angle = (north + i * angleStep) % 360;
-    const endPoint = rayPolygonIntersection(angle, boundary, centroid);
-    if (endPoint) {
-      const pixelEnd = toPixels(endPoint, dims);
-      ctx.beginPath();
-      ctx.moveTo(pixelCentroid.x, pixelCentroid.y);
-      ctx.lineTo(pixelEnd.x, pixelEnd.y);
-      ctx.stroke();
-    }
-  }
-};
-
-
 
 export const drawPlacedObjects = (
   ctx: CanvasRenderingContext2D,
