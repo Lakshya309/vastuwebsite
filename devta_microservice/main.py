@@ -1,185 +1,774 @@
-from flask import Flask, request, jsonify
-from shapely.geometry import Polygon, Point
-from typing import List, Dict, Any
+# # """
+# # Vastu Purusha Mandala – 45 Devtas
+# # Hybrid Engine (Client-Safe)
+
+# # Modes:
+# # 1. Rectangle (≤4 vertices) → Pure Traditional
+# # 2. L / Concave (>4 vertices) →
+# #    - Traditional Mandala inside max inner rectangle
+# #    - Irregular Devtas ONLY for leftover concave regions
+# # """
+
+# # import math
+# # import uvicorn
+# # from typing import List, Optional
+
+# # from fastapi import FastAPI, HTTPException
+# # from fastapi.middleware.cors import CORSMiddleware
+# # from pydantic import BaseModel, Field
+
+# # from shapely.geometry import Polygon, Point, MultiPolygon, box
+# # from shapely.affinity import scale as shapely_scale
+# # from shapely.ops import unary_union
+
+# # # ======================================================
+# # # FASTAPI
+# # # ======================================================
+
+# # app = FastAPI(title="Vastu Devta Engine", version="3.0")
+
+# # app.add_middleware(
+# #     CORSMiddleware,
+# #     allow_origins=["*"],
+# #     allow_methods=["*"],
+# #     allow_headers=["*"],
+# # )
+
+# # # ======================================================
+# # # MODELS
+# # # ======================================================
+
+# # class PointModel(BaseModel):
+# #     x: float
+# #     y: float
+
+# # class DevtaRegion(BaseModel):
+# #     id: str
+# #     name: str
+# #     polygon: List[PointModel]
+# #     ring: str
+# #     startAngle: Optional[float] = None
+# #     endAngle: Optional[float] = None
+# #     source: str  # "traditional" | "irregular"
+
+# # class AnalysisRequest(BaseModel):
+# #     boundary_normalized: List[PointModel]
+# #     north_direction: float = Field(default=0.0)
+
+# # class DevtaAnalysisResponse(BaseModel):
+# #     devtaRegions: List[DevtaRegion]
+
+# # # ======================================================
+# # # CONSTANTS
+# # # ======================================================
+
+# # CENTER_DEVTA = "Brahma"
+
+# # MIDDLE_DEVTAS = [
+# #     "Shikhi","Parjanya","Jayanta","Indra",
+# #     "Surya","Satya","Bhrisha","Akash",
+# #     "Vayu","Pusha","Vitatha","Gruhakshat"
+# # ]
+
+# # OUTER_DEVTAS = [f"Outer-{i+1}" for i in range(32)]
+
+# # # ======================================================
+# # # HELPERS
+# # # ======================================================
+
+# # def to_polygon(pts: List[PointModel]) -> Polygon:
+# #     poly = Polygon([(p.x, p.y) for p in pts])
+# #     return poly.buffer(0)
+
+# # def to_points(poly) -> List[PointModel]:
+# #     if poly.is_empty:
+# #         return []
+# #     if isinstance(poly, MultiPolygon):
+# #         poly = max(poly.geoms, key=lambda p: p.area)
+# #     return [PointModel(x=x, y=y) for x, y in list(poly.exterior.coords)[:-1]]
+
+# # def normalize_angle(a: float) -> float:
+# #     return a % 360
+
+# # def visual_center(poly: Polygon) -> Point:
+# #     c = poly.centroid
+# #     return c if poly.contains(c) else poly.representative_point()
+
+# # # ======================================================
+# # # CORE RECTANGLE EXTRACTION (VERY IMPORTANT)
+# # # ======================================================
+
+# # def largest_inner_rectangle(poly: Polygon) -> Polygon:
+# #     """
+# #     Conservative but robust:
+# #     Uses plot bounding box clipped inside polygon.
+# #     """
+# #     minx, miny, maxx, maxy = poly.bounds
+# #     candidate = box(minx, miny, maxx, maxy)
+
+# #     core = candidate.intersection(poly)
+# #     if core.area < poly.area * 0.4:
+# #         # Fallback: scaled polygon
+# #         center = visual_center(poly)
+# #         return shapely_scale(poly, 0.7, 0.7, origin=center)
+
+# #     return core
+
+# # # ======================================================
+# # # ANGULAR FAN (IRREGULAR ENGINE)
+# # # ======================================================
+
+# # def angular_fan(boundary: Polygon, center: Point, a1, a2, r=1000):
+# #     a1r = math.radians(90 - a1)
+# #     a2r = math.radians(90 - a2)
+
+# #     p1 = (center.x + r * math.cos(a1r), center.y + r * math.sin(a1r))
+# #     p2 = (center.x + r * math.cos(a2r), center.y + r * math.sin(a2r))
+
+# #     wedge = Polygon([(center.x, center.y), p1, p2])
+# #     clipped = wedge.intersection(boundary)
+
+# #     if clipped.is_empty:
+# #         return None
+# #     if isinstance(clipped, MultiPolygon):
+# #         return max(clipped.geoms, key=lambda g: g.area)
+# #     return clipped
+
+# # # ======================================================
+# # # TRADITIONAL MANDALA
+# # # ======================================================
+
+# # def generate_traditional(poly: Polygon, north: float, tag="traditional"):
+# #     devtas = []
+# #     did = 1
+# #     center = visual_center(poly)
+
+# #     inner = shapely_scale(poly, 0.33, 0.33, origin=center)
+# #     middle = shapely_scale(poly, 0.66, 0.66, origin=center)
+
+# #     devtas.append(DevtaRegion(
+# #         id=f"d-{did}", name=CENTER_DEVTA,
+# #         polygon=to_points(inner),
+# #         ring="center", source=tag
+# #     ))
+# #     did += 1
+
+# #     step = 360 / 32
+# #     for i in range(32):
+# #         w = angular_fan(poly, center, north + i*step, north + (i+1)*step)
+# #         if not w: continue
+# #         w = w.difference(middle)
+# #         if w.is_empty: continue
+
+# #         devtas.append(DevtaRegion(
+# #             id=f"d-{did}", name=OUTER_DEVTAS[i],
+# #             polygon=to_points(w),
+# #             ring="outer",
+# #             startAngle=normalize_angle(north+i*step),
+# #             endAngle=normalize_angle(north+(i+1)*step),
+# #             source=tag
+# #         ))
+# #         did += 1
+
+# #     return devtas
+
+# # # ======================================================
+# # # IRREGULAR RESIDUAL ENGINE
+# # # ======================================================
+
+# # def generate_irregular(poly: Polygon, north: float):
+# #     devtas = []
+# #     center = visual_center(poly)
+# #     step = 360 / 32
+# #     did = 1000
+
+# #     for i in range(32):
+# #         w = angular_fan(poly, center, north+i*step, north+(i+1)*step)
+# #         if not w: continue
+
+# #         devtas.append(DevtaRegion(
+# #             id=f"r-{did}",
+# #             name=f"Residual-{i+1}",
+# #             polygon=to_points(w),
+# #             ring="residual",
+# #             startAngle=normalize_angle(north+i*step),
+# #             endAngle=normalize_angle(north+(i+1)*step),
+# #             source="irregular"
+# #         ))
+# #         did += 1
+
+# #     return devtas
+
+# # # ======================================================
+# # # MAIN HYBRID PIPELINE
+# # # ======================================================
+
+# # def generate_hybrid(req: AnalysisRequest) -> List[DevtaRegion]:
+# #     outer = to_polygon(req.boundary_normalized)
+
+# #     if len(req.boundary_normalized) <= 4:
+# #         return generate_traditional(outer, req.north_direction)
+
+# #     core = largest_inner_rectangle(outer)
+# #     residual = outer.difference(core)
+
+# #     devtas = []
+# #     devtas += generate_traditional(core, req.north_direction, tag="traditional-core")
+
+# #     if not residual.is_empty:
+# #         if isinstance(residual, MultiPolygon):
+# #             for r in residual.geoms:
+# #                 devtas += generate_irregular(r, req.north_direction)
+# #         else:
+# #             devtas += generate_irregular(residual, req.north_direction)
+
+# #     return devtas
+
+# # # ======================================================
+# # # API
+# # # ======================================================
+
+# # @app.post("/analyze_devtas", response_model=DevtaAnalysisResponse)
+# # async def analyze(req: AnalysisRequest):
+# #     return DevtaAnalysisResponse(devtaRegions=generate_hybrid(req))
+
+# # @app.get("/health")
+# # def health():
+# #     return {"status": "ok", "engine": "hybrid-rectangular-core"}
+
+# # # ======================================================
+# # # RUN
+# # # ======================================================
+
+# # if __name__ == "__main__":
+# #     uvicorn.run(app, host="0.0.0.0", port=5000)
+# """
+# Vastu Purusha Mandala – 45 Devtas
+# Hybrid Engine (Production Grade)
+
+# • Rectangle plots → Pure Traditional Mandala
+# • Concave plots → Traditional Core + Irregular Residuals
+# • Fully Named Devtas (Center + 12 Middle + 32 Outer)
+# """
+
+# import math
+# import uvicorn
+# from typing import List, Optional
+
+# from fastapi import FastAPI
+# from fastapi.middleware.cors import CORSMiddleware
+# from pydantic import BaseModel, Field
+
+# from shapely.geometry import Polygon, Point, MultiPolygon, box
+# from shapely.affinity import scale as shapely_scale
+
+# # ======================================================
+# # FASTAPI
+# # ======================================================
+
+# app = FastAPI(title="Vastu Devta Engine", version="4.0")
+
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=["*"],
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+# )
+
+# # ======================================================
+# # MODELS
+# # ======================================================
+
+# class PointModel(BaseModel):
+#     x: float
+#     y: float
+
+# class DevtaRegion(BaseModel):
+#     id: str
+#     name: str
+#     polygon: List[PointModel]
+#     ring: str
+#     startAngle: Optional[float] = None
+#     endAngle: Optional[float] = None
+#     source: str
+
+# class AnalysisRequest(BaseModel):
+#     boundary_normalized: List[PointModel]
+#     north_direction: float = Field(default=0.0)
+
+# class DevtaAnalysisResponse(BaseModel):
+#     devtaRegions: List[DevtaRegion]
+
+# # ======================================================
+# # DEVTA CONSTANTS
+# # ======================================================
+
+# CENTER_DEVTA = "Brahma"
+
+# MIDDLE_DEVTAS = [
+#     "Shikhi","Parjanya","Jayanta","Indra",
+#     "Surya","Satya","Bhrisha","Akasha",
+#     "Vayu","Pusha","Vitatha","Gruhakshat"
+# ]
+
+# OUTER_DEVTAS = [
+#     "Ishanya","Parjanya","Jayanta","Indra",
+#     "Agni","Yama","Gandharva","Bhringraj",
+#     "Pitru","Diti","Sugriva","Pushpadanta",
+#     "Varuna","Asura","Shosha","Papa",
+#     "Roga","Naga","Mukhya","Bhallata",
+#     "Soma","Aditi","Dhanada","Kubera",
+#     "Bhujanga","Aditi2","Shankhini","Pitra",
+#     "Rudra","Shambhu","Aditi3","Brahma2"
+# ]
+
+# # ======================================================
+# # HELPERS
+# # ======================================================
+
+# def to_polygon(pts: List[PointModel]) -> Polygon:
+#     return Polygon([(p.x, p.y) for p in pts]).buffer(0)
+
+# def to_points(poly) -> List[PointModel]:
+#     if poly.is_empty:
+#         return []
+#     if isinstance(poly, MultiPolygon):
+#         poly = max(poly.geoms, key=lambda g: g.area)
+#     return [PointModel(x=x, y=y) for x, y in list(poly.exterior.coords)[:-1]]
+
+# def normalize_angle(a: float) -> float:
+#     return a % 360
+
+# def visual_center(poly: Polygon) -> Point:
+#     c = poly.centroid
+#     return c if poly.contains(c) else poly.representative_point()
+
+# # ======================================================
+# # GEOMETRY
+# # ======================================================
+
+# def angular_fan(boundary: Polygon, center: Point, a1, a2, r=1000):
+#     a1r = math.radians(90 - a1)
+#     a2r = math.radians(90 - a2)
+
+#     p1 = (center.x + r * math.cos(a1r), center.y + r * math.sin(a1r))
+#     p2 = (center.x + r * math.cos(a2r), center.y + r * math.sin(a2r))
+
+#     wedge = Polygon([(center.x, center.y), p1, p2])
+#     clipped = wedge.intersection(boundary)
+
+#     if clipped.is_empty:
+#         return None
+#     if isinstance(clipped, MultiPolygon):
+#         return max(clipped.geoms, key=lambda g: g.area)
+#     return clipped
+
+# def largest_inner_rectangle(poly: Polygon) -> Polygon:
+#     minx, miny, maxx, maxy = poly.bounds
+#     core = box(minx, miny, maxx, maxy).intersection(poly)
+
+#     if core.area < poly.area * 0.4:
+#         center = visual_center(poly)
+#         return shapely_scale(poly, 0.7, 0.7, origin=center)
+
+#     return core
+
+# # ======================================================
+# # TRADITIONAL MANDALA (45 DEVTA ENGINE)
+# # ======================================================
+
+# def generate_traditional(poly: Polygon, north: float, tag="traditional"):
+#     devtas = []
+#     center = visual_center(poly)
+#     did = 1
+
+#     inner = shapely_scale(poly, 0.33, 0.33, origin=center)
+#     middle = shapely_scale(poly, 0.66, 0.66, origin=center)
+
+#     # Center
+#     devtas.append(DevtaRegion(
+#         id=f"d-{did}", name=CENTER_DEVTA,
+#         polygon=to_points(inner),
+#         ring="center", source=tag
+#     ))
+#     did += 1
+
+#     # Middle ring (12)
+#     step_mid = 360 / 12
+#     for i, name in enumerate(MIDDLE_DEVTAS):
+#         w = angular_fan(poly, center,
+#                         north + i * step_mid,
+#                         north + (i + 1) * step_mid)
+#         if not w:
+#             continue
+#         w = w.intersection(middle).difference(inner)
+#         if w.is_empty:
+#             continue
+
+#         devtas.append(DevtaRegion(
+#             id=f"d-{did}", name=name,
+#             polygon=to_points(w),
+#             ring="middle",
+#             startAngle=normalize_angle(north + i * step_mid),
+#             endAngle=normalize_angle(north + (i + 1) * step_mid),
+#             source=tag
+#         ))
+#         did += 1
+
+#     # Outer ring (32)
+#     step_out = 360 / 32
+#     for i, name in enumerate(OUTER_DEVTAS):
+#         w = angular_fan(poly, center,
+#                         north + i * step_out,
+#                         north + (i + 1) * step_out)
+#         if not w:
+#             continue
+#         w = w.difference(middle)
+#         if w.is_empty:
+#             continue
+
+#         devtas.append(DevtaRegion(
+#             id=f"d-{did}", name=name,
+#             polygon=to_points(w),
+#             ring="outer",
+#             startAngle=normalize_angle(north + i * step_out),
+#             endAngle=normalize_angle(north + (i + 1) * step_out),
+#             source=tag
+#         ))
+#         did += 1
+
+#     return devtas
+
+# # ======================================================
+# # IRREGULAR RESIDUAL DEVTA ENGINE
+# # ======================================================
+
+# def generate_irregular(poly: Polygon, north: float):
+#     devtas = []
+#     center = visual_center(poly)
+#     step = 360 / 32
+#     did = 2000
+
+#     for i, name in enumerate(OUTER_DEVTAS):
+#         w = angular_fan(poly, center,
+#                         north + i * step,
+#                         north + (i + 1) * step)
+#         if not w:
+#             continue
+
+#         devtas.append(DevtaRegion(
+#             id=f"r-{did}",
+#             name=name,
+#             polygon=to_points(w),
+#             ring="residual",
+#             startAngle=normalize_angle(north + i * step),
+#             endAngle=normalize_angle(north + (i + 1) * step),
+#             source="irregular"
+#         ))
+#         did += 1
+
+#     return devtas
+
+# # ======================================================
+# # MAIN PIPELINE
+# # ======================================================
+
+# def generate_hybrid(req: AnalysisRequest) -> List[DevtaRegion]:
+#     outer = to_polygon(req.boundary_normalized)
+
+#     if len(req.boundary_normalized) <= 4:
+#         return generate_traditional(outer, req.north_direction)
+
+#     core = largest_inner_rectangle(outer)
+#     residual = outer.difference(core)
+
+#     devtas = generate_traditional(core, req.north_direction, "traditional-core")
+
+#     if not residual.is_empty:
+#         if isinstance(residual, MultiPolygon):
+#             for r in residual.geoms:
+#                 devtas += generate_irregular(r, req.north_direction)
+#         else:
+#             devtas += generate_irregular(residual, req.north_direction)
+
+#     return devtas
+
+# # ======================================================
+# # API
+# # ======================================================
+
+# @app.post("/analyze_devtas", response_model=DevtaAnalysisResponse)
+# async def analyze(req: AnalysisRequest):
+#     return DevtaAnalysisResponse(devtaRegions=generate_hybrid(req))
+
+# @app.get("/health")
+# def health():
+#     return {"status": "ok", "engine": "hybrid-vastu-45"}
+
+# # ======================================================
+# # RUN
+# # ======================================================
+
+# if __name__ == "__main__":
+#     uvicorn.run(app, host="0.0.0.0", port=5000)
+"""
+Vastu Spatial Engine – Production Grade
+
+Includes:
+• 45 Devta Mandala (Traditional + Hybrid)
+• 16 Direction Zones
+• 8 Direction Zones
+
+Rules:
+• 45 Devtas NEVER break
+• Zones are angular overlays only
+"""
+
 import math
+import uvicorn
+from typing import List, Optional, Literal
 
-app = Flask(__name__)
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
-# --- Helper functions (from geometry.ts, adapted to Python) ---
-class Point:
-    def __init__(self, x: float, y: float):
-        self.x = x
-        self.y = y
+from shapely.geometry import Polygon, Point, MultiPolygon, box
+from shapely.affinity import scale as shapely_scale
 
-    def to_dict(self):
-        return {"x": self.x, "y": self.y}
+# ======================================================
+# FASTAPI
+# ======================================================
 
-def calculate_centroid(polygon_points: List[Point]) -> Point:
-    if not polygon_points:
-        return Point(0, 0)
-    
-    x_coords = [p.x for p in polygon_points]
-    y_coords = [p.y for p in polygon_points]
-    
-    return Point(sum(x_coords) / len(polygon_points), sum(y_coords) / len(polygon_points))
+app = FastAPI(title="Vastu Spatial Engine", version="5.0")
 
-def polygon_area(polygon_points: List[Point]) -> float:
-    if len(polygon_points) < 3:
-        return 0.0
-    
-    polygon = Polygon([(p.x, p.y) for p in polygon_points])
-    return polygon.area
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-def point_in_polygon(point: Point, polygon_points: List[Point]) -> bool:
-    if len(polygon_points) < 3:
-        return False
-    
-    poly_shape = Polygon([(p.x, p.y) for p in polygon_points])
-    p_shape = Point(point.x, point.y)
-    return poly_shape.contains(p_shape)
+# ======================================================
+# MODELS
+# ======================================================
 
-def scale_polygon(polygon_points: List[Point], centroid: Point, scale_factor: float) -> List[Point]:
-    scaled_points = []
-    for p in polygon_points:
-        scaled_x = centroid.x + (p.x - centroid.x) * scale_factor
-        scaled_y = centroid.y + (p.y - centroid.y) * scale_factor
-        scaled_points.append(Point(scaled_x, scaled_y))
-    return scaled_points
+class PointModel(BaseModel):
+    x: float
+    y: float
 
-def ray_polygon_intersection(angle_deg: float, polygon_points: List[Point], origin: Point) -> Point:
-    # Convert angle to radians
-    angle_rad = math.radians(angle_deg)
-    
-    # Define a ray from origin extending far out
-    # A sufficiently large number for the ray length
-    ray_length = 10000 
-    
-    ray_end_x = origin.x + ray_length * math.cos(angle_rad)
-    ray_end_y = origin.y + ray_length * math.sin(angle_rad)
-    
-    ray = Polygon([(origin.x, origin.y), (ray_end_x, ray_end_y)])
-    poly_shape = Polygon([(p.x, p.y) for p in polygon_points])
-    
-    intersection = ray.intersection(poly_shape)
-    
-    if intersection.is_empty:
-        return None
-    
-    # Shapely's intersection can return a MultiPoint, LineString, or Point
-    if intersection.geom_type == 'Point':
-        return Point(intersection.x, intersection.y)
-    elif intersection.geom_type == 'MultiPoint':
-        # Return the point furthest from the origin, or closest along the ray
-        closest_point = None
-        min_dist = float('inf')
-        for p in intersection.geoms:
-            dist = math.sqrt((p.x - origin.x)**2 + (p.y - origin.y)**2)
-            if dist < min_dist:
-                min_dist = dist
-                closest_point = Point(p.x, p.y)
-        return closest_point
-    elif intersection.geom_type == 'LineString':
-        # Return the start point of the LineString segment that intersects
-        # This is a simplification; a more robust solution might consider direction.
-        return Point(intersection.coords[0][0], intersection.coords[0][1])
-    
-    return None
+class Region(BaseModel):
+    id: str
+    name: str
+    polygon: List[PointModel]
+    ring: str
+    startAngle: Optional[float] = None
+    endAngle: Optional[float] = None
+    source: str
 
-# Devta names and their properties (simplified for now)
-# These would ideally come from a configuration or database
-BRAHMA_DEVTA_NAME = "Brahma"
-MIDDLE_RING_DEVTA_NAMES = [f"Middle {i+1}" for i in range(12)]
-OUTER_RING_DEVTA_NAMES = [f"Outer {i+1}" for i in range(32)]
+class AnalysisRequest(BaseModel):
+    boundary_normalized: List[PointModel]
+    north_direction: float = Field(default=0.0)
 
-@app.route('/analyze_devtas', methods=['POST'])
-def analyze_devtas():
-    data = request.json
-    boundary_normalized_data = data.get('boundary_normalized')
-    north_direction = data.get('north_direction', 0)
+class AnalysisResponse(BaseModel):
+    devtas45: List[Region]
+    zones16: List[Region]
+    zones8: List[Region]
 
-    if not boundary_normalized_data:
-        return jsonify({"error": "Missing boundary_normalized"}), 400
+# ======================================================
+# CONSTANTS
+# ======================================================
 
-    boundary_points = [Point(p['x'], p['y']) for p in boundary_normalized_data]
+CENTER_DEVTA = "Brahma"
 
-    # Placeholder for actual 45 Devtas generation logic
-    # This is where the complex geometry for L, U, C shapes would be handled
-    devta_regions = generate_45_devtas_logic(boundary_points, north_direction)
+MIDDLE_DEVTAS = [
+    "Shikhi","Parjanya","Jayanta","Indra",
+    "Surya","Satya","Bhrisha","Akasha",
+    "Vayu","Pusha","Vitatha","Gruhakshat"
+]
 
-    return jsonify({"devta_regions": [dr.to_dict() for dr in devta_regions]})
+OUTER_DEVTAS = [
+    "Ishanya","Parjanya","Jayanta","Indra",
+    "Agni","Yama","Gandharva","Bhringraj",
+    "Pitru","Diti","Sugriva","Pushpadanta",
+    "Varuna","Asura","Shosha","Papa",
+    "Roga","Naga","Mukhya","Bhallata",
+    "Soma","Aditi","Dhanada","Kubera",
+    "Bhujanga","Shankhini","Pitra","Rudra",
+    "Shambhu","Aditi2","Aditi3","Brahma2"
+]
 
-class DevtaRegion:
-    def __init__(self, id: str, name: str, polygon: List[Point], ring: str):
-        self.id = id
-        self.name = name
-        self.polygon = polygon
-        self.ring = ring
+ZONE_NAMES_16 = [
+    "NNE","NE","ENE","E","ESE","SE","SSE","S",
+    "SSW","SW","WSW","W","WNW","NW","NNW","N"
+]
 
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "name": self.name,
-            "polygon": [p.to_dict() for p in self.polygon],
-            "ring": self.ring
-        }
+ZONE_NAMES_8 = ["NE","E","SE","S","SW","W","NW","N"]
 
-def generate_45_devtas_logic(boundary: List[Point], north_direction: float) -> List[DevtaRegion]:
-    # Placeholder for the actual Vastu Purusha Mandala generation
-    # This function would be similar to the generate45Devtas function from the removed devtaAnalysis.ts
-    # It needs to handle the concentric rings, angular divisions, and special shapes.
+# ======================================================
+# HELPERS
+# ======================================================
 
-    if len(boundary) < 3:
+def to_polygon(pts: List[PointModel]) -> Polygon:
+    return Polygon([(p.x, p.y) for p in pts]).buffer(0)
+
+def to_points(poly) -> List[PointModel]:
+    if poly.is_empty:
         return []
+    if isinstance(poly, MultiPolygon):
+        poly = max(poly.geoms, key=lambda g: g.area)
+    return [PointModel(x=x, y=y) for x, y in list(poly.exterior.coords)[:-1]]
 
-    devta_regions: List[DevtaRegion] = []
-    
-    centroid = calculate_centroid(boundary)
+def normalize_angle(a: float) -> float:
+    return a % 360
 
-    # Simplified example: just create a Brahma devta and some dummy outer devtas
-    # In a real implementation, this would involve precise geometric calculations
-    # using polygon offsetting, angular divisions, and handling of complex plot shapes.
+def visual_center(poly: Polygon) -> Point:
+    c = poly.centroid
+    return c if poly.contains(c) else poly.representative_point()
 
-    # Brahma (center)
-    brahma_polygon_scaled = scale_polygon(boundary, centroid, 0.1) # very small center
-    devta_regions.append(DevtaRegion(
-        id="brahma",
-        name=BRAHMA_DEVTA_NAME,
-        polygon=brahma_polygon_scaled,
-        ring="center"
+# ======================================================
+# GEOMETRY CORE
+# ======================================================
+
+def angular_wedge(boundary: Polygon, center: Point, a1, a2, r=2000):
+    a1r = math.radians(90 - a1)
+    a2r = math.radians(90 - a2)
+
+    p1 = (center.x + r * math.cos(a1r), center.y + r * math.sin(a1r))
+    p2 = (center.x + r * math.cos(a2r), center.y + r * math.sin(a2r))
+
+    wedge = Polygon([(center.x, center.y), p1, p2])
+    clipped = wedge.intersection(boundary)
+
+    if clipped.is_empty:
+        return None
+    if isinstance(clipped, MultiPolygon):
+        return max(clipped.geoms, key=lambda g: g.area)
+    return clipped
+
+def largest_inner_rectangle(poly: Polygon) -> Polygon:
+    minx, miny, maxx, maxy = poly.bounds
+    core = box(minx, miny, maxx, maxy).intersection(poly)
+
+    if core.area < poly.area * 0.4:
+        return shapely_scale(poly, 0.7, 0.7, origin=visual_center(poly))
+    return core
+
+# ======================================================
+# 45 DEVTA ENGINE (UNTOUCHED LOGIC)
+# ======================================================
+
+def generate_45_devtas(poly: Polygon, north: float, tag="traditional"):
+    devtas = []
+    center = visual_center(poly)
+    did = 1
+
+    inner = shapely_scale(poly, 0.33, 0.33, origin=center)
+    middle = shapely_scale(poly, 0.66, 0.66, origin=center)
+
+    devtas.append(Region(
+        id=f"d-{did}", name=CENTER_DEVTA,
+        polygon=to_points(inner),
+        ring="center", source=tag
     ))
+    did += 1
 
-    # Example: create some "outer" devtas based on angular divisions
-    num_outer_devtas = 32 # or 45 based on your specific Vastu Mandala
-    angle_step = 360 / num_outer_devtas
-    
-    for i in range(num_outer_devtas):
-        start_angle = (i * angle_step + north_direction) % 360
-        end_angle = ((i + 1) * angle_step + north_direction) % 360
+    step_mid = 360 / 12
+    for i, name in enumerate(MIDDLE_DEVTAS):
+        w = angular_wedge(poly, center,
+                          north+i*step_mid,
+                          north+(i+1)*step_mid)
+        if w:
+            w = w.intersection(middle).difference(inner)
+            if not w.is_empty:
+                devtas.append(Region(
+                    id=f"d-{did}", name=name,
+                    polygon=to_points(w),
+                    ring="middle",
+                    startAngle=normalize_angle(north+i*step_mid),
+                    endAngle=normalize_angle(north+(i+1)*step_mid),
+                    source=tag
+                ))
+                did += 1
 
-        # This is a highly simplified polygon for a sector
-        # Actual implementation requires polygon offsetting between concentric rings
-        # and clipping these rings by angular sectors.
-        outer_p1 = ray_polygon_intersection(start_angle, boundary, centroid)
-        outer_p2 = ray_polygon_intersection(end_angle, boundary, centroid)
-        
-        # To make a valid polygon, we need points on an inner ring as well
-        # For this placeholder, we'll just use a small inner polygon for demonstration
-        inner_boundary = scale_polygon(boundary, centroid, 0.5)
-        inner_p1 = ray_polygon_intersection(start_angle, inner_boundary, centroid)
-        inner_p2 = ray_polygon_intersection(end_angle, inner_boundary, centroid)
+    step_out = 360 / 32
+    for i, name in enumerate(OUTER_DEVTAS):
+        w = angular_wedge(poly, center,
+                          north+i*step_out,
+                          north+(i+1)*step_out)
+        if w:
+            w = w.difference(middle)
+            if not w.is_empty:
+                devtas.append(Region(
+                    id=f"d-{did}", name=name,
+                    polygon=to_points(w),
+                    ring="outer",
+                    startAngle=normalize_angle(north+i*step_out),
+                    endAngle=normalize_angle(north+(i+1)*step_out),
+                    source=tag
+                ))
+                did += 1
 
+    return devtas
 
-        if outer_p1 and outer_p2 and inner_p1 and inner_p2:
-            # A very crude representation of a sector for illustration
-            sector_polygon_points = [outer_p1, outer_p2, inner_p2, inner_p1, outer_p1]
-            devta_regions.append(DevtaRegion(
-                id=f"outer-{i}",
-                name=OUTER_RING_DEVTA_NAMES[i % len(OUTER_RING_DEVTA_NAMES)],
-                polygon=sector_polygon_points,
-                ring="outer"
+# ======================================================
+# 8 / 16 ZONE ENGINE (SAFE OVERLAY)
+# ======================================================
+
+def generate_zones(poly: Polygon, north: float, names: List[str], label: str):
+    zones = []
+    center = visual_center(poly)
+    step = 360 / len(names)
+
+    for i, name in enumerate(names):
+        w = angular_wedge(poly, center,
+                          north+i*step,
+                          north+(i+1)*step)
+        if w:
+            zones.append(Region(
+                id=f"{label}-{i+1}",
+                name=name,
+                polygon=to_points(w),
+                ring=label,
+                startAngle=normalize_angle(north+i*step),
+                endAngle=normalize_angle(north+(i+1)*step),
+                source="directional"
             ))
+    return zones
 
-    return devta_regions
+# ======================================================
+# MAIN PIPELINE
+# ======================================================
 
-if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+def analyze_plot(req: AnalysisRequest) -> AnalysisResponse:
+    outer = to_polygon(req.boundary_normalized)
+
+    if len(req.boundary_normalized) <= 4:
+        devtas = generate_45_devtas(outer, req.north_direction)
+    else:
+        core = largest_inner_rectangle(outer)
+        devtas = generate_45_devtas(core, req.north_direction, "traditional-core")
+
+    return AnalysisResponse(
+        devtas45=devtas,
+        zones16=generate_zones(outer, req.north_direction, ZONE_NAMES_16, "zone16"),
+        zones8=generate_zones(outer, req.north_direction, ZONE_NAMES_8, "zone8"),
+    )
+
+# ======================================================
+# API
+# ======================================================
+
+@app.post("/analyze", response_model=AnalysisResponse)
+async def analyze(req: AnalysisRequest):
+    return analyze_plot(req)
+
+@app.get("/health")
+def health():
+    return {"status": "ok", "engine": "vastu-spatial-v5"}
+
+# ======================================================
+# RUN
+# ======================================================
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=5000)

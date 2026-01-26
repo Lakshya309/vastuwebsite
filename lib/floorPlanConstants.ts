@@ -13,6 +13,3 @@ export const AVAILABLE_OBJECTS = [
 ];
 
 
-
-export const MIDDLE_BOUNDARY_SCALE = 0.66;
-export const INNER_BOUNDARY_SCALE = 0.33;

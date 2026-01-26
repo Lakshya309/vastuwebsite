@@ -1,27 +1,23 @@
-// app/api/analysis/devta/route.ts
-
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
   try {
-    const { boundary_normalized, north_direction } = await request.json();
+    const body = await request.json();
 
-    // TODO: Call Python microservice here
-    // For now, returning a placeholder success
-    return NextResponse.json(
-      {
-        message: "Devta analysis request received.",
-        data: {
-          /* Placeholder for microservice result */
-        },
-      },
-      { status: 200 },
-    );
-  } catch (error: any) {
-    console.error("Error in devta analysis API:", error);
-    return NextResponse.json(
-      { message: "Failed to perform devta analysis.", error: error.message },
-      { status: 500 },
-    );
+    // Call the Python service directly
+    const response = await fetch("http://127.0.0.1:5000/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+        return NextResponse.json({ error: "Python Service Unreachable" }, { status: 500 });
+    }
+
+    const data = await response.json();
+    return NextResponse.json(data);
+  } catch (error) {
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

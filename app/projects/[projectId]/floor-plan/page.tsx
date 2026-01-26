@@ -1,43 +1,20 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-
-import { useFloorPlanData } from "../../../../hooks/useFloorPlanData";
-import { useFloorPlanAnalysis } from "../../../../hooks/useFloorPlanAnalysis";
-import { FloorPlanCanvas } from "../../../../components/floor-plan/FloorPlanCanvas";
-import { ControlPanel } from "../../../../components/floor-plan/ControlPanel";
-
-import { PlacedObject } from "../../../../lib/floorPlanInterfaces";
-import { Point } from "../../../../lib/geometry";
-import { MarmaPoint } from "@/lib/vastu/marmaAnalysis";
-
-/* =========================================================
-   Helpers
-========================================================= */
-
-function averagePoint(points: Point[]): Point {
-  let x = 0, y = 0;
-  for (const p of points) {
-    x += p.x;
-    y += p.y;
-  }
-  return {
-    x: x / points.length,
-    y: y / points.length,
-  };
-}
-
-/* =========================================================
-   Page
-========================================================= */
+import { useFloorPlanData } from "@/hooks/useFloorPlanData";
+import { useFloorPlanAnalysis } from "@/hooks/useFloorPlanAnalysis";
+import { FloorPlanCanvas } from "@/components/floor-plan/FloorPlanCanvas";
+import { ControlPanel } from "@/components/floor-plan/ControlPanel";
+import { DevtaInfoCard } from "@/components/floor-plan/DevtaInfoCard";
+import { PlacedObject, DevtaRegion, Point } from "@/lib/floorPlanInterfaces";
 
 export default function FloorPlanPage() {
-  const { projectId } = useParams() as { projectId: string };
+  const params = useParams();
+  const projectId = params.projectId as string;
 
-  /* ---------------- Data ---------------- */
-
+  // 1. Data Hooks
   const {
     project,
     loading,
@@ -52,208 +29,221 @@ export default function FloorPlanPage() {
     setLiveNorthDirection,
   } = useFloorPlanData(projectId);
 
-  const {
-    marmas,
-    objectAnalyses,
-  } = useFloorPlanAnalysis(boundary, placedObjects, liveNorthDirection);
-
-  /* ---------------- UI State ---------------- */
-
+  // 2. UI State
+  const [activeView, setActiveView] = useState<"setup" | "grids" | "objects" | "report">("setup");
+  const [showGrid, setShowGrid] = useState({ devta45: true, zone16: false, zone8: false });
+  const [selectedObjectType, setSelectedObjectType] = useState("Toilet");
+  const [drawingObjectBoundary, setDrawingObjectBoundary] = useState<Point[]>([]); // simplified for brevity
+  const [selectedDevta, setSelectedDevta] = useState<DevtaRegion | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [objectsToDelete, setObjectsToDelete] = useState<string[]>([]);
-  const [drawingObjectBoundary, setDrawingObjectBoundary] = useState<Point[]>([]);
-  const [drawingMode, setDrawingMode] =
-    useState<"boundary" | "objects" | "select">("boundary");
 
-  const [selectedObjectType, setSelectedObjectType] = useState("Bed");
-
-  const [hoveredMarma, setHoveredMarma] = useState<MarmaPoint | null>(null);
-  const [selectedObject, setSelectedObject] =
-    useState<PlacedObject | null>(null);
-
-  const imageRef = useRef<HTMLImageElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  /* =========================================================
-     Image Upload
-  ========================================================= */
-
-  const handleImageUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setSelectedFile(file);
-
-    const reader = new FileReader();
-    reader.onload = (e) =>
-      setFloorPlanImage(e.target?.result as string);
-    reader.readAsDataURL(file);
-
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("projectId", projectId);
-
-    const response = await fetch("/api/upload", {
-      method: "POST",
-      body: formData,
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      setFloorPlanImage(data.url);
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setSelectedFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFloorPlanImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
-  /* =========================================================
-     Object Handling
-  ========================================================= */
+  // 3. Analysis Hooks
+  const [drawingMode, setDrawingMode] = useState<"boundary" | "objects" | "select" | null>(null);
+  const { devtaRegions, zones16, zones8 } = useFloorPlanAnalysis(boundary, placedObjects, liveNorthDirection);
 
+  // 4. Handlers
   const handleAddObject = () => {
-    if (drawingObjectBoundary.length < 3) {
-      alert("Object must have at least 3 points.");
-      return;
-    }
-
-    const newObject: PlacedObject = {
-      id: `T${Date.now()}`,
-      project_id: projectId,
-      object_type: selectedObjectType,
-      boundary_normalized: drawingObjectBoundary,
-      centroid: averagePoint(drawingObjectBoundary), // lightweight, safe
-    };
-
-    setPlacedObjects([...placedObjects, newObject]);
-    setDrawingObjectBoundary([]);
+    setDrawingMode("objects");
   };
 
-  const handleDeleteObject = (id: string) => {
-    if (!id.startsWith("T")) {
-      setObjectsToDelete([...objectsToDelete, id]);
-    }
-    setPlacedObjects(placedObjects.filter(o => o.id !== id));
-    setSelectedObject(null);
+  const handleStartDrawingBoundary = () => {
+    setDrawingMode("boundary");
   };
 
-  /* =========================================================
-     Save
-  ========================================================= */
+  const handleReupload = () => {
+    setFloorPlanImage(null);
+    setSelectedFile(null);
+  };
+
+  const handleFinishDrawingBoundary = () => {
+    setDrawingMode(null);
+  };
+
+  const handleResetBoundary = () => {
+    setBoundary([]);
+  };
+
+  const handleUndoLastPoint = () => {
+    setBoundary((prev) => prev.slice(0, -1));
+  };
+
+  const handleDrawBoundary = (point: Point) => {
+    setBoundary((prev) => [...prev, point]);
+  };
+
+  const handlePlaceObject = (newObject: PlacedObject) => {
+    setPlacedObjects((prev) => [...prev, newObject]);
+    setDrawingMode(null);
+  };
+
+  const handleDevtaClick = (devta: DevtaRegion) => {
+    setSelectedDevta(devta);
+  };
+
+  const handleCloseDevtaCard = () => {
+    setSelectedDevta(null);
+  };
 
   const handleSaveChanges = async () => {
-    await fetch(`/api/projects/${projectId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    try {
+      // Finish drawing if in progress
+      if (drawingMode === 'boundary') {
+        handleFinishDrawingBoundary();
+      }
+      
+      console.log("Saving data:", {
         boundary_normalized: boundary,
         north_direction: liveNorthDirection,
-      }),
-    });
+        floor_plan_path: floorPlanImage, // Assuming the image is already uploaded or handled
+      });
 
-    await fetch(`/api/projects/${projectId}/objects/batch`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        objectsToSave: placedObjects.filter(o => o.id.startsWith("T")),
-        objectsToDelete,
-      }),
-    });
+      const response = await fetch(`/api/projects/${projectId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          boundary_normalized: boundary,
+          north_direction: liveNorthDirection,
+        }),
+      });
 
-    setObjectsToDelete([]);
-    alert("Saved successfully");
+      if (!response.ok) {
+        throw new Error('Failed to save project data.');
+      }
+
+      console.log('Project data saved successfully!');
+      setActiveView('grids'); // Move to the next phase
+
+    } catch (error) {
+      console.error(error);
+      // You might want to show an error message to the user
+    }
   };
 
-  /* =========================================================
-     Analysis
-  ========================================================= */
+  const handleSaveObjects = async () => {
+    try {
+      console.log("Saving objects:", placedObjects);
 
-  const handleRunAnalysis = async (
-    projectId: string,
-    objects: PlacedObject[],
-  ) => {
-    if (!project || !project.boundary_normalized) {
-      throw new Error("Project boundary is not defined.");
-    }
-    const response = await fetch("/api/analysis/devta", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        projectId,
-        boundary_normalized: project.boundary_normalized,
-        north_direction: liveNorthDirection,
-      }),
-    });
+      const response = await fetch(`/api/projects/${projectId}/objects`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ objects: placedObjects }),
+      });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || "Failed to run devta analysis.");
+      if (!response.ok) {
+        throw new Error('Failed to save project objects.');
+      }
+
+      console.log('Project objects saved successfully!');
+      setActiveView('report'); // Move to the next phase
+
+    } catch (error) {
+      console.error(error);
+      // You might want to show an error message to the user
     }
-    // Optionally, handle the successful response, e.g., display a success message
   };
-
-  /* =========================================================
-     Render
-  ========================================================= */
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <h1 className="text-4xl font-bold mb-4">
-        {project?.name} – Floor Plan
-      </h1>
+    <div className="h-screen bg-gray-100 flex flex-col overflow-hidden">
+      
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 shrink-0 z-10">
+        <div className="flex items-center gap-4">
+          <Link href={`/projects/${projectId}`} className="text-gray-500 hover:text-gray-800">
+            ← Back
+          </Link>
+          <h1 className="text-xl font-bold text-gray-800">
+            {project?.name || "Untitled Project"} <span className="text-gray-400 font-normal">/ Vastu Studio</span>
+          </h1>
+        </div>
+        <div className="flex items-center gap-3">
+           <button className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded">
+             Save Draft
+           </button>
+           <button className="px-4 py-2 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 rounded shadow">
+             Export Report
+           </button>
+        </div>
+      </header>
 
-      <nav className="mb-8 flex gap-6">
-        <Link href={`/projects/${projectId}`}>Overview</Link>
-        <Link href={`/projects/${projectId}/floor-plan`}>Floor Plan</Link>
-        <Link href={`/projects/${projectId}/report`}>Report</Link>
-      </nav>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 bg-white rounded-2xl shadow p-6">
-          <FloorPlanCanvas
-            floorPlanImage={floorPlanImage}
-            boundary={boundary}
-            placedObjects={placedObjects}
-            drawingObjectBoundary={drawingObjectBoundary}
-            drawingMode={drawingMode}
-            selectedObject={selectedObject}
-            hoveredMarma={hoveredMarma}
-            imageRef={imageRef}
-            canvasRef={canvasRef}
-            marmas={marmas}
-            objectAnalyses={objectAnalyses}
-            setBoundary={setBoundary}
-            setDrawingObjectBoundary={setDrawingObjectBoundary}
-            setPlacedObjects={setPlacedObjects}
-            setSelectedObject={setSelectedObject}
-            setHoveredMarma={setHoveredMarma}
-          />
+      {/* Main Workspace */}
+      <div className="flex-1 flex overflow-hidden">
+        
+        {/* Canvas Area (Left) */}
+        <div className="flex-1 bg-gray-50 relative overflow-hidden flex items-center justify-center p-8">
+          <div className="bg-white shadow-2xl rounded-lg overflow-hidden relative" style={{ width: '800px', height: '600px' }}>
+            <FloorPlanCanvas
+               floorPlanImage={floorPlanImage}
+               boundary={boundary}
+               onDrawBoundary={handleDrawBoundary}
+               placedObjects={placedObjects}
+               devtaRegions={showGrid.devta45 ? devtaRegions : []}
+               zone16Regions={showGrid.zone16 ? zones16 : []}
+               zone8Regions={showGrid.zone8 ? zones8 : []}
+               onDevtaClick={handleDevtaClick}
+               drawingMode={drawingMode}
+               setDrawingMode={setDrawingMode}
+               onPlaceObject={handlePlaceObject}
+               drawingObjectBoundary={drawingObjectBoundary}
+               setDrawingObjectBoundary={setDrawingObjectBoundary}
+               selectedObjectType={selectedObjectType}
+            />
+            
+            {/* Overlay Status Indicators */}
+            <div className="absolute top-4 left-4 flex flex-col gap-2">
+              {showGrid.devta45 && <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded shadow">45 Devtas ON</span>}
+              {showGrid.zone16 && <span className="bg-indigo-600 text-white text-xs px-2 py-1 rounded shadow">16 Zones ON</span>}
+              {showGrid.zone8 && <span className="bg-purple-600 text-white text-xs px-2 py-1 rounded shadow">8 Zones ON</span>}
+            </div>
+            
+            {selectedDevta && (
+              <DevtaInfoCard devta={selectedDevta} onClose={handleCloseDevtaCard} />
+            )}
+          </div>
         </div>
 
+        {/* Control Panel (Right) */}
         <ControlPanel
           projectId={projectId}
-          projectName={project?.name}
           error={error}
           loading={loading}
+          activeView={activeView}
+          setActiveView={setActiveView}
+          showGrid={showGrid}
+          setShowGrid={setShowGrid}
           liveNorthDirection={liveNorthDirection}
           setLiveNorthDirection={setLiveNorthDirection}
           selectedFile={selectedFile}
           handleImageUpload={handleImageUpload}
-          drawingMode={drawingMode}
-          setDrawingMode={setDrawingMode}
-          boundary={boundary}
-          setBoundary={setBoundary}
+          handleStartDrawingBoundary={handleStartDrawingBoundary}
+          handleFinishDrawingBoundary={handleFinishDrawingBoundary}
+          handleReupload={handleReupload}
+          handleResetBoundary={handleResetBoundary}
+          handleUndoLastPoint={handleUndoLastPoint}
           selectedObjectType={selectedObjectType}
           setSelectedObjectType={setSelectedObjectType}
-  handleAddObject={handleAddObject}
-          handleResetObjects={async () => {
-            setPlacedObjects([]);
-          }}
-          handleSaveChanges={handleSaveChanges}
-          selectedObject={selectedObject}
-          handleDeleteObject={handleDeleteObject}
-          onRunAnalysis={handleRunAnalysis}
+          handleAddObject={handleAddObject}
           placedObjects={placedObjects}
+          devtaRegions={devtaRegions}
+          zone16Regions={zones16}
+          zone8Regions={zones8}
+          drawingMode={drawingMode}
+          boundary={boundary}
+          handleSaveChanges={handleSaveChanges}
+          handleSaveObjects={handleSaveObjects}
         />
+
       </div>
     </div>
   );

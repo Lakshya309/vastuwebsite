@@ -1,84 +1,55 @@
 // hooks/useFloorPlanData.ts
-import { useEffect, useState } from "react";
-import { useProjectStore } from "../lib/store/projectStore";
-import { PlacedObject, Project } from "../lib/floorPlanInterfaces";
-import { Point } from "../lib/coordinates";
+import { useState, useEffect, useCallback } from "react";
+import { ProjectData, PlacedObject, Point } from "@/lib/floorPlanInterfaces";
 
-interface UseFloorPlanDataResult {
-  project: Project | null;
-  loading: boolean;
-  error: string | null;
-  floorPlanImage: string | null;
-  setFloorPlanImage: (url: string | null) => void;
-  boundary: Point[];
-  setBoundary: (boundary: Point[]) => void;
-  placedObjects: PlacedObject[];
-  setPlacedObjects: (objects: PlacedObject[]) => void;
-  liveNorthDirection: number;
-  setLiveNorthDirection: (direction: number) => void;
-}
-
-export function useFloorPlanData(projectId: string): UseFloorPlanDataResult {
-  const { liveNorthDirection, setLiveNorthDirection } = useProjectStore();
-
-  const [project, setProject] = useState<Project | null>(null);
+export function useFloorPlanData(projectId: string) {
+  // State
+  const [project, setProject] = useState<ProjectData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Editable State (Local UI state before saving)
   const [floorPlanImage, setFloorPlanImage] = useState<string | null>(null);
   const [boundary, setBoundary] = useState<Point[]>([]);
   const [placedObjects, setPlacedObjects] = useState<PlacedObject[]>([]);
+  const [liveNorthDirection, setLiveNorthDirection] = useState(0);
 
+  // 1. Fetch Project Data on Mount
   useEffect(() => {
     if (!projectId) return;
 
-    const fetchProjectAndObjects = async () => {
-      setLoading(true);
-      setError(null);
-
+    const fetchProject = async () => {
       try {
-        // Fetch project details
-        const projectResponse = await fetch(`/api/projects/${projectId}`);
-        if (projectResponse.status === 401) {
-          throw new Error("Unauthorized");
-        }
-        if (!projectResponse.ok) {
-          throw new Error("Failed to fetch project data.");
-        }
-
-        const projectData = await projectResponse.json();
-        const project = projectData.project;
-
+        setLoading(true);
+        // Replace this URL with your actual API endpoint
+        const res = await fetch(`/api/projects/${projectId}`);
+        if (!res.ok) throw new Error("Failed to load project");
+        
+        const { project } = await res.json();
+        
+        // Hydrate state
         setProject(project);
-        setFloorPlanImage(project.floor_plan_path);
+        setFloorPlanImage(project.floor_plan_path || null);
+        setBoundary(project.boundary_normalized || []);
+        setLiveNorthDirection(project.north_direction || 0);
 
-        if (project.boundary_normalized) {
-          setBoundary(project.boundary_normalized);
+        // Fetch objects separately if needed, or include in project response
+        const objsRes = await fetch(`/api/projects/${projectId}/objects`);
+        if (objsRes.ok) {
+           const objsData = await objsRes.json();
+           setPlacedObjects(objsData.objects);
         }
 
-        if (project.north_direction !== null) {
-          setLiveNorthDirection(project.north_direction);
-        }
-
-        // Fetch project objects
-        const objectsResponse = await fetch(
-          `/api/projects/${projectId}/objects`
-        );
-
-        if (!objectsResponse.ok) {
-          throw new Error("Failed to fetch objects.");
-        }
-
-        const objectsData = await objectsResponse.json();
-        setPlacedObjects(objectsData.objects);
       } catch (err: any) {
+        console.error(err);
         setError(err.message);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchProjectAndObjects();
-  }, [projectId, setLiveNorthDirection]);
+    fetchProject();
+  }, [projectId]);
 
   return {
     project,

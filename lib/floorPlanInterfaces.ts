@@ -1,24 +1,63 @@
 // lib/floorPlanInterfaces.ts
-import { Point } from "./coordinates";
 
-export interface Project {
-  id: string;
-  name: string;
-  floor_plan_url: string | null;
-  boundary_normalized: Point[] | null;
-  north_direction: number | null;
+export interface Point {
+    x: number;
+    y: number;
 }
-
+  
 export interface PlacedObject {
-  id: string; // Can be a temporary string for new objects or UUID for saved ones
-  project_id: string;
-  object_type: string;
-  boundary_normalized: Point[];
-  centroid: Point;
+    id: string;
+    object_type: string;
+    boundary_normalized: Point[];
+    centroid: Point;
+}
+  
+export interface DevtaRegion {
+    id: string;
+    name: string;
+    ring: 'center' | 'middle' | 'outer';
+    polygon: Point[];
+    startAngle?: number;
+    endAngle?: number;
+}
+  
+export interface MarmaPoint {
+    id: string;
+    name: string;
+    position: Point;
+    type: 'sensitive' | 'critical';
+}
+  
+export interface ProjectData {
+    id: string;
+    name: string;
+    floor_plan_path: string | null;
+    boundary_normalized: Point[] | null;
+    north_direction: number | null;
+    placed_objects: PlacedObject[];
+}
+  
+export interface FloorPlanCanvasProps {
+    floorPlanImage: string | null;
+    boundary: Point[];
+    onDrawBoundary?: (point: Point) => void;
+    placedObjects: PlacedObject[];
+    devtaRegions?: DevtaRegion[];
+    innerPolygon?: Point[]; // Add this
+    middlePolygon?: Point[]; // Add this
+    zone16Regions?: any[];
+    zone8Regions?: any[];
+    drawingObjectBoundary?: Point[];
+    setDrawingObjectBoundary?: any;
+    drawingMode: 'boundary' | 'objects' | 'select' | null;
+    setDrawingMode?: (mode: 'boundary' | 'objects' | 'select' | null) => void;
+    onDevtaClick?: (devta: DevtaRegion) => void;
+    onPlaceObject?: (object: PlacedObject) => void;
+    selectedObjectType?: string;
 }
 
-export type ZoneDivision = 8 | 16 | 32 | 0;
-
-export interface FloorPlanAnalysisData {
-  objectAnalyses: Record<string, ObjectAnalysisResult>;
+export interface DevtaAnalysisResponse {
+    devtaRegions: DevtaRegion[];
+    innerPolygon?: Point[];
+    middlePolygon?: Point[];
 }

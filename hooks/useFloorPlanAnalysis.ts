@@ -1,60 +1,68 @@
-// hooks/useFloorPlanAnalysis.ts
-import { useEffect, useState } from "react";
-import {
-  PlacedObject,
-} from "@/lib/floorPlanInterfaces";
-import { Point } from "@/lib/coordinates";
-import { generateMarmaPoints, MarmaPoint } from "@/lib/vastu/marmaAnalysis";
-import {
-  analyzeObjectPlacement,
-  ObjectAnalysisResult,
-} from "@/lib/vastu/objectAnalysis";
+import { useState, useEffect } from "react";
+import { Point, PlacedObject, DevtaRegion, MarmaPoint } from "@/lib/floorPlanInterfaces";
 
-interface UseFloorPlanAnalysisResult {
-  marmas: MarmaPoint[];
-  objectAnalyses: Record<string, ObjectAnalysisResult>;
+interface AnalysisResponse {
+  devtas45: DevtaRegion[];
+  zones16: DevtaRegion[];
+  zones8: DevtaRegion[];
 }
 
 export function useFloorPlanAnalysis(
-  boundary: Point[],
-  placedObjects: PlacedObject[],
-  liveNorthDirection: number,
-): UseFloorPlanAnalysisResult {
-  const [marmas, setMarmas] = useState<MarmaPoint[]>([]);
-  const [objectAnalyses, setObjectAnalyses] = useState<
-    Record<string, ObjectAnalysisResult>
-  >({});
+    boundary: Point[], 
+    placedObjects: PlacedObject[], 
+    northDirection: number
+) {
+    const [devtaRegions, setDevtaRegions] = useState<DevtaRegion[]>([]);
+    const [zones16, setZones16] = useState<DevtaRegion[]>([]);
+    const [zones8, setZones8] = useState<DevtaRegion[]>([]);
+    const [marmas, setMarmas] = useState<MarmaPoint[]>([]);
+    const [objectAnalyses, setObjectAnalyses] = useState<any[]>([]);
+    const [analysisMode, setAnalysisMode] = useState(false);
 
-  // --- CORE REAL-TIME ANALYSIS ENGINE ---
-  useEffect(() => {
-    if (boundary.length < 3) {
-      setMarmas([]);
-      setObjectAnalyses({});
-      return;
-    }
+    useEffect(() => {
+        if (boundary.length < 3) {
+            setDevtaRegions([]);
+            setZones16([]);
+            setZones8([]);
+            return;
+        }
 
-    // 2. Generate Marma points (still allowed to use north direction)
-    const newMarmas = generateMarmaPoints(boundary, liveNorthDirection);
-    setMarmas(newMarmas);
+        const fetchAnalysis = async () => {
+            const response = await fetch("/api/analysis/devta", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    boundary_normalized: boundary,
+                    north_direction: northDirection,
+                    objects: placedObjects
+                })
+            });
+            if (!response.ok) {
+                throw new Error("Failed to fetch floor plan analysis");
+            }
+            return response.json() as Promise<AnalysisResponse>;
+        };
 
-    // 3. Analyze placed objects against Marma geometry
-    const newAnalyses: Record<string, ObjectAnalysisResult> = {};
+        fetchAnalysis().then(data => {
+            setDevtaRegions(data.devtas45 || []);
+            setZones16(data.zones16 || []);
+            setZones8(data.zones8 || []);
+        }).catch(err => {
+            console.error("Analysis fetch failed", err);
+            setDevtaRegions([]);
+            setZones16([]);
+            setZones8([]);
+        });
 
-    for (const obj of placedObjects) {
-      newAnalyses[obj.id] = analyzeObjectPlacement(
-        obj.boundary_normalized,
-        obj.object_type,
-        newMarmas,
-        boundary,
-        liveNorthDirection,
-      );
-    }
+    }, [boundary, northDirection, placedObjects.length]); 
 
-    setObjectAnalyses(newAnalyses);
-  }, [boundary, placedObjects, liveNorthDirection]);
-
-  return {
-    marmas,
-    objectAnalyses,
-  };
+    return {
+        devtaRegions,
+        zones16,
+        zones8,
+        marmas,
+        objectAnalyses,
+        analysisMode,
+        setAnalysisMode
+    };
 }
