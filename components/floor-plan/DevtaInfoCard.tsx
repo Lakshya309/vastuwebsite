@@ -25,17 +25,9 @@ export const DevtaInfoCard: React.FC<DevtaInfoCardProps> = ({ devta, onClose }) 
         {objectData ? (
           <>
             <div className="mb-4">
-              <h4 className="font-bold text-green-600">Ideal Placements:</h4>
+              <h4 className="font-bold text-green-600">Ideal Bhojans:</h4>
               <ul className="list-disc list-inside">
                 {objectData.ideal.map((item) => (
-                  <li key={item} className="text-sm text-gray-700">{item}</li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-bold text-red-600">Non-Ideal Placements:</h4>
-              <ul className="list-disc list-inside">
-                {objectData.nonIdeal.map((item) => (
                   <li key={item} className="text-sm text-gray-700">{item}</li>
                 ))}
               </ul>
@@ -43,7 +35,7 @@ export const DevtaInfoCard: React.FC<DevtaInfoCardProps> = ({ devta, onClose }) 
           </>
         ) : (
           <p className="text-sm text-gray-600">
-            No object placement information available for this devta.
+            No Bhojan information available for this devta.
           </p>
         )}
       </div>

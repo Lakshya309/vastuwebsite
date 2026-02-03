@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { ProjectData, PlacedObject, Point } from "@/lib/floorPlanInterfaces";
 
-export function useFloorPlanData(projectId: string) {
+export function useFloorPlanData(projectId: string, refreshKey: number) {
   // State
   const [project, setProject] = useState<ProjectData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -32,13 +32,7 @@ export function useFloorPlanData(projectId: string) {
         setFloorPlanImage(project.floor_plan_path || null);
         setBoundary(project.boundary_normalized || []);
         setLiveNorthDirection(project.north_direction || 0);
-
-        // Fetch objects separately if needed, or include in project response
-        const objsRes = await fetch(`/api/projects/${projectId}/objects`);
-        if (objsRes.ok) {
-           const objsData = await objsRes.json();
-           setPlacedObjects(objsData.objects);
-        }
+        setPlacedObjects(project.placed_objects || []);
 
       } catch (err: any) {
         console.error(err);
@@ -49,7 +43,7 @@ export function useFloorPlanData(projectId: string) {
     };
 
     fetchProject();
-  }, [projectId]);
+  }, [projectId, refreshKey]);
 
   return {
     project,

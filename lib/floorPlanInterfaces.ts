@@ -1,63 +1,43 @@
-// lib/floorPlanInterfaces.ts
-
 export interface Point {
-    x: number;
-    y: number;
-}
-  
-export interface PlacedObject {
-    id: string;
-    object_type: string;
-    boundary_normalized: Point[];
-    centroid: Point;
-}
-  
-export interface DevtaRegion {
-    id: string;
-    name: string;
-    ring: 'center' | 'middle' | 'outer';
-    polygon: Point[];
-    startAngle?: number;
-    endAngle?: number;
-}
-  
-export interface MarmaPoint {
-    id: string;
-    name: string;
-    position: Point;
-    type: 'sensitive' | 'critical';
-}
-  
-export interface ProjectData {
-    id: string;
-    name: string;
-    floor_plan_path: string | null;
-    boundary_normalized: Point[] | null;
-    north_direction: number | null;
-    placed_objects: PlacedObject[];
-}
-  
-export interface FloorPlanCanvasProps {
-    floorPlanImage: string | null;
-    boundary: Point[];
-    onDrawBoundary?: (point: Point) => void;
-    placedObjects: PlacedObject[];
-    devtaRegions?: DevtaRegion[];
-    innerPolygon?: Point[]; // Add this
-    middlePolygon?: Point[]; // Add this
-    zone16Regions?: any[];
-    zone8Regions?: any[];
-    drawingObjectBoundary?: Point[];
-    setDrawingObjectBoundary?: any;
-    drawingMode: 'boundary' | 'objects' | 'select' | null;
-    setDrawingMode?: (mode: 'boundary' | 'objects' | 'select' | null) => void;
-    onDevtaClick?: (devta: DevtaRegion) => void;
-    onPlaceObject?: (object: PlacedObject) => void;
-    selectedObjectType?: string;
+  x: number;
+  y: number;
 }
 
-export interface DevtaAnalysisResponse {
-    devtaRegions: DevtaRegion[];
-    innerPolygon?: Point[];
-    middlePolygon?: Point[];
+export interface PlacedObject {
+  id: string;
+  object_type: string;
+  boundary_normalized: Point[];
+  centroid: Point;
+  rotation?: number;
+}
+
+export interface DevtaRegion {
+  name: string;
+  polygon: Point[];
+}
+
+export interface FloorPlanCanvasProps {
+  floorPlanImage: string | null;
+  boundary: Point[];
+  onDrawBoundary: (point: Point) => void;
+  placedObjects: PlacedObject[];
+  onMoveObject: (id: string, dx: number, dy: number) => void;
+  onResizeObject: (id: string, width: number, height: number) => void;
+  onRotateObject: (id: string, rotation: number) => void;
+  onDeleteObject: (id: string) => void;
+  objectSvgMap: { [key: string]: string };
+  devtaRegions: DevtaRegion[];
+  innerPolygon?: Point[];
+  middlePolygon?: Point[];
+  zone16Regions: DevtaRegion[];
+  zone8Regions: DevtaRegion[];
+  marmaData: { marmaPoints: Point[]; vanshaLines: Point[][] } | null;
+  drawingObjectBoundary: Point[];
+  drawingMode: string | null;
+  onDevtaClick: (devta: DevtaRegion) => void;
+  onPlaceObject: (newObject: PlacedObject) => void;
+  onCanvasClick: (point: Point) => void; // New prop for canvas clicks
+  setDrawingMode: (mode: "boundary" | "objects" | "select" | null) => void;
+  setDrawingObjectBoundary: (points: Point[]) => void;
+  selectedObjectType: string;
 }

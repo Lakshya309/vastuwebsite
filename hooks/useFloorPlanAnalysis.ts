@@ -1,3 +1,4 @@
+// hooks/useFloorPlanAnalysis.ts
 import { useState, useEffect } from "react";
 import { Point, PlacedObject, DevtaRegion, MarmaPoint } from "@/lib/floorPlanInterfaces";
 
@@ -54,7 +55,7 @@ export function useFloorPlanAnalysis(
             setZones8([]);
         });
 
-    }, [boundary, northDirection, placedObjects.length]); 
+    }, [JSON.stringify(boundary), northDirection, JSON.stringify(placedObjects)]); 
 
     return {
         devtaRegions,
