@@ -64,7 +64,8 @@ interface ControlPanelProps {
   setBoundary?: any;
   analysisMode?: any;
   setAnalysisMode?: any;
-  onRunAnalysis?: any;
+  isAnalyzing: boolean;
+  analysisStale: boolean;
   handleAddObject: (objectType: string) => void;
 }
 
@@ -334,7 +335,17 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                 </div>
               </label>
             </div>
-          </div>
+                        <div className="border-t pt-4 space-y-3">
+                            <h3 className="text-lg font-bold text-gray-800">Analysis Status</h3>
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm text-gray-600">
+                                    Status: {props.analysisStale ?
+                                        <span className="font-bold text-orange-500">Stale</span> :
+                                        <span className="font-bold text-green-500">Live</span>
+                                    }
+                                </span>
+                            </div>
+                        </div>          </div>
         )}
 
         {props.activeView === "objects" && (

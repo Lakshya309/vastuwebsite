@@ -1,5 +1,5 @@
 // hooks/useFloorPlanAnalysis.ts
-import { useState, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { Point, PlacedObject, DevtaRegion, MarmaPoint } from "@/lib/floorPlanInterfaces";
 
 interface AnalysisResponse {
@@ -8,19 +8,17 @@ interface AnalysisResponse {
   zones8: DevtaRegion[];
 }
 
-export function useFloorPlanAnalysis(
-    boundary: Point[], 
-    placedObjects: PlacedObject[], 
-    northDirection: number
-) {
+export function useFloorPlanAnalysis() {
     const [devtaRegions, setDevtaRegions] = useState<DevtaRegion[]>([]);
     const [zones16, setZones16] = useState<DevtaRegion[]>([]);
     const [zones8, setZones8] = useState<DevtaRegion[]>([]);
-    const [marmas, setMarmas] = useState<MarmaPoint[]>([]);
-    const [objectAnalyses, setObjectAnalyses] = useState<any[]>([]);
-    const [analysisMode, setAnalysisMode] = useState(false);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
+    const runAnalysis = useCallback(async (
+        boundary: Point[], 
+        northDirection: number
+    ) => {
         if (boundary.length < 3) {
             setDevtaRegions([]);
             setZones16([]);
@@ -28,42 +26,44 @@ export function useFloorPlanAnalysis(
             return;
         }
 
-        const fetchAnalysis = async () => {
+        setIsAnalyzing(true);
+        setError(null);
+
+        try {
             const response = await fetch("/api/analysis/devta", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     boundary_normalized: boundary,
                     north_direction: northDirection,
-                    objects: placedObjects
                 })
             });
+
             if (!response.ok) {
                 throw new Error("Failed to fetch floor plan analysis");
             }
-            return response.json() as Promise<AnalysisResponse>;
-        };
 
-        fetchAnalysis().then(data => {
+            const data: AnalysisResponse = await response.json();
             setDevtaRegions(data.devtas45 || []);
             setZones16(data.zones16 || []);
             setZones8(data.zones8 || []);
-        }).catch(err => {
+        } catch (err: any) {
             console.error("Analysis fetch failed", err);
+            setError(err.message);
             setDevtaRegions([]);
             setZones16([]);
             setZones8([]);
-        });
-
-    }, [JSON.stringify(boundary), northDirection, JSON.stringify(placedObjects)]); 
+        } finally {
+            setIsAnalyzing(false);
+        }
+    }, []);
 
     return {
         devtaRegions,
         zones16,
         zones8,
-        marmas,
-        objectAnalyses,
-        analysisMode,
-        setAnalysisMode
+        isAnalyzing,
+        error,
+        runAnalysis
     };
 }

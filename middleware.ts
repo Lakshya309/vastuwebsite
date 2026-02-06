@@ -40,12 +40,21 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  await supabase.auth.getSession() // Refresh the session and update the cookies.
+  const { data: { session } } = await supabase.auth.getSession()
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (request.nextUrl.pathname.startsWith('/projects') || request.nextUrl.pathname.startsWith('/portal')) {
+    if (!user) {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = '/login';
+      redirectUrl.searchParams.set('redirectedFrom', request.nextUrl.pathname);
+      return NextResponse.redirect(redirectUrl);
+    }
+  }
 
   // Admin route protection
   if (request.nextUrl.pathname.startsWith('/admin')) {
-    const { data: { user } } = await supabase.auth.getUser();
-
     if (!user) {
       // If no user, redirect to login
       const redirectUrl = request.nextUrl.clone();
@@ -84,5 +93,7 @@ export const config = {
     '/((?!_next/static|_next/image|favicon.ico).*)',
     // Add /admin to the matcher to ensure it's processed by the middleware
     '/admin/:path*',
+    '/projects/:path*',
+    '/portal/:path*',
   ],
 }

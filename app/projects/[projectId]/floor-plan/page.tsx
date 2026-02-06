@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useFloorPlanData } from "@/hooks/useFloorPlanData";
+import { useDebounce } from "@/hooks/useDebounce";
 import { useFloorPlanAnalysis } from "@/hooks/useFloorPlanAnalysis";
 import { useMarmaAnalysis } from "@/hooks/useMarmaAnalysis";
 import { FloorPlanCanvas } from "@/components/floor-plan/FloorPlanCanvas";
@@ -19,6 +20,7 @@ export default function FloorPlanPage() {
   // 1. Data Hooks
   const {
     project,
+    setProject,
     loading,
     error,
     floorPlanImage,
@@ -47,6 +49,45 @@ export default function FloorPlanPage() {
   ); // simplified for brevity
   const [selectedDevta, setSelectedDevta] = useState<DevtaRegion | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [analysisStale, setAnalysisStale] = useState(false);
+
+  const uploadFloorPlan = async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("projectId", projectId);
+
+    console.log("Uploading floor plan:", {
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
+      projectId,
+    });
+
+    try {
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      console.log("Upload response:", response);
+
+      const data = await response.json();
+      console.log("Upload data:", data);
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to upload floor plan.");
+      }
+
+      console.log("File uploaded successfully:", data);
+      if (data.project) {
+        setProject(data.project);
+        setFloorPlanImage(data.project.floor_plan_path);
+      }
+    } catch (error) {
+      console.error(error);
+      // Handle upload error (e.g., show a notification)
+    }
+  };
 
   const handleImageUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -59,19 +100,31 @@ export default function FloorPlanPage() {
         setFloorPlanImage(reader.result as string);
       };
       reader.readAsDataURL(file);
+
+      // Upload the file
+      await uploadFloorPlan(file);
     }
   };
 
-  // 3. Analysis Hooks
+  // 3. Analysis Hooks & Debouncing
   const [drawingMode, setDrawingMode] = useState<
     "boundary" | "objects" | "select" | null
   >(null);
-  const { devtaRegions, zones16, zones8 } = useFloorPlanAnalysis(
-    boundary,
-    placedObjects,
-    liveNorthDirection,
-  );
+  const { devtaRegions, zones16, zones8, isAnalyzing, runAnalysis, error: analysisError } = useFloorPlanAnalysis();
   const marmaData = useMarmaAnalysis(boundary);
+
+  const debouncedBoundary = useDebounce(boundary, 500);
+  const debouncedPlacedObjects = useDebounce(placedObjects, 500);
+  const debouncedNorthDirection = useDebounce(liveNorthDirection, 500);
+
+  useEffect(() => {
+    runAnalysis(debouncedBoundary, debouncedNorthDirection);
+    setAnalysisStale(false);
+  }, [debouncedBoundary, debouncedNorthDirection, runAnalysis]);
+
+  useEffect(() => {
+    setAnalysisStale(true);
+  }, [boundary, placedObjects, liveNorthDirection]);
 
   // 4. Handlers
   const handleAddObject = (objectType: string) => {
@@ -82,6 +135,7 @@ export default function FloorPlanPage() {
   const handleStartDrawingBoundary = () => {
     setDrawingMode("boundary");
   };
+
 
   const handleReupload = () => {
     setFloorPlanImage(null);
@@ -374,7 +428,7 @@ export default function FloorPlanPage() {
         {/* Control Panel (Right) */}
         <ControlPanel
           projectId={projectId}
-          error={error}
+          error={error || analysisError}
           loading={loading}
           activeView={activeView}
           setActiveView={setActiveView}
@@ -400,6 +454,10 @@ export default function FloorPlanPage() {
           boundary={boundary}
           handleSaveChanges={handleSaveChanges}
           handleSaveObjects={handleSaveObjects}
+          // New analysis props
+          isAnalyzing={isAnalyzing}
+          analysisStale={analysisStale}
+
         />
       </div>
     </div>

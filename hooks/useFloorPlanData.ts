@@ -47,6 +47,7 @@ export function useFloorPlanData(projectId: string, refreshKey: number) {
 
   return {
     project,
+    setProject,
     loading,
     error,
     floorPlanImage,

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "../../../lib/supabase";
-import { supabaseAdmin } from "../../../lib/supabaseAdmin"; // Import the Supabase admin client
 
 export async function POST(req: NextRequest) {
   const supabase = await createServerSupabaseClient();
@@ -28,8 +27,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Insert into Supabase 'projects' table
-    const { data, error } = await supabaseAdmin
+    // Insert into Supabase 'projects' table using the standard client
+    const { data, error } = await supabase
       .from("projects")
       .insert({ user_id: uid, name: name })
       .select()
@@ -70,35 +69,12 @@ export async function GET(req: NextRequest) {
         { status: 401 }
       );
     }
-    const uid = user.id;
 
-    // Fetch user's role from the profiles table
-    const { data: profiles, error: profileError } = await supabaseAdmin
-      .from("profiles")
-      .select("role")
-      .eq("id", uid);
-
-    if (profileError) {
-      console.error("Supabase profile fetch error:", profileError);
-      return NextResponse.json(
-        { message: "Failed to fetch user profile" },
-        { status: 500 }
-      );
-    }
-
-    const profile = profiles?.[0];
-    const role = profile?.role || "user";
-
-    let query = supabaseAdmin.from("projects").select("*");
-
-    // If the user is not an astrologer or dev, filter by their user_id
-    if (role !== "astrologer" && role !== "dev") {
-      query = query.eq("user_id", uid);
-    }
-
-    const { data, error } = await query.order("created_at", {
-      ascending: false,
-    });
+    // Fetch projects using the standard client. RLS policies will handle the filtering.
+    const { data, error } = await supabase
+      .from("projects")
+      .select("*")
+      .order("created_at", { ascending: false });
 
     if (error) {
       console.error("Supabase select error:", error);

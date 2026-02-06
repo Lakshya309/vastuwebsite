@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { createBrowserClient } from "@supabase/ssr";
 
 interface Project {
   id: string;
@@ -14,29 +15,46 @@ export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
+  const fetchProjects = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await fetch("/api/projects");
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to fetch projects");
+      }
+
+      const data = await response.json();
+      setProjects(data.projects);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const fetchProjects = async () => {
-      try {
-        const response = await fetch("/api/projects");
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || "Failed to fetch projects");
-        }
-
-        const data = await response.json();
-        setProjects(data.projects);
-      } catch (err: any) {
-        console.error(err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT") {
+        fetchProjects();
       }
-    };
+    });
 
     fetchProjects();
-  }, []);
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [fetchProjects, supabase.auth]);
 
   if (loading) {
     return (
