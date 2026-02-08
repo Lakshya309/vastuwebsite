@@ -12,8 +12,8 @@ interface ControlPanelProps {
   error: string | null;
   loading: boolean;
 
-  activeView: "setup" | "grids" | "objects" | "report";
-  setActiveView: (view: "setup" | "grids" | "objects" | "report") => void;
+  activeView: "setup" | "grids" | "objects";
+  setActiveView: (view: "setup" | "grids" | "objects") => void;
 
   showGrid: {
     devta45: boolean;
@@ -77,7 +77,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
     if (devtaRegions.length > 0) {
       for (const region of devtaRegions) {
         if (isPointInPolygon(centroid, region.polygon)) {
-          return analyzeObject(obj.object_type, region.name);
+          return analyzeObject(obj.object_type, region.name, region.name); // Pass devta as region.name
         }
       }
     }
@@ -85,7 +85,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
     if (zone16Regions.length > 0) {
       for (const region of zone16Regions) {
         if (isPointInPolygon(centroid, region.polygon)) {
-          return analyzeObject(obj.object_type, region.name);
+          return analyzeObject(obj.object_type, region.name, ""); // Pass empty string for devta
         }
       }
     }
@@ -93,12 +93,12 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
     if (zone8Regions.length > 0) {
       for (const region of zone8Regions) {
         if (isPointInPolygon(centroid, region.polygon)) {
-          return analyzeObject(obj.object_type, region.name);
+          return analyzeObject(obj.object_type, region.name, ""); // Pass empty string for devta
         }
       }
     }
 
-    return analyzeObject(obj.object_type, "Unknown");
+    return analyzeObject(obj.object_type, "Unknown", ""); // Pass empty string for devta
   };
 
   return (
@@ -134,22 +134,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
         >
           Objects
         </button>
-        <button
-          onClick={() => props.setActiveView("report")}
-          className={`flex-1 py-4 hover:bg-gray-50 ${
-            props.activeView === "report"
-              ? "border-b-2 border-blue-600 text-blue-600"
-              : ""
-          }`}
-        >
-          Report
-        </button>
-        <a
-          href={`/projects/${props.projectId}/report`}
-          className={`flex-1 py-4 hover:bg-gray-50 border-b-2 border-transparent text-gray-500`}
-        >
-          View Report
-        </a>
+
       </div>
 
       <div className="p-6 overflow-y-auto flex-1">
@@ -365,59 +350,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
           </div>
         )}
 
-        {props.activeView === "report" && (
-          <div className="space-y-6">
-            <h3 className="text-lg font-bold text-gray-800">Live Analysis</h3>
 
-            {props.placedObjects.length === 0 ? (
-              <p className="text-gray-400 text-sm italic">
-                Place objects to see analysis.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {props.placedObjects.map((obj, i) => {
-                  const analysis = getObjectAnalysis(obj);
-                  const isBad =
-                    analysis.status === "CRITICAL" ||
-                    analysis.status === "BAD";
-
-                  return (
-                    <div
-                      key={i}
-                      className={`p-3 rounded-lg border-l-4 shadow-sm ${
-                        analysis.status === "CRITICAL"
-                          ? "border-red-500 bg-red-50"
-                          : analysis.status === "BAD"
-                          ? "border-orange-500 bg-orange-50"
-                          : analysis.status === "EXCELLENT"
-                          ? "border-green-500 bg-green-50"
-                          : "border-gray-300 bg-white"
-                      }`}
-                    >
-                      <div className="flex justify-between items-start">
-                        <span className="font-bold text-gray-800">
-                          {obj.object_type}
-                        </span>
-                        <span
-                          className={`text-xs font-bold px-2 py-1 rounded ${
-                            isBad
-                              ? "bg-red-200 text-red-800"
-                              : "bg-green-200 text-green-800"
-                          }`}
-                        >
-                          {analysis.status}
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-600 mt-1">
-                        {analysis.message}
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useFloorPlanData } from "@/hooks/useFloorPlanData";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -14,6 +14,7 @@ import { PlacedObject, DevtaRegion, Point } from "@/lib/floorPlanInterfaces";
 
 export default function FloorPlanPage() {
   const params = useParams();
+  const router = useRouter(); // Initialize router
   const projectId = params.projectId as string;
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -35,7 +36,7 @@ export default function FloorPlanPage() {
 
   // 2. UI State
   const [activeView, setActiveView] = useState<
-    "setup" | "grids" | "objects" | "report"
+    "setup" | "grids" | "objects"
   >("setup");
   const [showGrid, setShowGrid] = useState({
     devta45: true,
@@ -110,17 +111,41 @@ export default function FloorPlanPage() {
   const [drawingMode, setDrawingMode] = useState<
     "boundary" | "objects" | "select" | null
   >(null);
-  const { devtaRegions, zones16, zones8, isAnalyzing, runAnalysis, error: analysisError } = useFloorPlanAnalysis();
-  const marmaData = useMarmaAnalysis(boundary);
+  const {
+    devtaRegions,
+    zones16,
+    zones8,
+    isAnalyzing,
+    createAnalysisRequest,
+    fetchDetailedAnalysisResults,
+    currentAnalysisId,
+    error: analysisError
+  } = useFloorPlanAnalysis();
+  const { marmaData, isLoading: isMarmaAnalyzing, error: marmaError } = useMarmaAnalysis(currentAnalysisId);
 
   const debouncedBoundary = useDebounce(boundary, 500);
-  const debouncedPlacedObjects = useDebounce(placedObjects, 500);
+  // const debouncedPlacedObjects = useDebounce(placedObjects, 500); // Not used in this context for analysis initiation
   const debouncedNorthDirection = useDebounce(liveNorthDirection, 500);
 
+  // Effect to create analysis request when boundary or north direction changes
   useEffect(() => {
-    runAnalysis(debouncedBoundary, debouncedNorthDirection);
-    setAnalysisStale(false);
-  }, [debouncedBoundary, debouncedNorthDirection, runAnalysis]);
+    if (debouncedBoundary.length > 0 && projectId) {
+      const analysisType = "devta"; // This hook specifically handles devta analysis
+      createAnalysisRequest(projectId, analysisType, debouncedBoundary, debouncedNorthDirection, undefined, undefined);
+      setAnalysisStale(false); // Reset stale status as a new analysis request is made
+    }
+  }, [projectId, debouncedBoundary, debouncedNorthDirection, createAnalysisRequest]);
+
+  // Effect to fetch detailed analysis results once a pending analysis ID is available (placeholder for approval)
+  useEffect(() => {
+    if (currentAnalysisId) {
+      // In a full implementation, you would check the status of currentAnalysisId
+      // via an API call or a real-time subscription.
+      // For now, we'll assume it's approved and immediately fetch results.
+      const analysisType = "devta"; // This hook specifically handles devta analysis
+      fetchDetailedAnalysisResults(currentAnalysisId, analysisType);
+    }
+  }, [currentAnalysisId, fetchDetailedAnalysisResults]);
 
   useEffect(() => {
     setAnalysisStale(true);
@@ -324,10 +349,56 @@ export default function FloorPlanPage() {
 
       console.log("Project objects saved successfully!");
       setRefreshKey(prev => prev + 1); // Trigger refresh of data
-      setActiveView("report"); // Move to the next phase
-    } catch (error) {
-      console.error(error);
-      // You might want to show an error message to the user
+
+      let finalAnalysisId = currentAnalysisId;
+
+      // If no active analysis or analysis is stale, trigger a new one
+      if (analysisStale || !finalAnalysisId || isAnalyzing) {
+        console.log("Analysis is stale or not available, re-creating analysis request...");
+        // Ensure boundary and northDirection are available from the state
+        if (boundary.length === 0) {
+            alert("Please draw a boundary for the analysis.");
+            return;
+        }
+        const newId = await createAnalysisRequest(projectId, "devta", boundary, liveNorthDirection, undefined, undefined);
+        if (!newId) {
+            alert("Failed to initiate analysis. Please try again.");
+            return;
+        }
+        finalAnalysisId = newId;
+        // Optionally, reset analysisStale here if createAnalysisRequest is guaranteed to complete successfully
+        // setAnalysisStale(false);
+      }
+
+      if (!finalAnalysisId) {
+        alert("No active analysis to generate report for. Please initiate an analysis first.");
+        return;
+      }
+
+      // Add a small delay to ensure the database has time to commit
+      // This delay might still be necessary even with the above logic,
+      // as the analysis record might be created but not yet fully processed.
+      await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay
+
+      console.log(`[handleSaveObjects] Attempting to deduct credit for analysisId: ${finalAnalysisId}`);
+
+      // --- Deduct Credit for Report View ---
+      const deductCreditResponse = await fetch(`/api/analysis/${finalAnalysisId}/deduct-credit-for-report`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!deductCreditResponse.ok) {
+        const errorData = await deductCreditResponse.json();
+        alert(errorData.message || "Failed to deduct credit for report access.");
+        return;
+      }
+
+      console.log("Credit deducted successfully or access granted for report.");
+      router.push(`/projects/${projectId}/report?analysisId=${finalAnalysisId}`); // Navigate to dedicated report page with analysisId
+    } catch (error: any) {
+      console.error("Error saving objects or accessing report:", error);
+      alert(error.message || "An unexpected error occurred.");
     }
   };
 
@@ -361,9 +432,6 @@ export default function FloorPlanPage() {
         <div className="flex items-center gap-3">
           <button className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded">
             Save Draft
-          </button>
-          <button className="px-4 py-2 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 rounded shadow">
-            Export Report
           </button>
         </div>
       </header>
@@ -463,8 +531,3 @@ export default function FloorPlanPage() {
     </div>
   );
 }
-
-
-  
-
-  

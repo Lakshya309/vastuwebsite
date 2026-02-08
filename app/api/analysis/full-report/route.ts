@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "../../../../lib/supabase";
-import { supabaseAdmin } from "../../../../lib/supabaseAdmin";
-import { getMarmaPoints } from "@/lib/marmaAnalysis";
+import { createServerSupabaseClient } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export async function GET(request: NextRequest) {
   const supabase = await createServerSupabaseClient();
@@ -48,7 +47,7 @@ export async function GET(request: NextRequest) {
     // 1. Fetch project_id from the analyses table using analysisId
     const { data: analysisData, error: analysisError } = await supabaseAdmin
       .from("analyses")
-      .select("project_id, status")
+      .select("project_id, status, report_paid")
       .eq("id", analysisId)
       .single();
 
@@ -67,12 +66,20 @@ export async function GET(request: NextRequest) {
         );
     }
 
+    // Enforce report_paid check for 'user' role
+    if (userRole === "user" && !analysisData.report_paid) {
+        return NextResponse.json(
+            { message: "Report has not been paid for or accessed by this user." },
+            { status: 403 }
+        );
+    }
+
     const projectId = analysisData.project_id;
 
-    // 2. Fetch boundary_normalized from the projects table using project_id
+    // 2. Fetch boundary_normalized, north_direction, and objects from the projects table using project_id
     let projectQuery = supabaseAdmin
       .from("projects")
-      .select("boundary_normalized")
+      .select("boundary_normalized, north_direction, project_objects(id, object_type, boundary_normalized, centroid)")
       .eq("id", projectId);
 
     // If the user is NOT an admin, enforce ownership check
@@ -89,25 +96,45 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const { boundary_normalized } = projectData;
+    const { boundary_normalized, north_direction, project_objects } = projectData;
 
-    if (!boundary_normalized) {
+    if (!boundary_normalized || north_direction === null || !project_objects) {
         return NextResponse.json(
-            { message: "Missing required boundary for marma analysis." },
+            { message: "Missing required project parameters for full report analysis." },
             { status: 400 }
         );
     }
 
-    // Perform in-process marma analysis
-    // Assuming getMarmaPoints expects the boundary in the same format as stored
-    const marmaData = getMarmaPoints(boundary_normalized);
+    // Call the Python service directly with retrieved parameters and objects
+    const response = await fetch("http://127.0.0.1:5000/analyze_objects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        boundary_normalized,
+        north_direction,
+        placed_objects: project_objects,
+      }),
+    });
 
-    return NextResponse.json(marmaData);
+    if (!response.ok) {
+        let errorData;
+        try {
+            errorData = await response.json(); // Attempt to parse as JSON for detailed FastAPI errors
+        } catch (jsonError) {
+            errorData = await response.text(); // Fallback to text if not JSON
+        }
+        console.error("Python Full Report Analysis Service Error:", errorData);
+        // Return the detailed error from Python service
+        return NextResponse.json(
+            { error: "Python Full Report Analysis Service Error", details: errorData },
+            { status: 500 }
+        );
+    }
+
+    const data = await response.json();
+    return NextResponse.json(data);
   } catch (error: any) {
-    console.error("Error calculating marma points:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    console.error("Error fetching full report analysis:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

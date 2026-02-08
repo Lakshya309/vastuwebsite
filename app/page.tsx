@@ -1,5 +1,6 @@
 "use client";
 import { motion } from 'framer-motion'; // For the "10k style" animations
+import Link from 'next/link';
 
 export default function Home() {
   return (
@@ -31,7 +32,7 @@ export default function Home() {
 
           <div className="flex flex-col sm:flex-row justify-center gap-4">
             <button className="px-8 py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold shadow-lg shadow-emerald-900/20 transition-all transform hover:-translate-y-1">
-              Start New Project
+              <Link href={"/projects"}>Start New Project</Link>
             </button>
             <button className="px-8 py-4 bg-slate-800/50 backdrop-blur-md border border-slate-700 hover:bg-slate-700 text-white rounded-xl font-bold transition-all">
               View Sample Analysis

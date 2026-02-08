@@ -105,10 +105,10 @@ export default function AdminUserTable({ users: initialUsers }: AdminUserTablePr
                 <td className="py-2 px-4 border-b text-sm">{user.role}</td>
                 <td className="py-2 px-4 border-b text-sm">{user.credits}</td>
                 <td className="py-2 px-4 border-b text-sm">
-                  {user.valid_from ? new Date(user.valid_from).toLocaleDateString() : 'N/A'}
+                  {user.valid_from ? new Date(user.valid_from).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }) : 'N/A'}
                 </td>
                 <td className="py-2 px-4 border-b text-sm">
-                  {user.valid_to ? new Date(user.valid_to).toLocaleDateString() : 'N/A'}
+                  {user.valid_to ? new Date(user.valid_to).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }) : 'N/A'}
                 </td>
                 <td className="py-2 px-4 border-b text-sm">
                   <button

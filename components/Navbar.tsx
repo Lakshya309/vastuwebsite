@@ -28,7 +28,7 @@ const Navbar = async () => {
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center">
             <Link href="/" className="text-2xl font-bold text-gray-900">
-              Vastu AI
+             Mangalam Vastu 
             </Link>
           </div>
           <div className="hidden md:block">

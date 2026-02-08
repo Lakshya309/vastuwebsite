@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-export async function POST(req: NextRequest) {
+type RouteContext = {
+  params: Promise<{ analysisId: string }>;
+};
+
+export async function POST(req: NextRequest, { params }: RouteContext) {
   const supabase = await createServerSupabaseClient();
 
   try {
@@ -19,9 +23,12 @@ export async function POST(req: NextRequest) {
     }
     const uid = user.id;
 
-    const analysisId = req.url.split("/")[6]; // Extract analysisId from URL path. e.g. /api/analysis/[analysisId]/deduct-credit-for-report
+    console.log(`[deduct-credit-for-report] Raw params.analysisId: '${params.analysisId}', Type: ${typeof params.analysisId}`);
+    const { analysisId } = await params;
+    console.log(`[deduct-credit-for-report] Received analysisId: '${analysisId}'`);
 
     if (!analysisId) {
+        console.error("[deduct-credit-for-report] Analysis ID is missing.");
         return NextResponse.json({ message: "Analysis ID is required." }, { status: 400 });
     }
 
@@ -53,17 +60,21 @@ export async function POST(req: NextRequest) {
 
     // Admins and Astrologers with active subscriptions do not deduct credits for report view
     if (userRole === "admin" || isAstrologerSubscriptionActive) {
+        console.log(`[deduct-credit-for-report] Admin/Active Astrologer path for analysisId: ${analysisId}`);
         const { data: analysisData, error: analysisError } = await supabaseAdmin
             .from("analyses")
             .select("id, status")
             .eq("id", analysisId)
             .single();
 
+        console.log(`[deduct-credit-for-report] Admin/Active Astrologer query result: analysisData = ${JSON.stringify(analysisData)}, analysisError = ${JSON.stringify(analysisError)}`);
+
         if (analysisError || !analysisData) {
+            console.error(`[deduct-credit-for-report] Analysis not found for admin/active astrologer: ${analysisId}, Error: ${analysisError?.message}`);
             return NextResponse.json({ message: "Analysis not found." }, { status: 404 });
         }
-        if (analysisData.status !== "reviewed") {
-            return NextResponse.json({ message: "Analysis not yet reviewed or approved." }, { status: 403 });
+        if (analysisData.status === "failed") {
+            return NextResponse.json({ message: "Analysis has failed and cannot be viewed." }, { status: 403 });
         }
 
         // Set report_paid to true for admin/astrologer implicitly
@@ -80,6 +91,7 @@ export async function POST(req: NextRequest) {
 
     // Only 'user' role and astrologers with inactive subscriptions proceed with credit deduction
     if (userRole === "user" || (userRole === "astrologer" && !isAstrologerSubscriptionActive)) {
+        console.log(`[deduct-credit-for-report] User/Inactive Astrologer path for analysisId: ${analysisId}`);
         // Check if report is already paid
         const { data: existingAnalysis, error: existingAnalysisError } = await supabaseAdmin
             .from("analyses")
@@ -87,11 +99,14 @@ export async function POST(req: NextRequest) {
             .eq("id", analysisId)
             .single();
 
+        console.log(`[deduct-credit-for-report] User/Inactive Astrologer query result: existingAnalysis = ${JSON.stringify(existingAnalysis)}, existingAnalysisError = ${JSON.stringify(existingAnalysisError)}`);
+
         if (existingAnalysisError || !existingAnalysis) {
+            console.error(`[deduct-credit-for-report] Analysis not found for user/inactive astrologer: ${analysisId}, Error: ${existingAnalysisError?.message}`);
             return NextResponse.json({ message: "Analysis not found." }, { status: 404 });
         }
-        if (existingAnalysis.status !== "reviewed") {
-            return NextResponse.json({ message: "Analysis not yet reviewed or approved." }, { status: 403 });
+        if (existingAnalysis.status === "failed") {
+            return NextResponse.json({ message: "Analysis has failed and cannot be viewed." }, { status: 403 });
         }
         if (existingAnalysis.report_paid) {
             return NextResponse.json({ message: "Report already paid for." }, { status: 200 });
