@@ -4,7 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { analysisId: string } }
+  { params }: { params: Promise<{ analysisId: string; }> }
 ) {
   const supabase = await createServerSupabaseClient();
 
@@ -21,7 +21,7 @@ export async function PUT(
       );
     }
     const uid = user.id;
-    const { analysisId } = params;
+    const { analysisId } = await params;
 
     // 1. Check if the user is an astrologer
     const { data: profile, error: profileError } = await supabaseAdmin
