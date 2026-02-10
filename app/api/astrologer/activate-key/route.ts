@@ -1,26 +1,29 @@
 // app/api/astrologer/activate-key/route.ts
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
-// Helper to create a Supabase client
-function createSupabaseClient() {
-  const cookieStore = cookies();
-  return createServerClient(
+
+export async function POST(request: Request) {
+  const cookieStore = await cookies();
+
+  const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll: () => cookieStore.getAll(),
-        set: (name, value, options) => cookieStore.set({ name, value, ...options }),
-        remove: (name, options) => cookieStore.set({ name, value: '', ...options }),
+        get(name: string) {
+          return cookieStore.get(name)?.value;
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          cookieStore.set({ name, value, ...options });
+        },
+        remove(name: string, options: CookieOptions) {
+          cookieStore.set({ name, value: '', ...options });
+        },
       },
     }
   );
-}
-
-export async function POST(request: Request) {
-  const supabase = createSupabaseClient();
 
   try {
     // 1. Authenticate user
@@ -41,9 +44,15 @@ export async function POST(request: Request) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!,
         {
             cookies: {
-              getAll: () => cookies().getAll(),
-              set: (name, value, options) => cookies().set({ name, value, ...options }),
-              remove: (name, options) => cookies().set({ name, value: '', ...options }),
+                get(name: string) {
+                    return cookieStore.get(name)?.value
+                },
+                set(name: string, value: string, options: CookieOptions) {
+                    cookieStore.set({ name, value, ...options })
+                },
+                remove(name: string, options: CookieOptions) {
+                    cookieStore.set({ name, value: '', ...options })
+                },
             },
         }
     );

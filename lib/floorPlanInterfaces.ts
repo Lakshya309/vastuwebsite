@@ -1,3 +1,6 @@
+// lib/floorPlanInterfaces.ts
+// Centralized interface definitions for the floor plan and analysis modules.
+
 export interface Point {
   x: number;
   y: number;
@@ -5,39 +8,43 @@ export interface Point {
 
 export interface PlacedObject {
   id: string;
+  project_id?: string; // Optional if not always present when creating new
   object_type: string;
   boundary_normalized: Point[];
   centroid: Point;
-  rotation?: number;
+  rotation?: number; // Optional rotation property
 }
 
 export interface DevtaRegion {
   name: string;
-  polygon: Point[];
+  polygon: Point[]; // Renamed from boundary to polygon to match usage in FloorPlanCanvas.tsx
+  center: Point;
+  color?: string; // Optional for visualization
+  description?: string; // Optional additional info
 }
 
-export interface FloorPlanCanvasProps {
-  floorPlanImage: string | null;
-  boundary: Point[];
-  onDrawBoundary: (point: Point) => void;
-  placedObjects: PlacedObject[];
-  onMoveObject: (id: string, dx: number, dy: number) => void;
-  onResizeObject: (id: string, width: number, height: number) => void;
-  onRotateObject: (id: string, rotation: number) => void;
-  onDeleteObject: (id: string) => void;
-  objectSvgMap: { [key: string]: string };
-  devtaRegions: DevtaRegion[];
-  innerPolygon?: Point[];
-  middlePolygon?: Point[];
-  zone16Regions: DevtaRegion[];
-  zone8Regions: DevtaRegion[];
-  marmaData: { marmaPoints: Point[]; vanshaLines: Point[][] } | null;
-  drawingObjectBoundary: Point[];
-  drawingMode: string | null;
-  onDevtaClick: (devta: DevtaRegion) => void;
-  onPlaceObject: (newObject: PlacedObject) => void;
-  onCanvasClick: (point: Point) => void; // New prop for canvas clicks
-  setDrawingMode: (mode: "boundary" | "objects" | "select" | null) => void;
-  setDrawingObjectBoundary: (points: Point[]) => void;
-  selectedObjectType: string;
+// Based on the usage in hooks/useFloorPlanData.ts and app/admin/AdminProjectTable.tsx
+export interface ProjectData {
+  id: string;
+  name: string;
+  created_at: string;
+  user_id: string;
+  floor_plan_path: string | null;
+  boundary_normalized: Point[] | null;
+  north_direction: number | null;
+  placed_objects: PlacedObject[] | null;
+  profiles?: {
+    email: string | null;
+  } | null;
 }
+
+// MarmaPoint - previously problematic
+export interface MarmaPoint {
+  x: number;
+  y: number;
+  // Add specific properties for a Marma point if known, e.g.,
+  // vitalityScore?: number;
+  // relatedDevta?: string;
+}
+
+// Add other common interfaces if they were previously in this file and are needed elsewhere.

@@ -1,33 +1,31 @@
-import { NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { NextResponse } from 'next/server';
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 
-type RouteContext = {
-  params: Promise<{ projectId: string }>;
-};
-
-function createSupabaseClient(
-  cookieStore: Awaited<ReturnType<typeof cookies>>,
+export async function GET(
+  request: Request,
+  context: { params: Promise<{ projectId: string }> }
 ) {
-  return createServerClient(
+  const cookieStore = await cookies();
+  const { projectId } = await context.params;
+
+  const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll: () => cookieStore.getAll(),
-        set: (name, value, options) =>
-          cookieStore.set({ name, value, ...options }),
-        remove: (name, options) =>
-          cookieStore.set({ name, value: "", ...options }),
+        get(name: string) {
+          return cookieStore.get(name)?.value;
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          cookieStore.set({ name, value, ...options });
+        },
+        remove(name: string, options: CookieOptions) {
+          cookieStore.set({ name, value: '', ...options });
+        },
       },
-    },
+    }
   );
-}
-
-export async function GET(request: Request, { params }: RouteContext) {
-  const cookieStore = await cookies();
-  const { projectId } = await params;
-  const supabase = createSupabaseClient(cookieStore);
 
   if (!projectId) {
     return NextResponse.json(
@@ -56,10 +54,30 @@ export async function GET(request: Request, { params }: RouteContext) {
   }
 }
 
-export async function POST(request: Request, { params }: RouteContext) {
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ projectId: string }> }
+) {
   const cookieStore = await cookies();
-  const { projectId } = await params;
-  const supabase = createSupabaseClient(cookieStore);
+  const { projectId } = await context.params;
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value;
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          cookieStore.set({ name, value, ...options });
+        },
+        remove(name: string, options: CookieOptions) {
+          cookieStore.set({ name, value: '', ...options });
+        },
+      },
+    }
+  );
 
   if (!projectId) {
     return NextResponse.json(

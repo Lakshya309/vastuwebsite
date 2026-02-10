@@ -307,7 +307,7 @@ export default function ReportPage() {
                   endAngle={90 - (360 * vastuAnalysisResult.overall_percentage / 100)}
                 >
                   <RadialBar cornerRadius={10} background dataKey="uv" />
-                  <Tooltip formatter={(value: number) => [`${value.toFixed(1)}%`, 'Score']} />
+                  <Tooltip formatter={(value: number | undefined) => [`${(value ?? 0).toFixed(1)}%`, 'Score']} />
                 </RadialBarChart>
               </ResponsiveContainer>
               <p
@@ -352,7 +352,7 @@ export default function ReportPage() {
                     labelLine={false}
                     outerRadius={100}
                     dataKey="value"
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
                   >
                     {Object.keys(
                       vastuAnalysisResult.analyzed_objects.reduce((acc, obj) => {

@@ -2,11 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-type RouteContext = {
-  params: { analysisId: string };
-};
-
-export async function POST(req: NextRequest, context: RouteContext) {
+export async function POST(
+  req: NextRequest,
+  context: { params: Promise<{ analysisId: string }> }
+) {
   const supabase = await createServerSupabaseClient();
 
   try {
@@ -23,8 +22,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
     }
     const uid = user.id;
 
-    const { analysisId } = context.params;
-    console.log(`[deduct-credit-for-report] Received analysisId: '${analysisId}'`);
+    const { analysisId } = await context.params;
 
     if (!analysisId) {
         console.error("[deduct-credit-for-report] Analysis ID is missing.");
@@ -59,14 +57,11 @@ export async function POST(req: NextRequest, context: RouteContext) {
 
     // Admins and Astrologers with active subscriptions do not deduct credits for report view
     if (userRole === "admin" || isAstrologerSubscriptionActive) {
-        console.log(`[deduct-credit-for-report] Admin/Active Astrologer path for analysisId: ${analysisId}`);
         const { data: analysisData, error: analysisError } = await supabaseAdmin
             .from("analyses")
             .select("id, status")
             .eq("id", analysisId)
             .single();
-
-        console.log(`[deduct-credit-for-report] Admin/Active Astrologer query result: analysisData = ${JSON.stringify(analysisData)}, analysisError = ${JSON.stringify(analysisError)}`);
 
         if (analysisError || !analysisData) {
             console.error(`[deduct-credit-for-report] Analysis not found for admin/active astrologer: ${analysisId}, Error: ${analysisError?.message}`);
@@ -90,15 +85,12 @@ export async function POST(req: NextRequest, context: RouteContext) {
 
     // Only 'user' role and astrologers with inactive subscriptions proceed with credit deduction
     if (userRole === "user" || (userRole === "astrologer" && !isAstrologerSubscriptionActive)) {
-        console.log(`[deduct-credit-for-report] User/Inactive Astrologer path for analysisId: ${analysisId}`);
         // Check if report is already paid
         const { data: existingAnalysis, error: existingAnalysisError } = await supabaseAdmin
             .from("analyses")
             .select("id, status, report_paid, project_id")
             .eq("id", analysisId)
             .single();
-
-        console.log(`[deduct-credit-for-report] User/Inactive Astrologer query result: existingAnalysis = ${JSON.stringify(existingAnalysis)}, existingAnalysisError = ${JSON.stringify(existingAnalysisError)}`);
 
         if (existingAnalysisError || !existingAnalysis) {
             console.error(`[deduct-credit-for-report] Analysis not found for user/inactive astrologer: ${analysisId}, Error: ${existingAnalysisError?.message}`);

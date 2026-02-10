@@ -57,29 +57,18 @@ export default function FloorPlanPage() {
     formData.append("file", file);
     formData.append("projectId", projectId);
 
-    console.log("Uploading floor plan:", {
-      fileName: file.name,
-      fileSize: file.size,
-      fileType: file.type,
-      projectId,
-    });
-
     try {
       const response = await fetch("/api/upload", {
         method: "POST",
         body: formData,
       });
 
-      console.log("Upload response:", response);
-
       const data = await response.json();
-      console.log("Upload data:", data);
 
       if (!response.ok) {
         throw new Error(data.message || "Failed to upload floor plan.");
       }
 
-      console.log("File uploaded successfully:", data);
       if (data.project) {
         setProject(data.project);
         setFloorPlanImage(data.project.floor_plan_path);
@@ -207,14 +196,11 @@ export default function FloorPlanPage() {
   };
 
   const handleMoveObject = (id: string, x: number, y: number) => {
-    console.log(`[FloorPlanPage] handleMoveObject called for id: ${id} with x: ${x.toFixed(4)}, y: ${y.toFixed(4)}`);
     setPlacedObjects((prev) =>
       prev.map((obj) => {
         if (obj.id === id) {
-          console.log(`[FloorPlanPage] Found object to move:`, obj);
           const dx = x - obj.boundary_normalized[0].x;
           const dy = y - obj.boundary_normalized[0].y;
-          console.log(`[FloorPlanPage] Calculated dx: ${dx.toFixed(4)}, dy: ${dy.toFixed(4)}`);
 
           const newCentroid = {
             x: obj.centroid.x + dx,
@@ -231,7 +217,6 @@ export default function FloorPlanPage() {
             boundary_normalized: newBoundary,
           };
 
-          console.log(`[FloorPlanPage] New object state:`, newObj);
           return newObj;
         }
         return obj;
@@ -306,12 +291,6 @@ export default function FloorPlanPage() {
         handleFinishDrawingBoundary();
       }
 
-      console.log("Saving data:", {
-        boundary_normalized: boundary,
-        north_direction: liveNorthDirection,
-        floor_plan_path: floorPlanImage, // Assuming the image is already uploaded or handled
-      });
-
       const response = await fetch(`/api/projects/${projectId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -325,7 +304,6 @@ export default function FloorPlanPage() {
         throw new Error("Failed to save project data.");
       }
 
-      console.log("Project data saved successfully!");
       setActiveView("grids"); // Move to the next phase
     } catch (error) {
       console.error(error);
@@ -335,8 +313,6 @@ export default function FloorPlanPage() {
 
   const handleSaveObjects = async () => {
     try {
-      console.log("Saving objects:", placedObjects);
-
       const response = await fetch(`/api/projects/${projectId}/objects`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -347,14 +323,12 @@ export default function FloorPlanPage() {
         throw new Error("Failed to save project objects.");
       }
 
-      console.log("Project objects saved successfully!");
       setRefreshKey(prev => prev + 1); // Trigger refresh of data
 
       let finalAnalysisId = currentAnalysisId;
 
       // If no active analysis or analysis is stale, trigger a new one
       if (analysisStale || !finalAnalysisId || isAnalyzing) {
-        console.log("Analysis is stale or not available, re-creating analysis request...");
         // Ensure boundary and northDirection are available from the state
         if (boundary.length === 0) {
             alert("Please draw a boundary for the analysis.");
@@ -380,8 +354,6 @@ export default function FloorPlanPage() {
       // as the analysis record might be created but not yet fully processed.
       await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay
 
-      console.log(`[handleSaveObjects] Attempting to deduct credit for analysisId: ${finalAnalysisId}`);
-
       // --- Deduct Credit for Report View ---
       const deductCreditResponse = await fetch(`/api/analysis/${finalAnalysisId}/deduct-credit-for-report`, {
         method: "POST",
@@ -394,7 +366,6 @@ export default function FloorPlanPage() {
         return;
       }
 
-      console.log("Credit deducted successfully or access granted for report.");
       router.push(`/projects/${projectId}/report?analysisId=${finalAnalysisId}`); // Navigate to dedicated report page with analysisId
     } catch (error: any) {
       console.error("Error saving objects or accessing report:", error);

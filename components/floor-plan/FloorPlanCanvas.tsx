@@ -2,11 +2,36 @@
 
 import React, { useEffect, useState, useRef } from "react";
 import {
-  FloorPlanCanvasProps,
   Point,
   DevtaRegion,
   PlacedObject,
 } from "@/lib/floorPlanInterfaces";
+
+interface FloorPlanCanvasProps {
+  floorPlanImage: string | null;
+  boundary: Point[];
+  onDrawBoundary?: (point: Point) => void;
+  placedObjects: PlacedObject[];
+  onMoveObject: (id: string, x: number, y: number) => void;
+  onResizeObject: (id: string, width: number, height: number) => void;
+  onRotateObject: (id: string, rotation: number) => void;
+  onDeleteObject: (id: string) => void;
+  objectSvgMap: { [key: string]: string };
+  devtaRegions?: DevtaRegion[];
+  innerPolygon?: Point[];
+  middlePolygon?: Point[];
+  zone16Regions?: DevtaRegion[];
+  zone8Regions?: DevtaRegion[];
+  marmaData?: { marmaPoints: Point[]; vanshaLines: Point[][] } | null;
+  drawingObjectBoundary?: Point[];
+  drawingMode?: "boundary" | "objects" | "select" | null;
+  onDevtaClick?: (devta: DevtaRegion) => void;
+  onPlaceObject?: (newObject: PlacedObject) => void;
+  onCanvasClick?: (point: Point) => void;
+  setDrawingMode?: (mode: "boundary" | "objects" | "select" | null) => void;
+  setDrawingObjectBoundary?: (boundary: Point[]) => void;
+  selectedObjectType?: string;
+}
 import { devtaColors } from "@/lib/colorPalette";
 import { getCentroid } from "@/lib/gridUtils";
 import { DraggableObject } from "./DraggableObject";
@@ -26,7 +51,7 @@ const drawCanvasContent = (
   zone8Regions: DevtaRegion[],
   marmaData: { marmaPoints: Point[]; vanshaLines: Point[][] } | null,
   drawingObjectBoundary: Point[],
-  drawingMode: string | null,
+  drawingMode: "boundary" | "objects" | "select" | null | undefined, // Updated type
   hoveredDevta: DevtaRegion | null,
   loadedSvgImages: React.RefObject<Map<string, HTMLImageElement>>,
 ) => {

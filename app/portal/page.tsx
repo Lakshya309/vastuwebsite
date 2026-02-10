@@ -1,5 +1,5 @@
 // app/portal/page.tsx
-import { createServerClient } from '@supabase/ssr';
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
@@ -53,13 +53,21 @@ async function getUserData(supabase: any) {
 
 
 export default async function PortalPage() {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll: () => cookieStore.getAll(),
+        get(name: string) {
+          return cookieStore.get(name)?.value;
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          cookieStore.set({ name, value, ...options });
+        },
+        remove(name: string, options: CookieOptions) {
+          cookieStore.set({ name, value: '', ...options });
+        },
       },
     }
   );
@@ -126,7 +134,7 @@ export default async function PortalPage() {
           </div>
           <div className="space-y-4">
             {projects.length > 0 ? (
-              projects.map((project) => (
+              projects.map((project: { id: string; name: string; created_at: string }) => (
                 <Link key={project.id} href={`/projects/${project.id}/floor-plan`}>
                   <div className="block p-4 bg-gray-50 rounded-lg shadow-sm hover:bg-gray-100 hover:shadow-md transition-all">
                     <div className="flex justify-between items-center">

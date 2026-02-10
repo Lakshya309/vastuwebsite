@@ -4,7 +4,7 @@ import { supabaseAdmin } from "../../../../../../lib/supabaseAdmin";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { projectId: string } }
+  context: { params: Promise<{ projectId: string }> }
 ) {
   const supabase = await createServerSupabaseClient();
 
@@ -21,7 +21,7 @@ export async function POST(
       );
     }
     const uid = user.id;
-    const { projectId } = await params;
+    const { projectId } = await context.params;
 
     // First, verify that the user has access to the project
     const { data: project, error: projectError } = await supabaseAdmin

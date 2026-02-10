@@ -4,8 +4,6 @@ import React from "react";
 import { DevtaRegion, PlacedObject } from "@/lib/floorPlanInterfaces";
 import { isPointInPolygon } from "@/lib/gridUtils";
 import { ObjectPalette } from "./ObjectPalette";
-import { analyzeObject } from "@/lib/vastuAnalysis";
-
 interface ControlPanelProps {
   projectId: string;
   projectName?: string;
@@ -70,40 +68,11 @@ interface ControlPanelProps {
 }
 
 export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
-  const getObjectAnalysis = (obj: PlacedObject) => {
-    const { devtaRegions, zone16Regions, zone8Regions } = props;
-    const centroid = obj.centroid;
-
-    if (devtaRegions.length > 0) {
-      for (const region of devtaRegions) {
-        if (isPointInPolygon(centroid, region.polygon)) {
-          return analyzeObject(obj.object_type, region.name, region.name); // Pass devta as region.name
-        }
-      }
-    }
-
-    if (zone16Regions.length > 0) {
-      for (const region of zone16Regions) {
-        if (isPointInPolygon(centroid, region.polygon)) {
-          return analyzeObject(obj.object_type, region.name, ""); // Pass empty string for devta
-        }
-      }
-    }
-
-    if (zone8Regions.length > 0) {
-      for (const region of zone8Regions) {
-        if (isPointInPolygon(centroid, region.polygon)) {
-          return analyzeObject(obj.object_type, region.name, ""); // Pass empty string for devta
-        }
-      }
-    }
-
-    return analyzeObject(obj.object_type, "Unknown", ""); // Pass empty string for devta
-  };
+  // getObjectAnalysis function removed as analyzeObject is no longer available.
+  // Client-side analysis feedback will not be available from this component.
 
   return (
-    <div className="bg-white h-full border-l border-gray-200 flex flex-col w-96 shadow-xl">
-      <div className="flex border-b text-xs font-semibold uppercase tracking-wide text-gray-500">
+    <div className="bg-white h-full border-l border-gray-200 flex flex-col w-96 shadow-xl">      <div className="flex border-b text-xs font-semibold uppercase tracking-wide text-gray-500">
         <button
           onClick={() => props.setActiveView("setup")}
           className={`flex-1 py-4 hover:bg-gray-50 ${

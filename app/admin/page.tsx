@@ -76,12 +76,25 @@ export default async function AdminPage() {
     };
   });
 
+  // Transform projects data to match component props
+  const transformedProjects = allProjects.map(project => {
+    // The Supabase query returns `profiles` as an array, but the component expects an object or null.
+    const profileObject = Array.isArray(project.profiles) && project.profiles.length > 0
+      ? project.profiles[0]
+      : null;
+
+    return {
+      ...project,
+      profiles: profileObject,
+    };
+  });
+
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Admin Dashboard</h1>
       <AstrologerKeyGenerator />
       <AdminUserTable users={usersWithCredits} />
-      <AdminProjectTable projects={allProjects} />
+      <AdminProjectTable projects={transformedProjects} />
     </div>
   );
 }

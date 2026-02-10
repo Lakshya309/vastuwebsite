@@ -19,8 +19,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log("Logged-in user ID:", user.id);
-
     // 2️⃣ Fetch user role using session client
     const { data: profile, error: profileError } = await supabase
       .from("profiles")

@@ -37,8 +37,6 @@ export async function POST(req: NextRequest) {
     const fileBuffer = await file.arrayBuffer();
     const fileName = `${uid}/${projectId}/${Date.now()}_${file.name}`;
 
-    console.log("Updating project with:", { projectId, uid });
-
     // 1. Upload file to Supabase Storage
     const { error: uploadError } = await supabase.storage
       .from("floor-plans")

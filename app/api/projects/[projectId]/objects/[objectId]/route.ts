@@ -4,7 +4,7 @@ import { supabaseAdmin } from "../../../../../../lib/supabaseAdmin";
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { projectId: string; objectId: string } }
+  context: { params: Promise<{ projectId: string; objectId: string }> }
 ) {
   const supabase = await createServerSupabaseClient();
 
@@ -21,7 +21,7 @@ export async function PUT(
       );
     }
     const uid = user.id;
-    const { projectId, objectId } = await params;
+    const { projectId, objectId } = await context.params;
 
     // First, verify that the user has access to the project
     const { data: project, error: projectError } = await supabaseAdmin
@@ -77,7 +77,7 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { projectId: string; objectId: string } }
+  context: { params: Promise<{ projectId: string; objectId: string }> }
 ) {
   const supabase = await createServerSupabaseClient();
   try {
@@ -93,7 +93,7 @@ export async function DELETE(
       );
     }
     const uid = user.id;
-    const { projectId, objectId } = await params;
+    const { projectId, objectId } = await context.params;
 
     // First, verify that the user has access to the project
     const { data: project, error: projectError } = await supabaseAdmin
