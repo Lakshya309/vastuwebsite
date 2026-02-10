@@ -87,7 +87,7 @@ export default function FloorPlanPage() {
       setSelectedFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
-        setFloorPlanImage(reader.result as string);
+
       };
       reader.readAsDataURL(file);
 

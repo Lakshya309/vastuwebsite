@@ -58,13 +58,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // For non-admin users, enforce that analysis must be 'reviewed' to view results
-    if (userRole !== "admin" && analysisData.status !== "reviewed") {
-        return NextResponse.json(
-            { message: "Analysis not yet reviewed or approved." },
-            { status: 403 }
-        );
-    }
+
 
     // Enforce report_paid check for 'user' role
     if (userRole === "user" && !analysisData.report_paid) {
