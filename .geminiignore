@@ -1,0 +1,3 @@
+# .geminiignore
+# This file is intentionally left empty to ensure no directories or files are ignored by the Gemini agent.
+# This overrides any default ignores.

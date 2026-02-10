@@ -106,20 +106,25 @@ export default function ReportPage() {
     setLoading(true);
     setError(null);
 
-    const input = reportContentRef.current;
-    const originalBackgroundColor = input.style.backgroundColor;
-    const originalPadding = input.style.padding;
-    const originalWidth = input.style.width;
-    const originalHeight = input.style.height;
+    const pdf = new jsPDF("p", "mm", "a4");
 
-    // Temporarily set background to white and fixed width for capture
-    input.style.backgroundColor = 'white';
-    input.style.padding = '0px'; // Remove padding here to ensure full width capture for dom-to-image
-    input.style.width = '800px'; // Temporarily set to A4-like width for responsive reflow
-    input.style.height = 'auto'; // Allow height to adjust based on content
+    const node = reportContentRef.current;
+    const originalWidth = node.style.width;
+    const originalMargin = node.style.margin;
+    const originalBackground = node.style.background;
+    const originalOverflow = node.style.overflow; // Save original overflow
 
+    const CAPTURE_WIDTH = 794; // A4 width in px (roughly 210mm @ 96 DPI)
+
+    // Temporarily force the report container width and set background
+    node.style.width = `${CAPTURE_WIDTH}px`;
+    node.style.margin = "0"; // Explicitly remove margin during capture
+    node.style.background = "white"; // Ensure white background for PDF
+    node.style.overflow = "visible"; // Ensure content is not clipped
+
+    // Temporarily hide no-print elements and record their original display styles
     const originalNoPrintDisplays: string[] = [];
-    input.querySelectorAll('.no-print').forEach((el: Element) => {
+    node.querySelectorAll('.no-print').forEach((el: Element) => {
       originalNoPrintDisplays.push((el as HTMLElement).style.display);
       (el as HTMLElement).style.display = 'none';
     });
@@ -128,38 +133,55 @@ export default function ReportPage() {
       // Wait for any responsive adjustments to take effect
       await new Promise(resolve => setTimeout(resolve, 500)); // Small delay for rendering
 
-      // Capture the DOM element as an image
-      // Use clientWidth and clientHeight after temporary resizing
-      const clientWidth = input.clientWidth;
-      const clientHeight = input.clientHeight;
-
-      const imgDataUrl = await domToImage.toPng(input, {
-        quality: 0.98,
-        height: clientHeight * 2, // Capture at 2x resolution
-        width: clientWidth * 2,   // Capture at 2x resolution
+      // Capture at high resolution (CRUCIAL)
+      const dataUrl = await domToImage.toPng(node, {
+        width: CAPTURE_WIDTH,
+        height: node.scrollHeight, // Capture full scroll height
         style: {
-          overflow: 'hidden',
-          transform: 'scale(1)', // Reset any scaling issues
+          transform: "none", // Explicitly reset all transforms
+          transformOrigin: "top left",
+          overflow: "visible", // Ensure overflow is visible during capture
+          boxSizing: "content-box", // Ensure consistent box model
+          padding: "0", // Remove padding during capture to prevent visual shifts
+          // Add other common resets if needed, e.g., perspective: 'none', filter: 'none'
         },
+        quality: 1, // High quality
+        cacheBust: true,
       });
 
-      const pdf = new jsPDF("p", "mm", "a4"); // Portrait, millimeters, A4
-      const imgProps = pdf.getImageProperties(imgDataUrl);
-      const pdfWidth = pdf.internal.pageSize.getWidth(); // Standard A4 width in mm
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width; // Calculate height based on aspect ratio
+      // Insert into jsPDF (CENTERED & FULL WIDTH)
+      const pdfWidth = pdf.internal.pageSize.getWidth(); // 210mm (A4)
+      const pdfHeight = pdf.internal.pageSize.getHeight(); // 297mm (A4)
 
-      let heightLeft = pdfHeight;
-      let position = 0; // Y-position on the PDF page
+      const imgProps = pdf.getImageProperties(dataUrl);
+      const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
 
-      pdf.addImage(imgDataUrl, "PNG", 0, position, pdfWidth, pdfHeight);
-      heightLeft -= pdf.internal.pageSize.getHeight();
+      // Center vertically if it fits on one page
+      const yOffset = imgHeight < pdfHeight
+        ? (pdfHeight - imgHeight) / 2
+        : 0; // If content is taller than one page, start from top
 
-      while (heightLeft > 0) {
-        position = heightLeft - pdfHeight;
+      pdf.addImage(
+        dataUrl,
+        "PNG",
+        0, // x: Start from left edge. CSS within captured image handles internal centering if any.
+        yOffset,
+        pdfWidth, // Use full PDF width for the image
+        imgHeight
+      );
+
+      // Handle pagination if imgHeight exceeds one page.
+      // The image is a single long image. For subsequent pages, we need to shift the image up.
+      let heightLeft = imgHeight;
+      let position = yOffset; // Current y position of the image on the PDF
+
+      while (heightLeft > pdfHeight) { // As long as there's more content than a page
         pdf.addPage();
-        pdf.addImage(imgDataUrl, "PNG", 0, position, pdfWidth, pdfHeight);
-        heightLeft -= pdf.internal.pageSize.getHeight();
+        position -= pdfHeight; // Shift the image up by one page height
+        pdf.addImage(dataUrl, "PNG", 0, position, pdfWidth, imgHeight);
+        heightLeft -= pdfHeight;
       }
+
 
       pdf.save(`Vastu_Report_${project?.name || projectId}.pdf`);
     } catch (err: any) {
@@ -168,13 +190,13 @@ export default function ReportPage() {
       alert("Failed to generate PDF. Please try again.");
     } finally {
       // Restore original styles
-      input.style.backgroundColor = originalBackgroundColor;
-      input.style.padding = originalPadding;
-      input.style.width = originalWidth;
-      input.style.height = originalHeight;
+      node.style.width = originalWidth;
+      node.style.margin = originalMargin;
+      node.style.background = originalBackground;
+      node.style.overflow = originalOverflow; // Restore original overflow
       // Restore original display styles for no-print elements
       let i = 0;
-      input.querySelectorAll('.no-print').forEach((el: Element) => {
+      node.querySelectorAll('.no-print').forEach((el: Element) => {
         (el as HTMLElement).style.display = originalNoPrintDisplays[i++];
       });
       setLoading(false);

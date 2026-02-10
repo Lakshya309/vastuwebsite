@@ -3,10 +3,10 @@ import { createServerSupabaseClient } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 type RouteContext = {
-  params: Promise<{ analysisId: string }>;
+  params: { analysisId: string };
 };
 
-export async function POST(req: NextRequest, { params }: RouteContext) {
+export async function POST(req: NextRequest, context: RouteContext) {
   const supabase = await createServerSupabaseClient();
 
   try {
@@ -23,8 +23,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     }
     const uid = user.id;
 
-    console.log(`[deduct-credit-for-report] Raw params.analysisId: '${params.analysisId}', Type: ${typeof params.analysisId}`);
-    const { analysisId } = await params;
+    const { analysisId } = context.params;
     console.log(`[deduct-credit-for-report] Received analysisId: '${analysisId}'`);
 
     if (!analysisId) {
