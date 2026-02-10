@@ -115,14 +115,7 @@ export default function FloorPlanPage() {
   const debouncedBoundary = useDebounce(boundary, 500);
   const debouncedNorthDirection = useDebounce(liveNorthDirection, 500);
 
-  // Effect to create analysis request when boundary or north direction changes
-  useEffect(() => {
-    if (debouncedBoundary.length > 0 && projectId) {
-      const analysisType = "devta"; // This hook specifically handles devta analysis
-      createAnalysisRequest(projectId, analysisType, debouncedBoundary, debouncedNorthDirection, undefined, undefined);
-      setAnalysisStale(false); // Reset stale status as a new analysis request is made
-    }
-  }, [projectId, debouncedBoundary, debouncedNorthDirection, createAnalysisRequest]);
+
 
   // Effect to fetch detailed analysis results once a pending analysis ID is available (placeholder for approval)
   useEffect(() => {
@@ -339,8 +332,7 @@ export default function FloorPlanPage() {
             return;
         }
         finalAnalysisId = newId;
-        // Optionally, reset analysisStale here if createAnalysisRequest is guaranteed to complete successfully
-        // setAnalysisStale(false);
+        setAnalysisStale(false);
       }
 
       if (!finalAnalysisId) {
