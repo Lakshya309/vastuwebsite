@@ -113,7 +113,6 @@ export default function FloorPlanPage() {
   const { marmaData, isLoading: isMarmaAnalyzing, error: marmaError } = useMarmaAnalysis(currentAnalysisId);
 
   const debouncedBoundary = useDebounce(boundary, 500);
-  // const debouncedPlacedObjects = useDebounce(placedObjects, 500); // Not used in this context for analysis initiation
   const debouncedNorthDirection = useDebounce(liveNorthDirection, 500);
 
   // Effect to create analysis request when boundary or north direction changes
