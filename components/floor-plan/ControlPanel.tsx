@@ -18,6 +18,7 @@ interface ControlPanelProps {
     zone16: boolean;
     zone8: boolean;
     marma: boolean;
+    shaktiChakra: boolean;
   };
   setShowGrid: React.Dispatch<
     React.SetStateAction<{
@@ -25,6 +26,7 @@ interface ControlPanelProps {
       zone16: boolean;
       zone8: boolean;
       marma: boolean;
+      shaktiChakra: boolean;
     }>
   >;
 
@@ -65,6 +67,8 @@ interface ControlPanelProps {
   isAnalyzing: boolean;
   analysisStale: boolean;
   handleAddObject: (objectType: string) => void;
+  shaktiChakraSize: number;
+  setShaktiChakraSize: (size: number) => void;
 }
 
 export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
@@ -178,7 +182,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                 }
                 className="w-full accent-blue-600"
               />
-              <div className="text-center text-sm text-gray-600 mt-1">
+              <div className="text-center text-xl font-bold text-gray-800 mt-1">
                 {props.liveNorthDirection}°
               </div>
             </div>
@@ -288,6 +292,41 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                   </span>
                 </div>
               </label>
+              <label className="flex items-center p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={props.showGrid.shaktiChakra}
+                  onChange={(e) =>
+                    props.setShowGrid((p) => ({
+                      ...p,
+                      shaktiChakra: e.target.checked,
+                    }))
+                  }
+                  className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+                />
+                <div className="ml-3">
+                  <span className="block text-sm font-medium text-gray-900">
+                    Shakti Chakra
+                  </span>
+                  <span className="block text-xs text-gray-500">
+                    Cosmic energy grid
+                  </span>
+                </div>
+              </label>
+              {props.showGrid.shaktiChakra && (
+                <div className="pl-8 pt-2">
+                  <label className="block text-sm font-medium text-gray-700">Size</label>
+                  <input
+                    type="range"
+                    min="0.1"
+                    max="2"
+                    step="0.1"
+                    value={props.shaktiChakraSize}
+                    onChange={(e) => props.setShaktiChakraSize(parseFloat(e.target.value))}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                </div>
+              )}
             </div>
                         <div className="border-t pt-4 space-y-3">
                             <h3 className="text-lg font-bold text-gray-800">Analysis Status</h3>

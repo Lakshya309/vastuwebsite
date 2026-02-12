@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
@@ -23,6 +24,9 @@ interface FloorPlanCanvasProps {
   zone16Regions?: DevtaRegion[];
   zone8Regions?: DevtaRegion[];
   marmaData?: { marmaPoints: Point[]; vanshaLines: Point[][] } | null;
+  shaktiChakra?: boolean;
+  shaktiChakraSize?: number;
+  plotCentroid?: Point | null;
   drawingObjectBoundary?: Point[];
   drawingMode?: "boundary" | "objects" | "select" | null;
   onDevtaClick?: (devta: DevtaRegion) => void;
@@ -31,6 +35,7 @@ interface FloorPlanCanvasProps {
   setDrawingMode?: (mode: "boundary" | "objects" | "select" | null) => void;
   setDrawingObjectBoundary?: (boundary: Point[]) => void;
   selectedObjectType?: string;
+  northDirection: number;
 }
 import { devtaColors } from "@/lib/colorPalette";
 import { getCentroid } from "@/lib/gridUtils";
@@ -50,10 +55,14 @@ const drawCanvasContent = (
   zone16Regions: DevtaRegion[],
   zone8Regions: DevtaRegion[],
   marmaData: { marmaPoints: Point[]; vanshaLines: Point[][] } | null,
+  shaktiChakra: boolean | undefined,
+  shaktiChakraSize: number | undefined,
+  plotCentroid: Point | null,
   drawingObjectBoundary: Point[],
   drawingMode: "boundary" | "objects" | "select" | null | undefined, // Updated type
   hoveredDevta: DevtaRegion | null,
   loadedSvgImages: React.RefObject<Map<string, HTMLImageElement>>,
+  northDirection: number, // Added northDirection to parameters
 ) => {
   ctx.clearRect(0, 0, width, height);
   const toPx = (p: Point) => ({ x: p.x * width, y: p.y * height });
@@ -69,6 +78,27 @@ const drawCanvasContent = (
       ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
       ctx.fillRect(0, 0, width, height);
     }
+  }
+
+  // Draw Shakti Chakra
+  if (shaktiChakra && plotCentroid) {
+    const centroid = toPx(plotCentroid);
+    const shaktiChakraImg = new Image();
+    shaktiChakraImg.src = "/shaktichakra.png";
+    shaktiChakraImg.onload = () => {
+      ctx.save();
+      ctx.translate(centroid.x, centroid.y);
+      ctx.rotate((northDirection * Math.PI) / 180);
+      const imageSize = Math.min(width, height) * (shaktiChakraSize || 0.8);
+      ctx.drawImage(
+        shaktiChakraImg,
+        -imageSize / 2,
+        -imageSize / 2,
+        imageSize,
+        imageSize
+      );
+      ctx.restore();
+    };
   }
 
   // 3. Draw Grids (Existing logic)
@@ -233,6 +263,44 @@ const drawCanvasContent = (
     ctx.stroke();
     ctx.setLineDash([]); // Reset
   }
+
+  // Draw North Direction Line
+  if (plotCentroid) {
+    const centroid = toPx(plotCentroid);
+    const arrowLength = Math.min(width, height) * 0.1;
+    const headLength = 10;
+    const angleInRadians = (northDirection - 90) * (Math.PI / 180);
+
+    ctx.save();
+    ctx.translate(centroid.x, centroid.y);
+    ctx.rotate(angleInRadians + Math.PI / 2);
+
+    // Draw the arrow line
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, -arrowLength);
+    ctx.strokeStyle = "#FF0000";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Draw the arrow head
+    ctx.beginPath();
+    ctx.moveTo(0, -arrowLength);
+    ctx.lineTo(-headLength / 2, -arrowLength + headLength);
+    ctx.lineTo(headLength / 2, -arrowLength + headLength);
+    ctx.closePath();
+    ctx.fillStyle = "#FF0000";
+    ctx.fill();
+
+    // Draw "N" for North
+    ctx.font = "bold 16px Arial";
+    ctx.fillStyle = "#FF0000";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("N", 0, -arrowLength - 10);
+
+    ctx.restore();
+  }
 };
 
 export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
@@ -251,6 +319,9 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
   zone16Regions = [],
   zone8Regions = [],
   marmaData = null,
+  shaktiChakra = false,
+  shaktiChakraSize = 0.8,
+  plotCentroid = null,
   drawingObjectBoundary = [],
   drawingMode,
   onDevtaClick,
@@ -259,6 +330,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
   setDrawingMode,
   setDrawingObjectBoundary,
   selectedObjectType,
+  northDirection, // Added northDirection
 }) => {
   const [hoveredDevta, setHoveredDevta] = useState<DevtaRegion | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -293,10 +365,14 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
       zone16Regions,
       zone8Regions,
       marmaData,
+      shaktiChakra,
+      shaktiChakraSize,
+      plotCentroid,
       drawingObjectBoundary,
       drawingMode,
       hoveredDevta,
       loadedSvgImages,
+      northDirection, // Pass northDirection to drawCanvasContent
     );
   }, [
     width,
@@ -308,11 +384,15 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     zone16Regions,
     zone8Regions,
     marmaData,
+    shaktiChakra,
+    shaktiChakraSize,
+    plotCentroid,
     drawingObjectBoundary,
     drawingMode,
     hoveredDevta,
     innerPolygon,
     middlePolygon,
+    northDirection, // Added to dependency array
   ]);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -381,7 +461,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLCanvasElement>) => {};
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLCanvasElement>) => { };
 
   return (
     <div
@@ -394,7 +474,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
           src={floorPlanImage}
           alt="Floor Plan Source"
           className="hidden"
-          onLoad={() => {}}
+          onLoad={() => { }}
         />
       )}
 

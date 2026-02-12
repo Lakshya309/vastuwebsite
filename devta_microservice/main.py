@@ -86,6 +86,7 @@ class AnalysisResponse(BaseModel):
     devtas45: List[Region]
     zones16: List[Region]
     zones8: List[Region]
+    plot_centroid: Optional[PointModel] = None
 
 # ======================================================
 # CONSTANTS
@@ -536,6 +537,7 @@ def analyze_objects(req: ObjectAnalysisRequest) -> VastuAnalysisResult:
 
 def analyze_plot(req: AnalysisRequest) -> AnalysisResponse:
     outer = to_polygon(req.boundary_normalized)
+    center = visual_center(outer)
 
     if len(req.boundary_normalized) <= 4:
         devtas = generate_45_devtas(outer, req.north_direction)
@@ -547,6 +549,7 @@ def analyze_plot(req: AnalysisRequest) -> AnalysisResponse:
         devtas45=devtas,
         zones16=generate_zones(outer, req.north_direction, ZONE_NAMES_16, "zone16"),
         zones8=generate_zones(outer, req.north_direction, ZONE_NAMES_8, "zone8"),
+        plot_centroid=PointModel(x=center.x, y=center.y),
     )
 
 # ======================================================

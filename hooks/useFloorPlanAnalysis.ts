@@ -12,6 +12,7 @@ interface DetailedAnalysisResponse {
   devtas45: DevtaRegion[];
   zones16: DevtaRegion[];
   zones8: DevtaRegion[];
+  plot_centroid: Point;
   // ... other analysis specific data
 }
 
@@ -19,6 +20,7 @@ export function useFloorPlanAnalysis() {
     const [devtaRegions, setDevtaRegions] = useState<DevtaRegion[]>([]);
     const [zones16, setZones16] = useState<DevtaRegion[]>([]);
     const [zones8, setZones8] = useState<DevtaRegion[]>([]);
+    const [plotCentroid, setPlotCentroid] = useState<Point | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(null); // To store the created analysis ID
@@ -41,22 +43,24 @@ export function useFloorPlanAnalysis() {
         setCurrentAnalysisId(null); // Reset analysisId
 
         try {
+            const requestBody = {
+                projectId,
+                analysisType,
+                boundary_normalized: boundary,
+                north_direction: northDirection,
+                analysisDate,
+                analysisTime,
+            };
             // 1. Create a new analysis record (deduct credits)
             const createResponse = await fetch("/api/analysis", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    projectId,
-                    analysisType,
-                    boundary_normalized: boundary,
-                    north_direction: northDirection,
-                    analysisDate,
-                    analysisTime,
-                })
+                body: JSON.stringify(requestBody)
             });
 
             if (!createResponse.ok) {
                 const errorData = await createResponse.json();
+                console.error("Failed to create analysis record:", errorData);
                 throw new Error(errorData.message || "Failed to create analysis record.");
             }
 
@@ -122,6 +126,7 @@ export function useFloorPlanAnalysis() {
             setDevtaRegions(data.devtas45 || []);
             setZones16(data.zones16 || []);
             setZones8(data.zones8 || []);
+            setPlotCentroid(data.plot_centroid || null);
 
         } catch (err: any) {
             console.error(`Fetching ${analysisType} analysis failed`, err);
@@ -136,6 +141,7 @@ export function useFloorPlanAnalysis() {
         devtaRegions,
         zones16,
         zones8,
+        plotCentroid,
         isAnalyzing,
         error,
         createAnalysisRequest, // For initiating the request

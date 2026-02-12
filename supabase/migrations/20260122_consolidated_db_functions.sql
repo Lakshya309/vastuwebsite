@@ -11,7 +11,7 @@ BEGIN
 
   -- Insert into public.user_credits
   INSERT INTO public.user_credits (user_id, credits)
-  VALUES (NEW.id, 0); -- Default credits 0
+  VALUES (NEW.id, 5); -- Default credits 5
 
   RETURN NEW;
 END;
@@ -48,7 +48,7 @@ DECLARE
     current_credits INTEGER;
 BEGIN
     -- Ensure atomicity and prevent race conditions
-    SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+
 
     -- Get current credits
     SELECT credits INTO current_credits

@@ -43,6 +43,7 @@ export default function FloorPlanPage() {
     zone16: false,
     zone8: false,
     marma: false,
+    shaktiChakra: false,
   });
   const [selectedObjectType, setSelectedObjectType] = useState("Toilet");
   const [drawingObjectBoundary, setDrawingObjectBoundary] = useState<Point[]>(
@@ -51,6 +52,7 @@ export default function FloorPlanPage() {
   const [selectedDevta, setSelectedDevta] = useState<DevtaRegion | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [analysisStale, setAnalysisStale] = useState(false);
+  const [shaktiChakraSize, setShaktiChakraSize] = useState(0.8);
 
   const uploadFloorPlan = async (file: File) => {
     const formData = new FormData();
@@ -104,6 +106,7 @@ export default function FloorPlanPage() {
     devtaRegions,
     zones16,
     zones8,
+    plotCentroid,
     isAnalyzing,
     createAnalysisRequest,
     fetchDetailedAnalysisResults,
@@ -117,14 +120,34 @@ export default function FloorPlanPage() {
 
 
 
-  // Effect to fetch detailed analysis results once a pending analysis ID is available (placeholder for approval)
   useEffect(() => {
     if (currentAnalysisId) {
-      // In a full implementation, you would check the status of currentAnalysisId
-      // via an API call or a real-time subscription.
-      // For now, we'll assume it's approved and immediately fetch results.
       const analysisType = "devta"; // This hook specifically handles devta analysis
-      fetchDetailedAnalysisResults(currentAnalysisId, analysisType);
+
+      const pollStatus = setInterval(async () => {
+        try {
+          const response = await fetch(`/api/analysis/${currentAnalysisId}/status`);
+          if (!response.ok) {
+            // Handle HTTP errors (e.g., 404, 500)
+            console.error(`Status check failed with status: ${response.status}`);
+            clearInterval(pollStatus); // Stop polling on critical error
+            return;
+          }
+          const { status } = await response.json();
+
+          if (status !== "pending") {
+            clearInterval(pollStatus);
+            fetchDetailedAnalysisResults(currentAnalysisId, analysisType);
+          }
+        } catch (error) {
+          // Handle network errors
+          console.error("Error polling analysis status:", error);
+          clearInterval(pollStatus); // Stop polling on network error
+        }
+      }, 2000); // Poll every 2 seconds
+
+      // Cleanup function to stop polling if the component unmounts or dependencies change
+      return () => clearInterval(pollStatus);
     }
   }, [currentAnalysisId, fetchDetailedAnalysisResults]);
 
@@ -296,6 +319,17 @@ export default function FloorPlanPage() {
         throw new Error("Failed to save project data.");
       }
 
+      if (boundary.length > 0) {
+        const newId = await createAnalysisRequest(projectId, "devta", boundary, liveNorthDirection, undefined, undefined);
+        if (newId) {
+          fetchDetailedAnalysisResults(newId, "devta");
+          setAnalysisStale(false);
+        } else {
+          alert("Failed to initiate analysis. Please try again.");
+        }
+      }
+
+
       setActiveView("grids"); // Move to the next phase
     } catch (error) {
       console.error(error);
@@ -319,41 +353,8 @@ export default function FloorPlanPage() {
 
       let finalAnalysisId = currentAnalysisId;
 
-      // If no active analysis or analysis is stale, trigger a new one
-      if (analysisStale || !finalAnalysisId || isAnalyzing) {
-        // Ensure boundary and northDirection are available from the state
-        if (boundary.length === 0) {
-            alert("Please draw a boundary for the analysis.");
-            return;
-        }
-        const newId = await createAnalysisRequest(projectId, "devta", boundary, liveNorthDirection, undefined, undefined);
-        if (!newId) {
-            alert("Failed to initiate analysis. Please try again.");
-            return;
-        }
-        finalAnalysisId = newId;
-        setAnalysisStale(false);
-      }
-
       if (!finalAnalysisId) {
         alert("No active analysis to generate report for. Please initiate an analysis first.");
-        return;
-      }
-
-      // Add a small delay to ensure the database has time to commit
-      // This delay might still be necessary even with the above logic,
-      // as the analysis record might be created but not yet fully processed.
-      await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay
-
-      // --- Deduct Credit for Report View ---
-      const deductCreditResponse = await fetch(`/api/analysis/${finalAnalysisId}/deduct-credit-for-report`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-
-      if (!deductCreditResponse.ok) {
-        const errorData = await deductCreditResponse.json();
-        alert(errorData.message || "Failed to deduct credit for report access.");
         return;
       }
 
@@ -417,6 +418,9 @@ export default function FloorPlanPage() {
               zone16Regions={showGrid.zone16 ? zones16 : []}
               zone8Regions={showGrid.zone8 ? zones8 : []}
               marmaData={showGrid.marma ? marmaData : null}
+              shaktiChakra={showGrid.shaktiChakra}
+              shaktiChakraSize={shaktiChakraSize}
+              plotCentroid={plotCentroid}
               onDevtaClick={handleDevtaClick}
               drawingMode={drawingMode}
               setDrawingMode={setDrawingMode}
@@ -425,6 +429,7 @@ export default function FloorPlanPage() {
               drawingObjectBoundary={drawingObjectBoundary}
               setDrawingObjectBoundary={setDrawingObjectBoundary}
               selectedObjectType={selectedObjectType}
+              northDirection={liveNorthDirection}
             />
 
             {/* Overlay Status Indicators */}
@@ -469,7 +474,7 @@ export default function FloorPlanPage() {
           selectedFile={selectedFile}
           handleImageUpload={handleImageUpload}
           handleStartDrawingBoundary={handleStartDrawingBoundary}
-          handleFinishDrawingBoundary={handleFinishDrawingBoundary}
+  handleFinishDrawingBoundary={handleFinishDrawingBoundary}
           handleReupload={handleReupload}
           handleResetBoundary={handleResetBoundary}
           handleUndoLastPoint={handleUndoLastPoint}
@@ -487,7 +492,8 @@ export default function FloorPlanPage() {
           // New analysis props
           isAnalyzing={isAnalyzing}
           analysisStale={analysisStale}
-
+          shaktiChakraSize={shaktiChakraSize}
+          setShaktiChakraSize={setShaktiChakraSize}
         />
       </div>
     </div>

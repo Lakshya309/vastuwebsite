@@ -94,7 +94,16 @@ export async function GET(request: NextRequest) {
     }
 
     // Call the Python service directly with retrieved parameters
-    const response = await fetch("http://127.0.0.1:5000/analyze", {
+    let response;
+    try {
+      response = await fetch("http://127.0.0.1:5000/health");
+      if (!response.ok) throw new Error("Health check failed");
+    } catch (e) {
+      console.error("Python service health check failed", e);
+      return NextResponse.json({ error: "Python Service Unreachable" }, { status: 500 });
+    }
+
+    response = await fetch("http://127.0.0.1:5000/analyze", {
       method: "POST", // The Python service still expects a POST with body
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
