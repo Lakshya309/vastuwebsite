@@ -19,6 +19,9 @@ import {
 import domToImage from "dom-to-image";
 import jsPDF from "jspdf";
 import { Point } from "../../../../lib/floorPlanInterfaces";
+import { calculateBoundaryDistribution } from "../../../utils/calculateBoundaryDistribution";
+import { calculateAreaDistribution } from "../../../utils/calculateAreaDistribution";
+import { ZoneBarChart } from "../../../../components/ZoneBarChart";
 
 // --- INTERFACES ---
 
@@ -53,6 +56,26 @@ interface VastuAnalysisResult {
   overall_percentage: number;
   overall_verdict: "EXCELLENT" | "GOOD" | "BAD" | "CRITICAL";
 }
+
+const ZONES_DEFINITION = [
+  { zone: 'NNE', startAngle: 11.25, endAngle: 33.75 },
+  { zone: 'NE', startAngle: 33.75, endAngle: 56.25 },
+  { zone: 'ENE', startAngle: 56.25, endAngle: 78.75 },
+  { zone: 'E', startAngle: 78.75, endAngle: 101.25 },
+  { zone: 'ESE', startAngle: 101.25, endAngle: 123.75 },
+  { zone: 'SE', startAngle: 123.75, endAngle: 146.25 },
+  { zone: 'SSE', startAngle: 146.25, endAngle: 168.75 },
+  { zone: 'S', startAngle: 168.75, endAngle: 191.25 },
+  { zone: 'SSW', startAngle: 191.25, endAngle: 213.75 },
+  { zone: 'SW', startAngle: 213.75, endAngle: 236.25 },
+  { zone: 'WSW', startAngle: 236.25, endAngle: 258.75 },
+  { zone: 'W', startAngle: 258.75, endAngle: 281.25 },
+  { zone: 'WNW', startAngle: 281.25, endAngle: 303.75 },
+  { zone: 'NW', startAngle: 303.75, endAngle: 326.25 },
+  { zone: 'NNW', startAngle: 326.25, endAngle: 348.75 },
+  { zone: 'N', startAngle: 348.75, endAngle: 11.25 }, // Special case for N zone wrapping around 0/360
+];
+
 
 // --- CONSTANTS ---
 const COLORS = {
@@ -93,6 +116,7 @@ export default function ReportPage() {
   const [vastuAnalysisResult, setVastuAnalysisResult] = useState<VastuAnalysisResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [zoneGraphData, setZoneGraphData] = useState<any[]>([]);
 
 
 
@@ -238,6 +262,50 @@ export default function ReportPage() {
         if (projectData.project.north_direction !== null) {
           setLiveNorthDirection(projectData.project.north_direction);
         }
+
+        // Calculate and set zone graph data
+        if (projectData.project.boundary_normalized) {
+          const getCentroid = (points: Point[]): Point => {
+            let x = 0;
+            let y = 0;
+            points.forEach(p => {
+              x += p.x;
+              y += p.y;
+            });
+            return { x: x / points.length, y: y / points.length };
+          };
+          const centroid = getCentroid(projectData.project.boundary_normalized);
+          const zones = ZONES_DEFINITION;
+
+          const boundaryDistribution = calculateBoundaryDistribution(projectData.project.boundary_normalized, centroid, zones);
+          
+          const zoneAreas = vastuData.analyzed_objects.reduce((acc, obj) => {
+            if (obj.zone16_direction) {
+              if (!acc[obj.zone16_direction]) {
+                acc[obj.zone16_direction] = 0;
+              }
+              acc[obj.zone16_direction] += 1; // Assuming area is proportional to object count for now
+            }
+            return acc;
+          }, {} as Record<string, number>);
+
+          const areaData = Object.keys(zoneAreas).map(zone => ({ zone, area: zoneAreas[zone] }));
+
+          const areaDistribution = calculateAreaDistribution(areaData);
+
+          const mergedData = zones.map(zone => {
+            const boundaryData = boundaryDistribution.find(b => b.zone === zone.zone);
+            const areaData = areaDistribution.find(a => a.zone === zone.zone);
+            return {
+              zone: zone.zone,
+              boundaryPercent: boundaryData ? boundaryData.boundaryPercent : 0,
+              areaPercent: areaData ? areaData.areaPercent : 0,
+            };
+          });
+
+          setZoneGraphData(mergedData);
+        }
+
       } catch (err: any) {
         console.error("Error fetching report data:", err);
         setError(err.message);
@@ -370,6 +438,21 @@ export default function ReportPage() {
             )}
           </div>
         </div>
+
+        {zoneGraphData.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+            <ZoneBarChart
+              data={zoneGraphData}
+              chartType="boundary"
+              title="Directional Boundary Distribution"
+            />
+            <ZoneBarChart
+              data={zoneGraphData}
+              chartType="area"
+              title="Zone Area Distribution"
+            />
+          </div>
+        )}
 
         <div className="mt-8 bg-white p-6 rounded-2xl shadow-lg">
           <h2 className="text-2xl font-bold mb-4 text-gray-800">Detailed Object Report</h2>

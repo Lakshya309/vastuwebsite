@@ -36,6 +36,8 @@ interface FloorPlanCanvasProps {
   setDrawingObjectBoundary?: (boundary: Point[]) => void;
   selectedObjectType?: string;
   northDirection: number;
+  scale: number | null;
+  wallLengths: number[];
 }
 import { devtaColors } from "@/lib/colorPalette";
 import { getCentroid } from "@/lib/gridUtils";
@@ -63,6 +65,8 @@ const drawCanvasContent = (
   hoveredDevta: DevtaRegion | null,
   loadedSvgImages: React.RefObject<Map<string, HTMLImageElement>>,
   northDirection: number, // Added northDirection to parameters
+  wallLengths: number[],
+  scale: number | null,
 ) => {
   ctx.clearRect(0, 0, width, height);
   const toPx = (p: Point) => ({ x: p.x * width, y: p.y * height });
@@ -222,6 +226,25 @@ const drawCanvasContent = (
       ctx.fill();
       ctx.stroke();
     });
+    // Draw wall lengths
+    if (scale && wallLengths.length > 0) {
+      pxBoundary.forEach((p1, index) => {
+        const p2 = pxBoundary[(index + 1) % pxBoundary.length];
+        const midPoint = {
+          x: (p1.x + p2.x) / 2,
+          y: (p1.y + p2.y) / 2,
+        };
+        ctx.fillStyle = "black";
+        ctx.font = "12px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "bottom";
+        ctx.fillText(
+          `${wallLengths[index].toFixed(2)}m`,
+          midPoint.x,
+          midPoint.y - 5
+        );
+      });
+    }
   }
 
   if (marmaData) {
@@ -331,6 +354,8 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
   setDrawingObjectBoundary,
   selectedObjectType,
   northDirection, // Added northDirection
+  scale,
+  wallLengths,
 }) => {
   const [hoveredDevta, setHoveredDevta] = useState<DevtaRegion | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -373,6 +398,8 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
       hoveredDevta,
       loadedSvgImages,
       northDirection, // Pass northDirection to drawCanvasContent
+      wallLengths,
+      scale,
     );
   }, [
     width,
@@ -393,6 +420,8 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     innerPolygon,
     middlePolygon,
     northDirection, // Added to dependency array
+    wallLengths,
+    scale,
   ]);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {

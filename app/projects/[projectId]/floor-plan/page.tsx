@@ -53,6 +53,9 @@ export default function FloorPlanPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [analysisStale, setAnalysisStale] = useState(false);
   const [shaktiChakraSize, setShaktiChakraSize] = useState(0.8);
+  const [scale, setScale] = useState<number | null>(null);
+  const [wallLengths, setWallLengths] = useState<number[]>([]);
+  const [referenceWallIndex, setReferenceWallIndex] = useState<number | null>(null);
 
   const uploadFloorPlan = async (file: File) => {
     const formData = new FormData();
@@ -430,6 +433,8 @@ export default function FloorPlanPage() {
               setDrawingObjectBoundary={setDrawingObjectBoundary}
               selectedObjectType={selectedObjectType}
               northDirection={liveNorthDirection}
+              scale={scale}
+              wallLengths={wallLengths}
             />
 
             {/* Overlay Status Indicators */}
@@ -494,6 +499,12 @@ export default function FloorPlanPage() {
           analysisStale={analysisStale}
           shaktiChakraSize={shaktiChakraSize}
           setShaktiChakraSize={setShaktiChakraSize}
+          scale={scale}
+          setScale={setScale}
+          wallLengths={wallLengths}
+          setWallLengths={setWallLengths}
+          referenceWallIndex={referenceWallIndex}
+          setReferenceWallIndex={setReferenceWallIndex}
         />
       </div>
     </div>

@@ -1,9 +1,10 @@
 // components/floor-plan/ControlPanel.tsx
 "use client";
 import React from "react";
-import { DevtaRegion, PlacedObject } from "@/lib/floorPlanInterfaces";
+import { DevtaRegion, PlacedObject, Point } from "@/lib/floorPlanInterfaces";
 import { isPointInPolygon } from "@/lib/gridUtils";
 import { ObjectPalette } from "./ObjectPalette";
+
 interface ControlPanelProps {
   projectId: string;
   projectName?: string;
@@ -69,11 +70,49 @@ interface ControlPanelProps {
   handleAddObject: (objectType: string) => void;
   shaktiChakraSize: number;
   setShaktiChakraSize: (size: number) => void;
+
+  // New props for scaling
+  scale: number | null;
+  setScale: (scale: number | null) => void;
+  wallLengths: number[];
+  setWallLengths: (lengths: number[]) => void;
+  referenceWallIndex: number | null;
+  setReferenceWallIndex: (index: number | null) => void;
 }
 
 export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
-  // getObjectAnalysis function removed as analyzeObject is no longer available.
-  // Client-side analysis feedback will not be available from this component.
+  const handleSetReference = (index: number, realLength: number) => {
+    if (!props.boundary || props.boundary.length < 2) return;
+
+    const canvasWidth = 800; // Assuming a fixed canvas width for calculation
+    const canvasHeight = 600; // Assuming a fixed canvas height for calculation
+
+    const p1 = props.boundary[index];
+    const p2 = props.boundary[(index + 1) % props.boundary.length];
+
+    const pixelLength = Math.sqrt(
+      Math.pow((p2.x - p1.x) * canvasWidth, 2) +
+      Math.pow((p2.y - p1.y) * canvasHeight, 2)
+    );
+
+    if (pixelLength > 0 && realLength > 0) {
+      const newScale = realLength / pixelLength;
+      props.setScale(newScale);
+      props.setReferenceWallIndex(index);
+
+      const newWallLengths = props.boundary.map((_, i) => {
+        const point1 = props.boundary[i];
+        const point2 = props.boundary[(i + 1) % props.boundary.length];
+        const lengthInPixels = Math.sqrt(
+          Math.pow((point2.x - point1.x) * canvasWidth, 2) +
+          Math.pow((point2.y - point1.y) * canvasHeight, 2)
+        );
+        return lengthInPixels * newScale;
+      });
+      props.setWallLengths(newWallLengths);
+    }
+  };
+
 
   return (
     <div className="bg-white h-full border-l border-gray-200 flex flex-col w-96 shadow-xl">      <div className="flex border-b text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -186,6 +225,38 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                 {props.liveNorthDirection}°
               </div>
             </div>
+            {props.boundary && props.boundary.length > 2 && (
+              <div className="border-t pt-4">
+                <h3 className="text-lg font-bold text-gray-800 mb-2">
+                  4. Set Scale
+                </h3>
+                <p className="text-sm text-gray-500 mb-3">
+                  Enter the real length of one wall to set the scale (in meters).
+                </p>
+                <div className="space-y-2">
+                  {props.boundary.map((_, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <label className="w-20">Wall {index + 1}</label>
+                      <input
+                        type="number"
+                        min="0.1"
+                        step="0.1"
+                        placeholder="e.g., 5.2"
+                        className="flex-1 p-2 border rounded"
+                        onChange={(e) =>
+                          handleSetReference(index, parseFloat(e.target.value))
+                        }
+                      />
+                      {props.wallLengths[index] && (
+                        <span className="text-sm text-gray-600">
+                          {props.wallLengths[index].toFixed(2)}m
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="border-t pt-6 mt-4">
               <button
