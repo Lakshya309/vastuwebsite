@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 
 export default function NewProjectPage() {
   const [projectName, setProjectName] = useState("");
+  const [creatorName, setCreatorName] = useState("");
+  const [reportFor, setReportFor] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -20,7 +22,11 @@ export default function NewProjectPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ name: projectName }),
+        body: JSON.stringify({
+          name: projectName,
+          creator_name: creatorName,
+          report_for: reportFor,
+        }),
       });
 
       if (response.status === 401) {
@@ -55,6 +61,22 @@ export default function NewProjectPage() {
             placeholder="Project name"
             value={projectName}
             onChange={(e) => setProjectName(e.target.value)}
+            required
+          />
+          <input
+            type="text"
+            className="w-full p-3 border rounded-lg mb-4"
+            placeholder="Creator's name"
+            value={creatorName}
+            onChange={(e) => setCreatorName(e.target.value)}
+            required
+          />
+          <input
+            type="text"
+            className="w-full p-3 border rounded-lg mb-4"
+            placeholder="Report for"
+            value={reportFor}
+            onChange={(e) => setReportFor(e.target.value)}
             required
           />
 

@@ -28,6 +28,8 @@ import { ZoneBarChart } from "../../../../components/ZoneBarChart";
 interface Project {
   id: string;
   name: string;
+  creator_name?: string;
+  report_for?: string;
   boundary_normalized: Point[] | null;
   north_direction: number | null;
 }
@@ -346,6 +348,10 @@ export default function ReportPage() {
         <h1 className="text-4xl font-bold">
           Vastu Analysis Report for {project.name}
         </h1>
+        <div>
+          <p className="text-sm text-gray-500">Created by: {project.creator_name}</p>
+          <p className="text-sm text-gray-500">Report for: {project.report_for}</p>
+        </div>
         <nav className="-mb-px flex space-x-8" aria-label="Tabs">
           <Link href={`/projects/${projectId}`} className="text-gray-500 hover:text-gray-800">Overview</Link>
           <Link href={`/projects/${projectId}/floor-plan`} className="text-gray-500 hover:text-gray-800">Floor Plan</Link>

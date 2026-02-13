@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     }
     const uid = user.id;
 
-    const { name } = await req.json();
+    const { name, creator_name, report_for } = await req.json();
 
     if (!name) {
       return NextResponse.json(
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     // Insert into Supabase 'projects' table using the standard client
     const { data, error } = await supabase
       .from("projects")
-      .insert({ user_id: uid, name: name })
+      .insert({ user_id: uid, name: name, creator_name: creator_name, report_for: report_for })
       .select()
       .single(); // .select().single() returns the inserted row
 
