@@ -1,0 +1,6 @@
+
+ALTER TABLE projects
+ADD COLUMN status TEXT NOT NULL DEFAULT 'active',
+ADD COLUMN deleted_at TIMESTAMPTZ,
+ADD COLUMN completed_at TIMESTAMPTZ,
+ADD COLUMN archived_at TIMESTAMPTZ;

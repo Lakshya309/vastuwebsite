@@ -23,7 +23,6 @@ export async function GET(
     .from('projects')
     .select(`
       *,
-      floor_plan_path,
       project_objects (
         id,
         object_type,
@@ -41,10 +40,29 @@ export async function GET(
     )
   }
 
+  let floor_plan_path = null;
+  if (project.active_map_plot_id) {
+    const { data: mapPlot, error: mapPlotError } = await supabase
+      .from('map_plots')
+      .select('storage_path')
+      .eq('id', project.active_map_plot_id)
+      .single();
+
+    if (mapPlotError) {
+      console.error("Error fetching map plot:", mapPlotError);
+    } else {
+      const { data: publicUrlData } = supabase.storage
+        .from('floor-plans')
+        .getPublicUrl(mapPlot.storage_path);
+      floor_plan_path = publicUrlData.publicUrl;
+    }
+  }
+
   return NextResponse.json(
     {
       project: {
         ...project,
+        floor_plan_path: floor_plan_path,
         placed_objects: project.project_objects ?? [],
       },
     },
@@ -67,6 +85,13 @@ export async function PATCH(
 
   if (body.north_direction !== undefined)
     updates.north_direction = body.north_direction
+
+  if (body.status !== undefined) {
+    updates.status = body.status
+    if (body.status === 'completed') {
+      updates.completed_at = new Date().toISOString()
+    }
+  }
 
   if (!Object.keys(updates).length) {
     return NextResponse.json(

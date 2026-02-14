@@ -132,7 +132,7 @@ export default function FloorPlanPage() {
           const response = await fetch(`/api/analysis/${currentAnalysisId}/status`);
           if (!response.ok) {
             // Handle HTTP errors (e.g., 404, 500)
-            console.error(`Status check failed with status: ${response.status}`);
+
             clearInterval(pollStatus); // Stop polling on critical error
             return;
           }

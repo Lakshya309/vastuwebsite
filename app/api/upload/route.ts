@@ -56,50 +56,66 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 2. Get public URL of the uploaded file
-    const { data: publicUrlData } = supabase.storage
-      .from("floor-plans")
-      .getPublicUrl(fileName);
-
-    const floorPlanUrl = publicUrlData.publicUrl;
-
-    if (!floorPlanUrl) {
-      return NextResponse.json(
-        { message: "Failed to get public URL of the file" },
-        { status: 500 }
-      );
-    }
-
-    // 3. Update the project in the database with the new floor_plan_url
-    const { data: updatedProject, error: updateError } = await supabase
-      .from("projects")
-      .update({ floor_plan_path: floorPlanUrl }) // Use floor_plan_path as per schema
-      .eq("id", projectId)
-      .eq("user_id", uid)
-      .select();
+    // 3. Deactivate all other map plots for this project
+    const { error: updateError } = await supabase
+      .from("map_plots")
+      .update({ is_active: false })
+      .eq("project_id", projectId);
 
     if (updateError) {
       console.error("Supabase DB update error:", updateError);
       return NextResponse.json(
         {
-          message: "Failed to save file URL to database",
+          message: "Failed to deactivate old map plots",
           error: updateError.message,
         },
         { status: 500 }
       );
     }
 
-    if (!updatedProject || updatedProject.length === 0) {
+    // 4. Create a new map plot record
+    const { data: newMapPlot, error: insertError } = await supabase
+      .from("map_plots")
+      .insert({
+        project_id: projectId,
+        storage_path: fileName,
+        is_active: true,
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error("Supabase DB insert error:", insertError);
       return NextResponse.json(
         {
-          message: "Project not found or user does not have permission to update it",
+          message: "Failed to save new map plot to database",
+          error: insertError.message,
         },
-        { status: 404 }
+        { status: 500 }
+      );
+    }
+
+    // 5. Update the project with the new active map plot
+    const { data: updatedProject, error: projectUpdateError } = await supabase
+      .from("projects")
+      .update({ active_map_plot_id: newMapPlot.id })
+      .eq("id", projectId)
+      .select()
+      .single();
+
+    if (projectUpdateError) {
+      console.error("Supabase DB project update error:", projectUpdateError);
+      return NextResponse.json(
+        {
+          message: "Failed to update project with new active map plot",
+          error: projectUpdateError.message,
+        },
+        { status: 500 }
       );
     }
 
     return NextResponse.json(
-      { message: "File uploaded and project updated successfully", project: updatedProject[0] },
+      { message: "File uploaded and project updated successfully", project: updatedProject },
       { status: 200 }
     );
   } catch (error: any) {
