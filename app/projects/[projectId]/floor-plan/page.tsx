@@ -484,6 +484,8 @@ export default function FloorPlanPage() {
               setReferenceWallIndex={setReferenceWallIndex}
               referenceWallIndex={referenceWallIndex}
               wallColors={wallColors}
+              plotWidth={project?.plot_width}
+              plotHeight={project?.plot_height}
             />
 
             {/* Overlay Status Indicators */}

@@ -44,6 +44,8 @@ interface FloorPlanCanvasProps {
   setReferenceWallIndex: (index: number | null) => void;
   referenceWallIndex: number | null;
   wallColors: (string | null)[];
+  plotWidth?: number | null;
+  plotHeight?: number | null;
 }
 
 // Define the 16-zone names for client-side use
@@ -210,9 +212,24 @@ const drawCanvasContent = (
   scale: number | null,
   referenceWallIndex: number | null,
   wallColors: (string | null)[],
+  plotWidth?: number | null,
+  plotHeight?: number | null,
 ) => {
   ctx.clearRect(0, 0, width, height);
   const toPx = (p: Point) => ({ x: p.x * width, y: p.y * height });
+
+  // 1. Draw Grid Background if no image
+  if (!floorPlanImage) {
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.05)";
+    ctx.lineWidth = 1;
+    const step = 20;
+    for (let x = 0; x < width; x += step) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
+    }
+    for (let y = 0; y < height; y += step) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
+    }
+  }
 
   // 2. Draw Background Image
   if (floorPlanImage && imageRef.current) {
@@ -412,6 +429,30 @@ const drawCanvasContent = (
         ctx.textAlign = "center";
         ctx.fillText(userColorName, midPoint.x, midPoint.y + 12);
       }
+
+      // Display dimension label if manual plot
+      if (plotWidth && plotHeight && boundary.length === 4) {
+        // Simple logic for rectangle: odd segments are height, even are width
+        const dimension = (i % 2 === 0) ? plotWidth : plotHeight;
+        ctx.fillStyle = "#4F46E5";
+        ctx.font = "bold 14px sans-serif";
+        ctx.textAlign = "center";
+        
+        // Offset based on segment orientation
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        const offset = 20;
+        let labelX = midPoint.x;
+        let labelY = midPoint.y;
+        
+        if (Math.abs(dx) > Math.abs(dy)) { // Horizontal-ish
+          labelY += (labelY < height / 2) ? -offset : offset;
+        } else { // Vertical-ish
+          labelX += (labelX < width / 2) ? -offset : offset;
+        }
+        
+        ctx.fillText(`${dimension} ft`, labelX, labelY);
+      }
     }
 
     ctx.fillStyle = "#fff";
@@ -556,6 +597,8 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
   setReferenceWallIndex,
   referenceWallIndex,
   wallColors,
+  plotWidth,
+  plotHeight,
 }) => {
   const [hoveredDevta, setHoveredDevta] = useState<DevtaRegion | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -602,6 +645,8 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
       scale,
       referenceWallIndex,
       wallColors,
+      plotWidth,
+      plotHeight,
     );
   }, [
     width,
@@ -626,6 +671,8 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     scale,
     referenceWallIndex,
     wallColors,
+    plotWidth,
+    plotHeight,
   ]);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
