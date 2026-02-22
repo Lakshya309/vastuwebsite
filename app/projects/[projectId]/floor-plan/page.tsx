@@ -125,7 +125,40 @@ export default function FloorPlanPage() {
   const debouncedBoundary = useDebounce(boundary, 500);
   const debouncedNorthDirection = useDebounce(liveNorthDirection, 500);
 
+  // Initialize rectangular boundary for manual plots
+  useEffect(() => {
+    if (project?.plot_width && project?.plot_height && boundary.length === 0) {
+      const width = project.plot_width;
+      const height = project.plot_height;
+      const aspect = width / height;
 
+      // Define a rectangle centered in the normalized [0, 1] space
+      // Let's make it occupy about 80% of the canvas
+      let normWidth, normHeight;
+      if (aspect > 1) {
+        normWidth = 0.8;
+        normHeight = 0.8 / aspect;
+      } else {
+        normHeight = 0.8;
+        normWidth = 0.8 * aspect;
+      }
+
+      const xOff = (1 - normWidth) / 2;
+      const yOff = (1 - normHeight) / 2;
+
+      const rectBoundary: Point[] = [
+        { x: xOff, y: yOff },
+        { x: xOff + normWidth, y: yOff },
+        { x: xOff + normWidth, y: yOff + normHeight },
+        { x: xOff, y: yOff + normHeight },
+      ];
+      setBoundary(rectBoundary);
+      
+      // Calculate scale (pixels per unit). 
+      // This is tricky because the canvas size isn't fixed yet.
+      // But we can store the pixels-to-feet ratio once we have it.
+    }
+  }, [project, boundary.length]);
 
   useEffect(() => {
     if (currentAnalysisId) {
