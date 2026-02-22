@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
@@ -7,6 +6,9 @@ import {
   DevtaRegion,
   PlacedObject,
 } from "@/lib/floorPlanInterfaces";
+import { DraggableObject } from "./DraggableObject";
+import { devtaColors } from "@/lib/colorPalette"; // Assuming this is still needed
+import { getCentroid } from "@/lib/gridUtils"; // Assuming this is still needed
 
 interface FloorPlanCanvasProps {
   floorPlanImage: string | null;
@@ -30,6 +32,7 @@ interface FloorPlanCanvasProps {
   drawingObjectBoundary?: Point[];
   drawingMode?: "boundary" | "objects" | "select" | null;
   onDevtaClick?: (devta: DevtaRegion) => void;
+  onZoneClick?: (zone: DevtaRegion) => void;
   onPlaceObject?: (newObject: PlacedObject) => void;
   onCanvasClick?: (point: Point) => void;
   setDrawingMode?: (mode: "boundary" | "objects" | "select" | null) => void;
@@ -38,10 +41,148 @@ interface FloorPlanCanvasProps {
   northDirection: number;
   scale: number | null;
   wallLengths: number[];
+  setReferenceWallIndex: (index: number | null) => void;
+  referenceWallIndex: number | null;
+  wallColors: (string | null)[];
 }
-import { devtaColors } from "@/lib/colorPalette";
-import { getCentroid } from "@/lib/gridUtils";
-import { DraggableObject } from "./DraggableObject";
+
+// Define the 16-zone names for client-side use
+const ZONE_NAMES_16 = [
+  "NNE","NE","ENE","E","ESE","SE","SSE","S",
+  "SSW","SW","WSW","W","WNW","NW","NNW","N"
+];
+const ZONE_NAMES_8 = [
+  "NE","E","SE","S","SW","W","NW","N"
+];
+
+// Define Vastu boundary colors based on direction
+const VASTU_BOUNDARY_COLORS: { [key: string]: string } = {
+  "N": "#C5D9F1",
+  "NNE": "#C5D9F1",
+  "NE": "#C5D9F1",
+  "ENE": "#FFFFFF",
+  "E": "#92D050",
+  "ESE": "#92D050",
+  "SE": "#FF0000",
+  "SSE": "#FF0000",
+  "S": "#FF0000",
+  "SSW": "#FFFF00",
+  "SW": "#FFFF00",
+  "WSW": "#FFFFFF",
+  "W": "#FFFFFF",
+  "WNW": "#FFFFFF",
+  "NW": "#FFFFFF",
+  "NNW": "#C5D9F1",
+};
+
+const VASTU_COLOR_NAMES: { [key: string]: string } = {
+  "N": "Blue",
+  "NNE": "Blue",
+  "NE": "Blue",
+  "ENE": "White",
+  "E": "Green",
+  "ESE": "Green",
+  "SE": "Red",
+  "SSE": "Red",
+  "S": "Red",
+  "SSW": "Yellow",
+  "SW": "Yellow",
+  "WSW": "White",
+  "W": "White",
+  "WNW": "White",
+  "NW": "White",
+  "NNW": "Blue",
+};
+
+const ZONE_COLORS_16: { [key: string]: string } = {
+  "NE": "#C5D9F1",
+  "NNE": "#FFFFFF",
+  "E": "#92D050",
+  "ESE": "#92D050",
+  "SE": "#FF0000",
+  "SSE": "#FF0000",
+  "S": "#FF0000",
+  "SSW": "#FFFF00",
+  "SW": "#FFFF00",
+  "WSW": "#FFFFFF",
+  "W": "#FFFFFF",
+  "WNW": "#FFFFFF",
+  "NW": "#FFFFFF",
+  "NNW": "#C5D9F1",
+  "N": "#C5D9F1",
+  "ENE": "#FFFFFF", // Default for missing value
+};
+
+// Helper function to calculate angle from point (client-side)
+const getAngleFromPoint = (center: Point, p: Point) => {
+  const dx = p.x - center.x;
+  const dy = center.y - p.y; // Invert dy as canvas +Y is down
+
+  const angleRad = Math.atan2(dy, dx);
+  let angleDegFromPosX = angleRad * 180 / Math.PI;
+  if (angleDegFromPosX < 0) {
+    angleDegFromPosX += 360;
+  }
+  // Convert from (0=East, counter-clockwise) to (0=North, clockwise)
+  const vastuAngle = (90 - angleDegFromPosX + 360) % 360;
+  return vastuAngle;
+};
+
+// Client-side get_zone_from_angle, adapted from microservice logic
+const getZoneFromAngleClient = (angle: number, north_base_rotation: number, zones_names: string[]) => {
+  const num_zones = zones_names.length;
+  if (num_zones === 0) {
+      return null;
+  }
+
+  let absolute_start_angle_for_first_zone_in_list = 0.0;
+  if (zones_names === ZONE_NAMES_16) {
+      absolute_start_angle_for_first_zone_in_list = 11.25;
+  } else if (zones_names === ZONE_NAMES_8) {
+      absolute_start_angle_for_first_zone_in_list = 22.5;
+  }
+  
+  const step = 360 / num_zones;
+
+  const angle_in_unrotated_mandala = (angle - north_base_rotation + 360) % 360;
+  
+  for (let i = 0; i < num_zones; i++) {
+      const base_start_angle = absolute_start_angle_for_first_zone_in_list + i * step;
+      const base_end_angle = absolute_start_angle_for_first_zone_in_list + (i + 1) * step;
+
+      if (base_end_angle >= 360 && base_start_angle < 360) {
+          if ((base_start_angle <= angle_in_unrotated_mandala && angle_in_unrotated_mandala < 360) ||
+              (0 <= angle_in_unrotated_mandala && angle_in_unrotated_mandala < (base_end_angle % 360))) {
+              return zones_names[i];
+          }
+      } else if (base_start_angle <= angle_in_unrotated_mandala && angle_in_unrotated_mandala < base_end_angle) {
+          return zones_names[i];
+      }
+  }
+  return null;
+};
+
+// Helper function to check if a point is near a line segment
+const isPointNearLineSegment = (
+  px: number, py: number, // Point coordinates
+  x1: number, y1: number, // Line segment point 1
+  x2: number, y2: number, // Line segment point 2
+  tolerance: number = 10 // Pixels of tolerance
+): boolean => {
+  const L2 = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
+  if (L2 === 0) return Math.sqrt(Math.pow(px - x1, 2) + Math.pow(py - y1, 2)) <= tolerance;
+
+  const t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / L2;
+  const projectionT = Math.max(0, Math.min(1, t));
+  const projectionX = x1 + projectionT * (x2 - x1);
+  const projectionY = y1 + projectionT * (y2 - y1);
+
+  const distance = Math.sqrt(
+    Math.pow(px - projectionX, 2) + Math.pow(py - projectionY, 2)
+  );
+
+  return distance <= tolerance;
+};
 
 const drawCanvasContent = (
   ctx: CanvasRenderingContext2D,
@@ -61,12 +202,14 @@ const drawCanvasContent = (
   shaktiChakraSize: number | undefined,
   plotCentroid: Point | null,
   drawingObjectBoundary: Point[],
-  drawingMode: "boundary" | "objects" | "select" | null | undefined, // Updated type
+  drawingMode: "boundary" | "objects" | "select" | null | undefined,
   hoveredDevta: DevtaRegion | null,
   loadedSvgImages: React.RefObject<Map<string, HTMLImageElement>>,
-  northDirection: number, // Added northDirection to parameters
+  northDirection: number,
   wallLengths: number[],
   scale: number | null,
+  referenceWallIndex: number | null,
+  wallColors: (string | null)[],
 ) => {
   ctx.clearRect(0, 0, width, height);
   const toPx = (p: Point) => ({ x: p.x * width, y: p.y * height });
@@ -135,6 +278,8 @@ const drawCanvasContent = (
       const region = hoveredDevta;
       if (!region.polygon || region.polygon.length < 3) return;
       const pts = region.polygon.map(toPx);
+      // It seems there's a small typo here. 'polygon' was used before definition.
+      // Assuming it should be ctx.beginPath() again and drawing the path.
       ctx.beginPath();
       ctx.moveTo(pts[0].x, pts[0].y);
       pts.slice(1).forEach((p) => ctx.lineTo(p.x, p.y));
@@ -176,7 +321,10 @@ const drawCanvasContent = (
       ctx.moveTo(pts[0].x, pts[0].y);
       pts.slice(1).forEach((p) => ctx.lineTo(p.x, p.y));
       ctx.closePath();
-      ctx.fillStyle = "rgba(173, 216, 230, 0.4)";
+
+      const color = ZONE_COLORS_16[region.name] || "rgba(173, 216, 230, 0.4)";
+      ctx.fillStyle = `${color}99`; // Add 99 for ~60% opacity in hex
+
       ctx.fill();
       ctx.strokeStyle = "rgba(0,0,0,0.3)";
       ctx.stroke();
@@ -211,13 +359,60 @@ const drawCanvasContent = (
   // 4. Draw Main Plot Boundary (Existing logic)
   if (boundary.length > 0) {
     const pxBoundary = boundary.map(toPx);
-    ctx.beginPath();
-    ctx.moveTo(pxBoundary[0].x, pxBoundary[0].y);
-    pxBoundary.forEach((p) => ctx.lineTo(p.x, p.y));
-    ctx.closePath();
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = "#2563EB";
-    ctx.stroke();
+    const numSegments = drawingMode === "boundary" ? pxBoundary.length - 1 : pxBoundary.length;
+
+    // Draw Vastu-colored segments of the boundary
+    for (let i = 0; i < numSegments; i++) {
+      const p1 = pxBoundary[i];
+      const p2 = pxBoundary[(i + 1) % pxBoundary.length]; // Next point, wrapping around for the last segment
+
+      const midPoint = {
+        x: (p1.x + p2.x) / 2,
+        y: (p1.y + p2.y) / 2,
+      };
+
+      // Ensure plotCentroid exists before calculating angle and zone
+      let segmentVastuZone: string | null = null;
+      if (plotCentroid) {
+        const centroidPx = toPx(plotCentroid); // Centroid in pixel coordinates
+        const angleToMidPoint = getAngleFromPoint(centroidPx, midPoint);
+        segmentVastuZone = getZoneFromAngleClient(
+          angleToMidPoint,
+          northDirection,
+          ZONE_NAMES_16
+        );
+      }
+      
+      const segmentColor = segmentVastuZone && VASTU_BOUNDARY_COLORS[segmentVastuZone]
+        ? VASTU_BOUNDARY_COLORS[segmentVastuZone]
+        : "#2563EB";
+
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.lineWidth = 5; // Make the colored line thicker
+      ctx.strokeStyle = segmentColor;
+      ctx.stroke();
+
+      // Highlight the selected reference wall
+      if (referenceWallIndex === i) {
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.lineWidth = 7; // Even thicker for highlight
+        ctx.strokeStyle = "#FFFF00"; // Bright yellow highlight
+        ctx.stroke();
+      }
+
+      // Display user-provided color name
+      const userColorName = wallColors[i];
+      if (userColorName) {
+        ctx.fillStyle = "black";
+        ctx.font = "bold 10px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(userColorName, midPoint.x, midPoint.y + 12);
+      }
+    }
 
     ctx.fillStyle = "#fff";
     pxBoundary.forEach((p) => {
@@ -229,6 +424,7 @@ const drawCanvasContent = (
     // Draw wall lengths
     if (scale && wallLengths.length > 0) {
       pxBoundary.forEach((p1, index) => {
+        if (drawingMode === "boundary" && index === pxBoundary.length - 1) return;
         const p2 = pxBoundary[(index + 1) % pxBoundary.length];
         const midPoint = {
           x: (p1.x + p2.x) / 2,
@@ -237,11 +433,11 @@ const drawCanvasContent = (
         ctx.fillStyle = "black";
         ctx.font = "12px sans-serif";
         ctx.textAlign = "center";
-        ctx.textBaseline = "bottom";
+        ctx.textBaseline = "middle";
         ctx.fillText(
           `${wallLengths[index].toFixed(2)}m`,
           midPoint.x,
-          midPoint.y - 5
+          midPoint.y - 12
         );
       });
     }
@@ -348,14 +544,18 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
   drawingObjectBoundary = [],
   drawingMode,
   onDevtaClick,
+  onZoneClick,
   onPlaceObject,
   onCanvasClick,
   setDrawingMode,
   setDrawingObjectBoundary,
   selectedObjectType,
-  northDirection, // Added northDirection
+  northDirection,
   scale,
   wallLengths,
+  setReferenceWallIndex,
+  referenceWallIndex,
+  wallColors,
 }) => {
   const [hoveredDevta, setHoveredDevta] = useState<DevtaRegion | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -397,9 +597,11 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
       drawingMode,
       hoveredDevta,
       loadedSvgImages,
-      northDirection, // Pass northDirection to drawCanvasContent
+      northDirection,
       wallLengths,
       scale,
+      referenceWallIndex,
+      wallColors,
     );
   }, [
     width,
@@ -419,9 +621,11 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     hoveredDevta,
     innerPolygon,
     middlePolygon,
-    northDirection, // Added to dependency array
+    northDirection,
     wallLengths,
     scale,
+    referenceWallIndex,
+    wallColors,
   ]);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -432,6 +636,38 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     const y = e.clientY - rect.top;
 
     for (const region of devtaRegions) {
+      if (!region.polygon || region.polygon.length < 3) continue;
+
+      const pts = region.polygon.map(toPx);
+      const polygon = new Path2D();
+      polygon.moveTo(pts[0].x, pts[0].y);
+      pts.slice(1).forEach((p) => polygon.lineTo(p.x, p.y));
+      polygon.closePath();
+
+      const ctx = canvas.getContext("2d");
+      if (ctx && ctx.isPointInPath(polygon, x, y)) {
+        setHoveredDevta(region);
+        return;
+      }
+    }
+
+    for (const region of zone16Regions) {
+      if (!region.polygon || region.polygon.length < 3) continue;
+
+      const pts = region.polygon.map(toPx);
+      const polygon = new Path2D();
+      polygon.moveTo(pts[0].x, pts[0].y);
+      pts.slice(1).forEach((p) => polygon.lineTo(p.x, p.y));
+      polygon.closePath();
+
+      const ctx = canvas.getContext("2d");
+      if (ctx && ctx.isPointInPath(polygon, x, y)) {
+        setHoveredDevta(region);
+        return;
+      }
+    }
+
+    for (const region of zone8Regions) {
       if (!region.polygon || region.polygon.length < 3) continue;
 
       const pts = region.polygon.map(toPx);
@@ -471,6 +707,21 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
       return;
     }
 
+    // If not in a drawing mode, allow selecting a wall for reference
+    if (drawingMode === null || drawingMode === "select") {
+      const pxBoundary = boundary.map(toPx);
+      for (let i = 0; i < pxBoundary.length; i++) {
+        const p1 = pxBoundary[i];
+        const p2 = pxBoundary[(i + 1) % pxBoundary.length];
+        if (isPointNearLineSegment(x, y, p1.x, p1.y, p2.x, p2.y)) {
+          setReferenceWallIndex(i); // Use the prop directly
+          return;
+        }
+      }
+      // If no wall was clicked, deselect the reference wall
+      setReferenceWallIndex(null); // Use the prop directly
+    }
+
     for (const region of devtaRegions) {
       if (!region.polygon || region.polygon.length < 3) continue;
 
@@ -484,6 +735,42 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
       if (ctx && ctx.isPointInPath(polygon, x, y)) {
         if (onDevtaClick) {
           onDevtaClick(region);
+        }
+        return;
+      }
+    }
+
+    for (const region of zone16Regions) {
+      if (!region.polygon || region.polygon.length < 3) continue;
+
+      const pts = region.polygon.map(toPx);
+      const polygon = new Path2D();
+      polygon.moveTo(pts[0].x, pts[0].y);
+      pts.slice(1).forEach((p) => polygon.lineTo(p.x, p.y));
+      polygon.closePath();
+
+      const ctx = canvas.getContext("2d");
+      if (ctx && ctx.isPointInPath(polygon, x, y)) {
+        if (onZoneClick) {
+          onZoneClick(region);
+        }
+        return;
+      }
+    }
+
+    for (const region of zone8Regions) {
+      if (!region.polygon || region.polygon.length < 3) continue;
+
+      const pts = region.polygon.map(toPx);
+      const polygon = new Path2D();
+      polygon.moveTo(pts[0].x, pts[0].y);
+      pts.slice(1).forEach((p) => polygon.lineTo(p.x, p.y));
+      polygon.closePath();
+
+      const ctx = canvas.getContext("2d");
+      if (ctx && ctx.isPointInPath(polygon, x, y)) {
+        if (onZoneClick) {
+          onZoneClick(region);
         }
         return;
       }

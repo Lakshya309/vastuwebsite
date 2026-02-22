@@ -22,6 +22,7 @@ import { Point } from "../../../../lib/floorPlanInterfaces";
 import { calculateBoundaryDistribution } from "../../../utils/calculateBoundaryDistribution";
 import { calculateAreaDistribution } from "../../../utils/calculateAreaDistribution";
 import { ZoneBarChart } from "../../../../components/ZoneBarChart";
+import { DevtaBarChart } from "../../../../components/DevtaBarChart";
 
 // --- INTERFACES ---
 
@@ -52,11 +53,21 @@ interface AnalyzedObjectResult {
   message: string;
 }
 
+interface DevtaArea {
+  name: string;
+  area: number;
+  percentage: number;
+}
+
 interface VastuAnalysisResult {
   analyzed_objects: AnalyzedObjectResult[];
   total_score: number;
   overall_percentage: number;
   overall_verdict: "EXCELLENT" | "GOOD" | "BAD" | "CRITICAL";
+  devta_areas_32: DevtaArea[];
+  devta_areas_45: DevtaArea[];
+  zone_areas_16: DevtaArea[];
+  zone_boundary_16: DevtaArea[];
 }
 
 const ZONES_DEFINITION = [
@@ -265,48 +276,18 @@ export default function ReportPage() {
           setLiveNorthDirection(projectData.project.north_direction);
         }
 
-        // Calculate and set zone graph data
-        if (projectData.project.boundary_normalized) {
-          const getCentroid = (points: Point[]): Point => {
-            let x = 0;
-            let y = 0;
-            points.forEach(p => {
-              x += p.x;
-              y += p.y;
-            });
-            return { x: x / points.length, y: y / points.length };
+        // Calculate and set zone graph data using the more accurate API results
+        const mergedData = ZONES_DEFINITION.map(zDef => {
+          const areaData = vastuData.zone_areas_16.find(a => a.name === zDef.zone);
+          const boundaryData = vastuData.zone_boundary_16.find(b => b.name === zDef.zone);
+          return {
+            zone: zDef.zone,
+            boundaryPercent: boundaryData ? boundaryData.percentage : 0,
+            areaPercent: areaData ? areaData.percentage : 0,
           };
-          const centroid = getCentroid(projectData.project.boundary_normalized);
-          const zones = ZONES_DEFINITION;
+        });
 
-          const boundaryDistribution = calculateBoundaryDistribution(projectData.project.boundary_normalized, centroid, zones);
-          
-          const zoneAreas = vastuData.analyzed_objects.reduce((acc, obj) => {
-            if (obj.zone16_direction) {
-              if (!acc[obj.zone16_direction]) {
-                acc[obj.zone16_direction] = 0;
-              }
-              acc[obj.zone16_direction] += 1; // Assuming area is proportional to object count for now
-            }
-            return acc;
-          }, {} as Record<string, number>);
-
-          const areaData = Object.keys(zoneAreas).map(zone => ({ zone, area: zoneAreas[zone] }));
-
-          const areaDistribution = calculateAreaDistribution(areaData);
-
-          const mergedData = zones.map(zone => {
-            const boundaryData = boundaryDistribution.find(b => b.zone === zone.zone);
-            const areaData = areaDistribution.find(a => a.zone === zone.zone);
-            return {
-              zone: zone.zone,
-              boundaryPercent: boundaryData ? boundaryData.boundaryPercent : 0,
-              areaPercent: areaData ? areaData.areaPercent : 0,
-            };
-          });
-
-          setZoneGraphData(mergedData);
-        }
+        setZoneGraphData(mergedData);
 
       } catch (err: any) {
         console.error("Error fetching report data:", err);
@@ -365,6 +346,87 @@ export default function ReportPage() {
           {loading ? 'Preparing...' : 'Save as PDF'}
         </button>
       </div>
+      {/* Print-specific styles */}
+      <style jsx global>{`
+        @media print {
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 210mm !important; /* A4 width */
+            height: 297mm !important; /* A4 height */
+            overflow: hidden !important; /* Prevent scrollbars on print */
+          }
+          @page {
+            size: A4;
+            margin: 0;
+          }
+          .print-container {
+            width: 210mm !important;
+            box-sizing: border-box !important;
+            padding: 10mm !important; /* Add some padding for content inside A4 */
+            background-color: #fff !important;
+            color: #000 !important;
+          }
+          /* Hide elements that shouldn't appear in print */
+          .no-print, .no-print * {
+            display: none !important;
+          }
+          /* Adjust font sizes for print readability */
+          h1, h2, h3, h4, h5, h6 {
+            font-size: unset !important; /* Reset to allow relative scaling */
+          }
+          .text-4xl { font-size: 24pt !important; }
+          .text-2xl { font-size: 16pt !important; }
+          .text-xl { font-size: 14pt !important; }
+          .text-lg { font-size: 12pt !important; }
+          .text-base { font-size: 10pt !important; }
+          .text-sm { font-size: 9pt !important; }
+          .text-xs { font-size: 8pt !important; }
+          
+          /* Ensure charts and images scale correctly */
+          .recharts-responsive-container {
+            width: 100% !important;
+            height: auto !important;
+            max-height: 120mm; /* Increased limit to accommodate taller devta charts */
+          }
+          img {
+            max-width: 100% !important;
+            height: auto !important;
+          }
+
+          /* Control table layout for print */
+          table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+          }
+          th, td {
+            padding: 8px 5px !important;
+            border: 1px solid #ccc !important;
+            font-size: 9pt !important;
+            white-space: normal !important; /* Allow text to wrap */
+          }
+          thead {
+            display: table-header-group !important; /* Repeat table headers on each page */
+          }
+          tr {
+            page-break-inside: avoid !important; /* Avoid breaking rows across pages */
+            page-break-after: auto !important;
+          }
+          /* Ensure content within these divs doesn't break poorly */
+          .grid {
+            display: block !important; /* Break grid layout for print */
+          }
+          .grid > div {
+            width: 100% !important;
+            margin-bottom: 10mm !important; /* Space between sections */
+            page-break-inside: avoid !important;
+          }
+          .page-break-before-detailed-report {
+            page-break-before: always !important;
+            margin-top: 0 !important; /* Remove top margin when breaking page */
+          }
+        }
+      `}</style>
 
       <div id="report-content" ref={reportContentRef} className="bg-white">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
@@ -460,7 +522,24 @@ export default function ReportPage() {
           </div>
         )}
 
-        <div className="mt-8 bg-white p-6 rounded-2xl shadow-lg">
+        <div className="grid grid-cols-1 gap-8 mb-8">
+          {vastuAnalysisResult.devta_areas_32 && vastuAnalysisResult.devta_areas_32.length > 0 && (
+            <DevtaBarChart 
+              data={vastuAnalysisResult.devta_areas_32} 
+              title="Outer 32 Devta Area Distribution (%)"
+              color="#3b82f6"
+            />
+          )}
+          {vastuAnalysisResult.devta_areas_45 && vastuAnalysisResult.devta_areas_45.length > 0 && (
+            <DevtaBarChart 
+              data={vastuAnalysisResult.devta_areas_45} 
+              title="Complete 45 Devta Area Distribution (%)"
+              color="#10b981"
+            />
+          )}
+        </div>
+
+        <div className="mt-8 bg-white p-6 rounded-2xl shadow-lg page-break-before-detailed-report">
           <h2 className="text-2xl font-bold mb-4 text-gray-800">Detailed Object Report</h2>
           {vastuAnalysisResult.analyzed_objects.length === 0 ? (
             <p className="text-gray-400 text-sm italic">No objects placed for detailed analysis.</p>

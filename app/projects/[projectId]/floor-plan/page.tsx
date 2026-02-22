@@ -50,12 +50,16 @@ export default function FloorPlanPage() {
     [],
   ); // simplified for brevity
   const [selectedDevta, setSelectedDevta] = useState<DevtaRegion | null>(null);
+  const [selectedZone, setSelectedZone] = useState<DevtaRegion | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [analysisStale, setAnalysisStale] = useState(false);
   const [shaktiChakraSize, setShaktiChakraSize] = useState(0.8);
   const [scale, setScale] = useState<number | null>(null);
   const [wallLengths, setWallLengths] = useState<number[]>([]);
   const [referenceWallIndex, setReferenceWallIndex] = useState<number | null>(null);
+  const [referenceWallLength, setReferenceWallLength] = useState<number | null>(null);
+  const [referenceWallUnit, setReferenceWallUnit] = useState<"feet" | "meters" | "inches">("meters");
+  const [wallColors, setWallColors] = useState<(string | null)[]>([]);
 
   const uploadFloorPlan = async (file: File) => {
     const formData = new FormData();
@@ -302,6 +306,14 @@ export default function FloorPlanPage() {
     setSelectedDevta(null);
   };
 
+  const handleZoneClick = (zone: DevtaRegion) => {
+    setSelectedZone(zone);
+  };
+
+  const handleCloseZoneCard = () => {
+    setSelectedZone(null);
+  };
+
   const handleSaveChanges = async () => {
     try {
       // Finish drawing if in progress
@@ -425,6 +437,7 @@ export default function FloorPlanPage() {
               shaktiChakraSize={shaktiChakraSize}
               plotCentroid={plotCentroid}
               onDevtaClick={handleDevtaClick}
+              onZoneClick={handleZoneClick}
               drawingMode={drawingMode}
               setDrawingMode={setDrawingMode}
               onPlaceObject={handlePlaceObject}
@@ -435,6 +448,9 @@ export default function FloorPlanPage() {
               northDirection={liveNorthDirection}
               scale={scale}
               wallLengths={wallLengths}
+              setReferenceWallIndex={setReferenceWallIndex}
+              referenceWallIndex={referenceWallIndex}
+              wallColors={wallColors}
             />
 
             {/* Overlay Status Indicators */}
@@ -460,6 +476,12 @@ export default function FloorPlanPage() {
               <DevtaInfoCard
                 devta={selectedDevta}
                 onClose={handleCloseDevtaCard}
+              />
+            )}
+            {selectedZone && (
+              <DevtaInfoCard
+                devta={selectedZone}
+                onClose={handleCloseZoneCard}
               />
             )}
           </div>
@@ -505,6 +527,12 @@ export default function FloorPlanPage() {
           setWallLengths={setWallLengths}
           referenceWallIndex={referenceWallIndex}
           setReferenceWallIndex={setReferenceWallIndex}
+          referenceWallLength={referenceWallLength}
+          setReferenceWallLength={setReferenceWallLength}
+          referenceWallUnit={referenceWallUnit}
+          setReferenceWallUnit={setReferenceWallUnit}
+          wallColors={wallColors}
+          setWallColors={setWallColors}
         />
       </div>
     </div>

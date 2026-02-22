@@ -4,6 +4,7 @@
 import React from "react";
 import { DevtaRegion } from "@/lib/floorPlanInterfaces";
 import { devtaObjectData } from "@/lib/devtaObjectData";
+import { zoneDescriptions } from "@/lib/zoneDescriptions";
 
 interface DevtaInfoCardProps {
   devta: DevtaRegion;
@@ -12,6 +13,7 @@ interface DevtaInfoCardProps {
 
 export const DevtaInfoCard: React.FC<DevtaInfoCardProps> = ({ devta, onClose }) => {
   const objectData = devtaObjectData[devta.name];
+  const description = zoneDescriptions[devta.name];
 
   return (
     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded-lg shadow-lg w-80">
@@ -22,6 +24,11 @@ export const DevtaInfoCard: React.FC<DevtaInfoCardProps> = ({ devta, onClose }) 
         </button>
       </div>
       <div>
+        {description && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded text-blue-800 font-medium italic">
+            "{description}"
+          </div>
+        )}
         {objectData ? (
           <>
             <div className="mb-4">
@@ -33,11 +40,11 @@ export const DevtaInfoCard: React.FC<DevtaInfoCardProps> = ({ devta, onClose }) 
               </ul>
             </div>
           </>
-        ) : (
+        ) : !description ? (
           <p className="text-sm text-gray-600">
-            No Bhojan information available for this devta.
+            No detailed information available for this region.
           </p>
-        )}
+        ) : null}
       </div>
     </div>
   );

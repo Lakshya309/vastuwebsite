@@ -44,10 +44,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 1. Fetch project_id from the analyses table using analysisId
+    // 1. Fetch project_id, boundary_normalized, and north_direction from the analyses table using analysisId
     const { data: analysisData, error: analysisError } = await supabaseAdmin
       .from("analyses")
-      .select("project_id, status") // Also fetch status to ensure it's approved
+      .select("project_id, status, boundary_normalized, north_direction") 
       .eq("id", analysisId)
       .single();
 
@@ -63,32 +63,14 @@ export async function GET(request: NextRequest) {
     // Admins can always view any analysis.
 
     const projectId = analysisData.project_id;
+    const { boundary_normalized, north_direction } = analysisData;
 
-    // 2. Fetch boundary_normalized and north_direction from the projects table using project_id
-    let projectQuery = supabaseAdmin
-      .from("projects")
-      .select("boundary_normalized, north_direction")
-      .eq("id", projectId);
-
-    // If the user is NOT an admin, enforce ownership check
-    if (userRole !== "admin") {
-      projectQuery = projectQuery.eq("user_id", uid);
-    }
-
-    const { data: projectData, error: projectError } = await projectQuery.single();
-
-    if (projectError || !projectData) {
-      return NextResponse.json(
-        { message: "Project data not found or you do not have permission." },
-        { status: 404 }
-      );
-    }
-
-    const { boundary_normalized, north_direction } = projectData;
+    // No need to fetch from projects table for boundary_normalized and north_direction anymore
+    // as they are directly from the analyses table.
 
     if (!boundary_normalized || north_direction === null) {
         return NextResponse.json(
-            { message: "Missing required project parameters for analysis." },
+            { message: "Missing required analysis parameters (boundary or north direction)." },
             { status: 400 }
         );
     }

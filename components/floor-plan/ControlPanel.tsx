@@ -78,27 +78,51 @@ interface ControlPanelProps {
   setWallLengths: (lengths: number[]) => void;
   referenceWallIndex: number | null;
   setReferenceWallIndex: (index: number | null) => void;
+  referenceWallLength: number | null;
+  setReferenceWallLength: (length: number | null) => void;
+  referenceWallUnit: "feet" | "meters" | "inches";
+  setReferenceWallUnit: (unit: "feet" | "meters" | "inches") => void;
+  wallColors: (string | null)[];
+  setWallColors: React.Dispatch<React.SetStateAction<(string | null)[]>>;
 }
 
 export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
-  const handleSetReference = (index: number, realLength: number) => {
-    if (!props.boundary || props.boundary.length < 2) return;
+  // Define unit conversions (e.g., to meters as base)
+  const UNIT_CONVERSIONS = {
+    feet: 0.3048,   // 1 foot = 0.3048 meters
+    meters: 1,      // 1 meter = 1 meter
+    inches: 0.0254, // 1 inch = 0.0254 meters
+  };
+
+  const handleCalculateScale = () => {
+    if (
+      props.referenceWallIndex === null ||
+      !props.boundary ||
+      props.boundary.length < 2 ||
+      props.referenceWallLength === null ||
+      props.referenceWallLength <= 0
+    ) {
+      props.setScale(null);
+      props.setWallLengths([]);
+      return;
+    }
 
     const canvasWidth = 800; // Assuming a fixed canvas width for calculation
     const canvasHeight = 600; // Assuming a fixed canvas height for calculation
 
-    const p1 = props.boundary[index];
-    const p2 = props.boundary[(index + 1) % props.boundary.length];
+    const p1 = props.boundary[props.referenceWallIndex];
+    const p2 = props.boundary[(props.referenceWallIndex + 1) % props.boundary.length];
 
     const pixelLength = Math.sqrt(
       Math.pow((p2.x - p1.x) * canvasWidth, 2) +
       Math.pow((p2.y - p1.y) * canvasHeight, 2)
     );
 
-    if (pixelLength > 0 && realLength > 0) {
-      const newScale = realLength / pixelLength;
+    if (pixelLength > 0 && props.referenceWallLength > 0) {
+      const realLengthInMeters =
+        props.referenceWallLength * UNIT_CONVERSIONS[props.referenceWallUnit];
+      const newScale = realLengthInMeters / pixelLength;
       props.setScale(newScale);
-      props.setReferenceWallIndex(index);
 
       const newWallLengths = props.boundary.map((_, i) => {
         const point1 = props.boundary[i];
@@ -110,9 +134,21 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
         return lengthInPixels * newScale;
       });
       props.setWallLengths(newWallLengths);
+    } else {
+      props.setScale(null);
+      props.setWallLengths([]);
     }
   };
 
+  // Recalculate scale whenever relevant props change
+  React.useEffect(() => {
+    handleCalculateScale();
+  }, [
+    props.referenceWallIndex,
+    props.referenceWallLength,
+    props.referenceWallUnit,
+    props.boundary,
+  ]);
 
   return (
     <div className="bg-white h-full border-l border-gray-200 flex flex-col w-96 shadow-xl">      <div className="flex border-b text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -188,7 +224,16 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                   ? "Drawing..."
                   : "Start Drawing"}
               </button>
-              <div className="flex gap-2">
+              {props.drawingMode === "boundary" && (
+                <button
+                  onClick={props.handleFinishDrawingBoundary}
+                  disabled={(props.boundary?.length || 0) < 3}
+                  className="w-full mb-2 py-2 bg-green-600 hover:bg-green-700 text-white rounded font-medium disabled:bg-gray-400"
+                >
+                  Finish Drawing
+                </button>
+              )}
+              <div className="flex gap-2 mb-2">
                 <button
                   onClick={props.handleUndoLastPoint}
                   className="w-full py-2 bg-gray-100 hover:bg-gray-200 rounded text-gray-700 font-medium border border-gray-300"
@@ -231,30 +276,89 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                   4. Set Scale
                 </h3>
                 <p className="text-sm text-gray-500 mb-3">
-                  Enter the real length of one wall to set the scale (in meters).
+                  First, click on one wall segment in the floor plan to select it as the reference.
                 </p>
-                <div className="space-y-2">
-                  {props.boundary.map((_, index) => (
-                    <div key={index} className="flex items-center gap-2">
-                      <label className="w-20">Wall {index + 1}</label>
+                {props.referenceWallIndex !== null && (
+                  <div className="space-y-3">
+                    <p className="text-sm text-gray-700">
+                      Reference Wall Selected:{" "}
+                      <span className="font-semibold text-blue-600">
+                        Wall {props.referenceWallIndex + 1}
+                      </span>
+                    </p>
+                    <div>
+                      <label
+                        htmlFor="reference-length"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        Real-world Length
+                      </label>
                       <input
+                        id="reference-length"
                         type="number"
-                        min="0.1"
-                        step="0.1"
-                        placeholder="e.g., 5.2"
-                        className="flex-1 p-2 border rounded"
+                        min="0.01"
+                        step="0.01"
+                        value={props.referenceWallLength ?? ""}
                         onChange={(e) =>
-                          handleSetReference(index, parseFloat(e.target.value))
+                          props.setReferenceWallLength(parseFloat(e.target.value) || null)
                         }
+                        className="p-2 border rounded-md w-full focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="e.g., 5.2"
                       />
-                      {props.wallLengths[index] && (
-                        <span className="text-sm text-gray-600">
-                          {props.wallLengths[index].toFixed(2)}m
-                        </span>
-                      )}
                     </div>
-                  ))}
-                </div>
+                    <div>
+                      <label
+                        htmlFor="length-unit"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        Unit
+                      </label>
+                      <select
+                        id="length-unit"
+                        value={props.referenceWallUnit}
+                        onChange={(e) =>
+                          props.setReferenceWallUnit(
+                            e.target.value as "feet" | "meters" | "inches"
+                          )
+                        }
+                        className="p-2 border rounded-md w-full focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="meters">Meters</option>
+                        <option value="feet">Feet</option>
+                        <option value="inches">Inches</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label
+                        htmlFor="wall-color-name"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        Wall Color Name (Optional)
+                      </label>
+                      <input
+                        id="wall-color-name"
+                        type="text"
+                        value={props.wallColors[props.referenceWallIndex] || ""}
+                        onChange={(e) => {
+                          const newColors = [...props.wallColors];
+                          while (newColors.length < (props.boundary?.length || 0)) {
+                            newColors.push(null);
+                          }
+                          newColors[props.referenceWallIndex!] = e.target.value || null;
+                          props.setWallColors(newColors);
+                        }}
+                        className="p-2 border rounded-md w-full focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="e.g., Red, Blue, White"
+                      />
+                    </div>
+                    {props.scale && (
+                      <p className="text-sm text-gray-600 mt-2">
+                        Calculated Scale: 1px ={" "}
+                        {(1 / props.scale).toFixed(2)} {props.referenceWallUnit}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
