@@ -121,19 +121,13 @@ export const DraggableObject: React.FC<DraggableObjectProps> = ({
     window.removeEventListener("mousemove", onMouseMove);
     window.removeEventListener("mouseup", onMouseUp);
   };
-
-  const canvas = getCanvasDims();
   
-  const worldX = object.boundary_normalized[0].x * canvas.width;
-  const worldY = object.boundary_normalized[0].y * canvas.height;
-  const worldWidth = (object.boundary_normalized[1].x - object.boundary_normalized[0].x) * canvas.width;
-  const worldHeight = (object.boundary_normalized[3].y - object.boundary_normalized[0].y) * canvas.height;
-
-  const screenX = worldX * zoom + offset.x;
-  const screenY = worldY * zoom + offset.y;
-  const screenWidth = worldWidth * zoom;
-  const screenHeight = worldHeight * zoom;
-
+  const canvas = getCanvasDims();
+  const screenX = object.boundary_normalized[0].x * canvas.width * zoom + offset.x;
+  const screenY = object.boundary_normalized[0].y * canvas.height * zoom + offset.y;
+  const screenWidth = (object.boundary_normalized[1].x - object.boundary_normalized[0].x) * canvas.width * zoom;
+  const screenHeight = (object.boundary_normalized[3].y - object.boundary_normalized[0].y) * canvas.height * zoom;
+  
   const getHighlightColor = () => {
     if (highlight === "CRITICAL") return "red";
     if (highlight === "BAD") return "orange";

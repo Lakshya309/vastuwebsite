@@ -597,45 +597,47 @@ export default function ReportPage() {
         
         {reportSections.floorPlan && (
           <div className="mt-8 bg-white p-6 rounded-2xl shadow-lg page-break-before-detailed-report">
-            <h2 className="text-2xl font-bold mb-4 text-gray-800">Floor Plan Overview</h2>
-            <div className="h-150 w-100">
-              <FloorPlanCanvas
-                isStatic={true}
-                floorPlanImage={project.floor_plan_path || null}
-                boundary={project.boundary_normalized || []}
-                placedObjects={(project.placed_objects || []).map(obj => {
-                  const analysis = vastuAnalysisResult.analyzed_objects.find(ao => ao.object_id === obj.id);
-                  return {
-                    ...obj,
-                    highlight: analysis ? analysis.verdict : null,
-                  }
-                })}
-                objectSvgMap={{
-                  Stove: "/objects/stove.svg",
-                  Toilet: "/objects/toilet.svg",
-                  Bed: "/objects/bed.svg",
-                  Wardrobe: "/objects/wardrobe.svg",
-                  Sofa: "/objects/sofa.svg",
-                  Pooja: "/objects/pooja.png",
-                  Stairs: "/objects/stairs.svg",
-                  Dining: "/objects/dining.svg",
-                  OverheadTank: "/objects/overheadtank.png",
-                  UndergroundTank: "/objects/undergroundtank.png",
-                }}
-                northDirection={project.north_direction || 0}
-                onMoveObject={() => {}}
-                onResizeObject={() => {}}
-                onRotateObject={() => {}}
-                onDeleteObject={() => {}}
-                scale={null}
-                wallLengths={[]}
-                setReferenceWallIndex={() => {}}
-                referenceWallIndex={null}
-                wallColors={[]}
-                zone16Regions={vastuAnalysisResult.zones16}
-                highlightedZones={highlightedZones}
-                onObjectClick={handleObjectClick}
-              />
+            <h2 className="text-2xl font-bold mb-4 text-gray-800 text-center">Floor Plan Overview</h2>
+            <div className="flex justify-center">
+              <div className="w-[500px] h-[500px]">
+                <FloorPlanCanvas
+                  isStatic={true}
+                  floorPlanImage={project.floor_plan_path || null}
+                  boundary={project.boundary_normalized || []}
+                  placedObjects={(project.placed_objects || []).map(obj => {
+                    const analysis = vastuAnalysisResult.analyzed_objects.find(ao => ao.object_id === obj.id);
+                    return {
+                      ...obj,
+                      highlight: analysis ? analysis.verdict : null,
+                    }
+                  })}
+                  objectSvgMap={{
+                    Stove: "/objects/stove.svg",
+                    Toilet: "/objects/toilet.svg",
+                    Bed: "/objects/bed.svg",
+                    Wardrobe: "/objects/wardrobe.svg",
+                    Sofa: "/objects/sofa.svg",
+                    Pooja: "/objects/pooja.png",
+                    Stairs: "/objects/stairs.svg",
+                    Dining: "/objects/dining.svg",
+                    OverheadTank: "/objects/overheadtank.png",
+                    UndergroundTank: "/objects/undergroundtank.png",
+                  }}
+                  northDirection={project.north_direction || 0}
+                  onMoveObject={() => {}}
+                  onResizeObject={() => {}}
+                  onRotateObject={() => {}}
+                  onDeleteObject={() => {}}
+                  scale={null}
+                  wallLengths={[]}
+                  setReferenceWallIndex={() => {}}
+                  referenceWallIndex={null}
+                  wallColors={[]}
+                  zone16Regions={vastuAnalysisResult.zones16}
+                  highlightedZones={highlightedZones}
+                  onObjectClick={handleObjectClick}
+                />
+              </div>
             </div>
           </div>
         )}

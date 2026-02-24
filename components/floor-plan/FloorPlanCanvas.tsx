@@ -410,10 +410,17 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
 
-  const containerRect = containerRef.current?.getBoundingClientRect();
-  const width = containerRect?.width || 800;
-  const height = containerRect?.height || 600;
+  const { width, height } = dimensions;
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (container) {
+      const { width, height } = container.getBoundingClientRect();
+      setDimensions({ width, height });
+    }
+  }, []);
 
   const toPx = (p: Point) => ({ x: p.x * width, y: p.y * height });
 
@@ -632,6 +639,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
           src={floorPlanImage}
           alt="Floor Plan Source"
           className="hidden"
+          crossOrigin="anonymous"
         />
       )}
       <canvas
@@ -643,7 +651,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
         onMouseDown={!isStatic ? handleMouseDown : undefined}
         onMouseMove={!isStatic ? handleMouseMove : undefined}
         onMouseUp={!isStatic ? handleMouseUp : undefined}
-        onClick={!isStatic ? handleClick : undefined}
+        onClick={handleClick}
         tabIndex={0}
       />
       <div 
