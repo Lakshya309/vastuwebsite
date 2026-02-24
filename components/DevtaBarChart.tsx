@@ -33,17 +33,23 @@ export const DevtaBarChart: React.FC<DevtaBarChartProps> = ({ data, title, color
       <h2 className="text-2xl font-bold mb-4 text-gray-800">{title}</h2>
       <ResponsiveContainer width="100%" height={400}>
         <BarChart data={data} margin={{ bottom: 70 }}>
-          <CartesianGrid strokeDasharray="3 3" />
+          <CartesianGrid strokeDasharray="3 3" stroke="#eeeeee" />
           <XAxis 
             dataKey="name" 
             angle={-45} 
             textAnchor="end" 
             interval={0}
             height={80}
-            tick={{ fontSize: 10 }}
+            tick={{ fontSize: 10, fill: '#333333' }}
+            stroke="#333333"
           />
-          <YAxis label={{ value: 'Area %', angle: -90, position: "insideLeft" }} />
+          <YAxis 
+            label={{ value: 'Area %', angle: -90, position: "insideLeft", fill: '#333333' }} 
+            stroke="#333333"
+          />
           <Tooltip 
+            contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cccccc' }}
+            itemStyle={{ color: '#000000' }}
             formatter={(value: number) => [`${value.toFixed(2)}%`, 'Area Percentage']} 
           />
           <Bar dataKey="percentage" fill={color} name="Area %">

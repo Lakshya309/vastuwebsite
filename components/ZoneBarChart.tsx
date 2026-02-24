@@ -44,10 +44,17 @@ export const ZoneBarChart: React.FC<ZoneBarChartProps> = ({ data, chartType, tit
       <h2 className="text-2xl font-bold mb-4 text-gray-800">{title}</h2>
       <ResponsiveContainer width="100%" height={300}>
         <BarChart data={sortedData}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="zone" />
-          <YAxis label={{ value: yAxisLabel, angle: -90, position: "insideLeft" }} />
-          <Tooltip formatter={(value: number) => [value.toFixed(2), yAxisLabel]} />
+          <CartesianGrid strokeDasharray="3 3" stroke="#eeeeee" />
+          <XAxis dataKey="zone" stroke="#333333" />
+          <YAxis 
+            label={{ value: yAxisLabel, angle: -90, position: "insideLeft", fill: '#333333' }} 
+            stroke="#333333"
+          />
+          <Tooltip 
+            contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cccccc' }}
+            itemStyle={{ color: '#000000' }}
+            formatter={(value: number) => [value.toFixed(2), yAxisLabel]} 
+          />
           <Legend />
           <Bar dataKey={dataKey} fill={barColor} name={yAxisLabel} />
         </BarChart>

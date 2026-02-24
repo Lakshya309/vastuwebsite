@@ -16,7 +16,7 @@ import {
   Legend,
   Tooltip,
 } from "recharts";
-import domToImage from "dom-to-image";
+import html2canvas from 'html2canvas';
 import jsPDF from "jspdf";
 import { Point, PlacedObject } from "../../../../lib/floorPlanInterfaces";
 import { calculateBoundaryDistribution } from "../../../utils/calculateBoundaryDistribution";
@@ -99,21 +99,21 @@ const COLORS = {
 
 const getVerdictTextColor = (verdict: string) => {
   switch (verdict) {
-    case "EXCELLENT": return "text-green-800";
-    case "GOOD": return "text-green-700";
-    case "BAD": return "text-orange-800";
-    case "CRITICAL": return "text-red-800";
-    default: return "text-gray-700";
+    case "EXCELLENT": return { color: 'rgb(22 101 52)' };
+    case "GOOD": return { color: 'rgb(21 128 61)' };
+    case "BAD": return { color: 'rgb(180 83 9)' };
+    case "CRITICAL": return { color: 'rgb(185 28 28)' };
+    default: return { color: 'rgb(75 85 99)' };
   }
 };
 
 const getVerdictColor = (verdict: string) => {
   switch (verdict) {
-    case "EXCELLENT": return "bg-green-100";
-    case "GOOD": return "bg-green-100";
-    case "BAD": return "bg-orange-100";
-    case "CRITICAL": return "bg-red-100";
-    default: return "bg-gray-100";
+    case "EXCELLENT": return { backgroundColor: 'rgb(209 250 229)' };
+    case "GOOD": return { backgroundColor: 'rgb(209 250 229)' };
+    case "BAD": return { backgroundColor: 'rgb(254 243 199)' };
+    case "CRITICAL": return { backgroundColor: 'rgb(254 226 226)' };
+    default: return { backgroundColor: 'rgb(243 244 246)' };
   }
 };
 
@@ -167,101 +167,33 @@ export default function ReportPage() {
     setLoading(true);
     setError(null);
 
-    const pdf = new jsPDF("p", "mm", "a4");
-
-    const node = reportContentRef.current;
-    const originalWidth = node.style.width;
-    const originalMargin = node.style.margin;
-    const originalBackground = node.style.background;
-    const originalOverflow = node.style.overflow; // Save original overflow
-
-    const CAPTURE_WIDTH = 794; // A4 width in px (roughly 210mm @ 96 DPI)
-
-    // Temporarily force the report container width and set background
-    node.style.width = `${CAPTURE_WIDTH}px`;
-    node.style.margin = "0"; // Explicitly remove margin during capture
-    node.style.background = "white"; // Ensure white background for PDF
-    node.style.overflow = "visible"; // Ensure content is not clipped
-
-    // Temporarily hide no-print elements and record their original display styles
-    const originalNoPrintDisplays: string[] = [];
-    node.querySelectorAll('.no-print').forEach((el: Element) => {
-      originalNoPrintDisplays.push((el as HTMLElement).style.display);
-      (el as HTMLElement).style.display = 'none';
+    const canvas = await html2canvas(reportContentRef.current, {
+      backgroundColor: '#ffffff',
     });
+    const dataUrl = canvas.toDataURL('image/png');
 
-    try {
-      // Wait for any responsive adjustments to take effect
-      await new Promise(resolve => setTimeout(resolve, 500)); // Small delay for rendering
+    const pdf = new jsPDF("p", "mm", "a4");
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
 
-      // Capture at high resolution (CRUCIAL)
-      const dataUrl = await domToImage.toPng(node, {
-        width: CAPTURE_WIDTH,
-        height: node.scrollHeight, // Capture full scroll height
-        style: {
-          transform: "none", // Explicitly reset all transforms
-          transformOrigin: "top left",
-          overflow: "visible", // Ensure overflow is visible during capture
-          boxSizing: "content-box", // Ensure consistent box model
-          padding: "0", // Remove padding during capture to prevent visual shifts
-          // Add other common resets if needed, e.g., perspective: 'none', filter: 'none'
-        },
-        quality: 1, // High quality
-        cacheBust: true,
-      });
+    const imgProps = pdf.getImageProperties(dataUrl);
+    const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
+    let heightLeft = imgHeight;
+    let position = 0;
 
-      // Insert into jsPDF (CENTERED & FULL WIDTH)
-      const pdfWidth = pdf.internal.pageSize.getWidth(); // 210mm (A4)
-      const pdfHeight = pdf.internal.pageSize.getHeight(); // 297mm (A4)
+    pdf.addImage(dataUrl, 'PNG', 0, position, pdfWidth, imgHeight);
+    heightLeft -= pdfHeight;
 
-      const imgProps = pdf.getImageProperties(dataUrl);
-      const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
-
-      // Center vertically if it fits on one page
-      const yOffset = imgHeight < pdfHeight
-        ? (pdfHeight - imgHeight) / 2
-        : 0; // If content is taller than one page, start from top
-
-      pdf.addImage(
-        dataUrl,
-        "PNG",
-        0, // x: Start from left edge. CSS within captured image handles internal centering if any.
-        yOffset,
-        pdfWidth, // Use full PDF width for the image
-        imgHeight
-      );
-
-      // Handle pagination if imgHeight exceeds one page.
-      // The image is a single long image. For subsequent pages, we need to shift the image up.
-      let heightLeft = imgHeight;
-      let position = yOffset; // Current y position of the image on the PDF
-
-      while (heightLeft > pdfHeight) { // As long as there's more content than a page
-        pdf.addPage();
-        position -= pdfHeight; // Shift the image up by one page height
-        pdf.addImage(dataUrl, "PNG", 0, position, pdfWidth, imgHeight);
-        heightLeft -= pdfHeight;
-      }
-
-
-      pdf.save(`Vastu_Report_${project?.name || projectId}.pdf`);
-    } catch (err: any) {
-      console.error("Error generating PDF:", err);
-      setError("Failed to generate PDF. Please try again.");
-      alert("Failed to generate PDF. Please try again.");
-    } finally {
-      // Restore original styles
-      node.style.width = originalWidth;
-      node.style.margin = originalMargin;
-      node.style.background = originalBackground;
-      node.style.overflow = originalOverflow; // Restore original overflow
-      // Restore original display styles for no-print elements
-      let i = 0;
-      node.querySelectorAll('.no-print').forEach((el: Element) => {
-        (el as HTMLElement).style.display = originalNoPrintDisplays[i++];
-      });
-      setLoading(false);
+    while (heightLeft > 0) {
+      position = heightLeft - imgHeight;
+      pdf.addPage();
+      pdf.addImage(dataUrl, 'PNG', 0, position, pdfWidth, imgHeight);
+      heightLeft -= pdfHeight;
     }
+
+    pdf.save(`Vastu_Report_${project?.name || projectId}.pdf`);
+
+    setLoading(false);
   };
   // --- DATA FETCHING ---
   useEffect(() => {
@@ -483,19 +415,22 @@ export default function ReportPage() {
               <h2 className="text-2xl font-bold mb-4 text-gray-800">Overall Vastu Compliance</h2>
               <div className="relative w-48 h-48">
                 <ResponsiveContainer width="100%" height="100%">
-                  <RadialBarChart
-                    innerRadius="90%"
-                    outerRadius="70%"
-                    barSize={20}
-                    data={[{ name: "Vastu Score", uv: vastuAnalysisResult.overall_percentage, fill: COLORS[vastuAnalysisResult.overall_verdict] }]}
-                    startAngle={90}
-                    endAngle={90 - (360 * vastuAnalysisResult.overall_percentage / 100)}
-                  >
-                    <RadialBar cornerRadius={10} background dataKey="uv" />
-                    <Tooltip formatter={(value: number | undefined) => [`${(value ?? 0).toFixed(1)}%`, 'Score']} />
-                  </RadialBarChart>
-                </ResponsiveContainer>
-                <p
+                                  <RadialBarChart
+                                    innerRadius="90%"
+                                    outerRadius="70%"
+                                    barSize={20}
+                                    data={[{ name: "Vastu Score", uv: vastuAnalysisResult.overall_percentage, fill: COLORS[vastuAnalysisResult.overall_verdict] }]}
+                                    startAngle={90}
+                                    endAngle={90 - (360 * vastuAnalysisResult.overall_percentage / 100)}
+                                  >
+                                    <RadialBar cornerRadius={10} background={{ fill: '#eeeeee' }} dataKey="uv" />
+                                    <Tooltip 
+                                      contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cccccc' }}
+                                      itemStyle={{ color: '#000000' }}
+                                      formatter={(value: number | undefined) => [`${(value ?? 0).toFixed(1)}%`, 'Score']} 
+                                    />
+                                  </RadialBarChart>
+                                </ResponsiveContainer>                <p
                   className="absolute inset-0 flex items-center justify-center text-5xl font-bold"
                   style={{ color: COLORS[vastuAnalysisResult.overall_verdict] }}
                 >
@@ -503,7 +438,7 @@ export default function ReportPage() {
                 </p>
               </div>
               <p className="text-lg text-gray-600 mt-2">
-                Status: <span className={`font-bold ${getVerdictTextColor(vastuAnalysisResult.overall_verdict)}`}>
+                Status: <span className="font-bold" style={getVerdictTextColor(vastuAnalysisResult.overall_verdict)}>
                   {vastuAnalysisResult.overall_verdict}
                 </span>
               </p>
@@ -541,20 +476,22 @@ export default function ReportPage() {
                       dataKey="value"
                       label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
                     >
-                      {Object.keys(
-                        vastuAnalysisResult.analyzed_objects.reduce((acc, obj) => {
-                          acc[obj.verdict] = (acc[obj.verdict] || 0) + 1;
-                          return acc;
-                        }, {} as Record<string, number>)
-                      ).map((verdict, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[verdict as keyof typeof COLORS]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              )}
+                                          {Object.keys(
+                                            vastuAnalysisResult.analyzed_objects.reduce((acc, obj) => {
+                                              acc[obj.verdict] = (acc[obj.verdict] || 0) + 1;
+                                              return acc;
+                                            }, {} as Record<string, number>)
+                                          ).map((verdict, index) => (
+                                            <Cell key={`cell-${index}`} fill={COLORS[verdict as keyof typeof COLORS]} />
+                                          ))}
+                                        </Pie>
+                                        <Tooltip 
+                                          contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cccccc' }}
+                                          itemStyle={{ color: '#000000' }}
+                                        />
+                                        <Legend />
+                                      </PieChart>
+                                    </ResponsiveContainer>              )}
             </div>
           )}
         </div>
@@ -684,7 +621,7 @@ export default function ReportPage() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{obj.devta_region || "N/A"}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{obj.score_impact}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getVerdictColor(obj.verdict)} ${getVerdictTextColor(obj.verdict)}`}>
+                          <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" style={{...getVerdictColor(obj.verdict), ...getVerdictTextColor(obj.verdict)}}>
                             {obj.verdict}
                           </span>
                         </td>
