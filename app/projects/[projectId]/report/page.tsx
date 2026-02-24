@@ -25,6 +25,8 @@ import { ZoneBarChart } from "../../../../components/ZoneBarChart";
 import { DevtaBarChart } from "../../../../components/DevtaBarChart";
 import { FloorPlanCanvas } from "../../../../components/floor-plan/FloorPlanCanvas";
 
+import { solutionMapping } from "../../../../lib/solutionMapping";
+
 // --- INTERFACES ---
 
 interface Project {
@@ -128,6 +130,31 @@ export default function ReportPage() {
   const [error, setError] = useState<string | null>(null);
   const [zoneGraphData, setZoneGraphData] = useState<any[]>([]);
   const [highlightedZones, setHighlightedZones] = useState<string[]>([]);
+  const [reportSections, setReportSections] = useState({
+    overallCompliance: true,
+    objectDistribution: true,
+    boundaryDistribution: true,
+    areaDistribution: true,
+    devta32: true,
+    devta45: true,
+    floorPlan: true,
+    detailedReport: true,
+  });
+
+  const [solution, setSolution] = useState<string | null>(null);
+
+  const handleObjectClick = (object: PlacedObject) => {
+    const analysis = vastuAnalysisResult?.analyzed_objects.find(ao => ao.object_id === object.id);
+    if (analysis && analysis.verdict !== 'GOOD' && analysis.verdict !== 'EXCELLENT') {
+      const solutionText = solutionMapping[object.object_type]?.[analysis.zone16_direction || ""] || "No specific solution found.";
+      setSolution(solutionText);
+    }
+  };
+
+  const handleSectionChange = (section: keyof typeof reportSections) => {
+    setReportSections(prev => ({ ...prev, [section]: !prev[section] }));
+  };
+
 
 
   // --- PDF Export Logic ---
@@ -349,6 +376,24 @@ export default function ReportPage() {
           {loading ? 'Preparing...' : 'Save as PDF'}
         </button>
       </div>
+
+      <div className="bg-white p-4 rounded-lg shadow-md mb-8 no-print">
+        <h3 className="text-lg font-semibold mb-2">Customize Report</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {Object.keys(reportSections).map(key => (
+            <label key={key} className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={reportSections[key as keyof typeof reportSections]}
+                onChange={() => handleSectionChange(key as keyof typeof reportSections)}
+                className="rounded text-blue-600"
+              />
+              <span className="text-sm capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
       {/* Print-specific styles */}
       <style jsx global>{`
         @media print {
@@ -433,107 +478,115 @@ export default function ReportPage() {
 
       <div id="report-content" ref={reportContentRef} className="bg-white">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-          <div className="md:col-span-1 bg-white p-6 rounded-2xl shadow-lg flex flex-col items-center justify-center">
-            <h2 className="text-2xl font-bold mb-4 text-gray-800">Overall Vastu Compliance</h2>
-            <div className="relative w-48 h-48">
-              <ResponsiveContainer width="100%" height="100%">
-                <RadialBarChart
-                  innerRadius="90%"
-                  outerRadius="70%"
-                  barSize={20}
-                  data={[{ name: "Vastu Score", uv: vastuAnalysisResult.overall_percentage, fill: COLORS[vastuAnalysisResult.overall_verdict] }]}
-                  startAngle={90}
-                  endAngle={90 - (360 * vastuAnalysisResult.overall_percentage / 100)}
+          {reportSections.overallCompliance && (
+            <div className="md:col-span-1 bg-white p-6 rounded-2xl shadow-lg flex flex-col items-center justify-center">
+              <h2 className="text-2xl font-bold mb-4 text-gray-800">Overall Vastu Compliance</h2>
+              <div className="relative w-48 h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RadialBarChart
+                    innerRadius="90%"
+                    outerRadius="70%"
+                    barSize={20}
+                    data={[{ name: "Vastu Score", uv: vastuAnalysisResult.overall_percentage, fill: COLORS[vastuAnalysisResult.overall_verdict] }]}
+                    startAngle={90}
+                    endAngle={90 - (360 * vastuAnalysisResult.overall_percentage / 100)}
+                  >
+                    <RadialBar cornerRadius={10} background dataKey="uv" />
+                    <Tooltip formatter={(value: number | undefined) => [`${(value ?? 0).toFixed(1)}%`, 'Score']} />
+                  </RadialBarChart>
+                </ResponsiveContainer>
+                <p
+                  className="absolute inset-0 flex items-center justify-center text-5xl font-bold"
+                  style={{ color: COLORS[vastuAnalysisResult.overall_verdict] }}
                 >
-                  <RadialBar cornerRadius={10} background dataKey="uv" />
-                  <Tooltip formatter={(value: number | undefined) => [`${(value ?? 0).toFixed(1)}%`, 'Score']} />
-                </RadialBarChart>
-              </ResponsiveContainer>
-              <p
-                className="absolute inset-0 flex items-center justify-center text-5xl font-bold"
-                style={{ color: COLORS[vastuAnalysisResult.overall_verdict] }}
-              >
-                {vastuAnalysisResult.overall_percentage.toFixed(0)}%
+                  {vastuAnalysisResult.overall_percentage.toFixed(0)}%
+                </p>
+              </div>
+              <p className="text-lg text-gray-600 mt-2">
+                Status: <span className={`font-bold ${getVerdictTextColor(vastuAnalysisResult.overall_verdict)}`}>
+                  {vastuAnalysisResult.overall_verdict}
+                </span>
               </p>
+              <p className="text-sm text-gray-500">Total Score: {vastuAnalysisResult.total_score}</p>
             </div>
-            <p className="text-lg text-gray-600 mt-2">
-              Status: <span className={`font-bold ${getVerdictTextColor(vastuAnalysisResult.overall_verdict)}`}>
-                {vastuAnalysisResult.overall_verdict}
-              </span>
-            </p>
-            <p className="text-sm text-gray-500">Total Score: {vastuAnalysisResult.total_score}</p>
-          </div>
+          )}
 
-          <div className="md:col-span-2 bg-white p-6 rounded-2xl shadow-lg flex flex-col items-center justify-center">
-            <h2 className="text-2xl font-bold mb-4 text-gray-800">Object Status Distribution</h2>
-            {vastuAnalysisResult.analyzed_objects.length === 0 ? (
-              <p className="text-gray-400 text-sm italic">No objects placed for distribution analysis.</p>
-            ) : (
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={Object.values(
-                      vastuAnalysisResult.analyzed_objects.reduce((acc, obj) => {
-                        acc[obj.verdict] = (acc[obj.verdict] || 0) + 1;
-                        return acc;
-                      }, {} as Record<string, number>)
-                    ).map((count, i) => ({
-                      name: Object.keys(
+          {reportSections.objectDistribution && (
+            <div className="md:col-span-2 bg-white p-6 rounded-2xl shadow-lg flex flex-col items-center justify-center">
+              <h2 className="text-2xl font-bold mb-4 text-gray-800">Object Status Distribution</h2>
+              {vastuAnalysisResult.analyzed_objects.length === 0 ? (
+                <p className="text-gray-400 text-sm italic">No objects placed for distribution analysis.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={Object.values(
                         vastuAnalysisResult.analyzed_objects.reduce((acc, obj) => {
                           acc[obj.verdict] = (acc[obj.verdict] || 0) + 1;
                           return acc;
                         }, {} as Record<string, number>)
-                      )[i],
-                      value: count,
-                    }))}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    outerRadius={100}
-                    dataKey="value"
-                    label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
-                  >
-                    {Object.keys(
-                      vastuAnalysisResult.analyzed_objects.reduce((acc, obj) => {
-                        acc[obj.verdict] = (acc[obj.verdict] || 0) + 1;
-                        return acc;
-                      }, {} as Record<string, number>)
-                    ).map((verdict, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[verdict as keyof typeof COLORS]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </div>
+                      ).map((count, i) => ({
+                        name: Object.keys(
+                          vastuAnalysisResult.analyzed_objects.reduce((acc, obj) => {
+                            acc[obj.verdict] = (acc[obj.verdict] || 0) + 1;
+                            return acc;
+                          }, {} as Record<string, number>)
+                        )[i],
+                        value: count,
+                      }))}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      outerRadius={100}
+                      dataKey="value"
+                      label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
+                    >
+                      {Object.keys(
+                        vastuAnalysisResult.analyzed_objects.reduce((acc, obj) => {
+                          acc[obj.verdict] = (acc[obj.verdict] || 0) + 1;
+                          return acc;
+                        }, {} as Record<string, number>)
+                      ).map((verdict, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[verdict as keyof typeof COLORS]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          )}
         </div>
 
         {zoneGraphData.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-            <ZoneBarChart
-              data={zoneGraphData}
-              chartType="boundary"
-              title="Directional Boundary Distribution"
-            />
-            <ZoneBarChart
-              data={zoneGraphData}
-              chartType="area"
-              title="Zone Area Distribution"
-            />
+            {reportSections.boundaryDistribution && (
+              <ZoneBarChart
+                data={zoneGraphData}
+                chartType="boundary"
+                title="Directional Boundary Distribution"
+              />
+            )}
+            {reportSections.areaDistribution && (
+              <ZoneBarChart
+                data={zoneGraphData}
+                chartType="area"
+                title="Zone Area Distribution"
+              />
+            )}
           </div>
         )}
 
         <div className="grid grid-cols-1 gap-8 mb-8">
-          {vastuAnalysisResult.devta_areas_32 && vastuAnalysisResult.devta_areas_32.length > 0 && (
+          {reportSections.devta32 && vastuAnalysisResult.devta_areas_32 && vastuAnalysisResult.devta_areas_32.length > 0 && (
             <DevtaBarChart 
               data={vastuAnalysisResult.devta_areas_32} 
               title="Outer 32 Devta Area Distribution (%)"
               color="#3b82f6"
             />
           )}
-          {vastuAnalysisResult.devta_areas_45 && vastuAnalysisResult.devta_areas_45.length > 0 && (
+          {reportSections.devta45 && vastuAnalysisResult.devta_areas_45 && vastuAnalysisResult.devta_areas_45.length > 0 && (
             <DevtaBarChart 
               data={vastuAnalysisResult.devta_areas_45} 
               title="Complete 45 Devta Area Distribution (%)"
@@ -542,85 +595,106 @@ export default function ReportPage() {
           )}
         </div>
         
-        <div className="mt-8 bg-white p-6 rounded-2xl shadow-lg page-break-before-detailed-report">
-          <h2 className="text-2xl font-bold mb-4 text-gray-800">Floor Plan Overview</h2>
-          <div className="h-150 w-100">
-            <FloorPlanCanvas
-              isStatic={true}
-              floorPlanImage={project.floor_plan_path || null} // Use floor_plan_path from project
-              boundary={project.boundary_normalized || []}
-              placedObjects={(project.placed_objects || []).map(obj => {
-                const analysis = vastuAnalysisResult.analyzed_objects.find(ao => ao.object_id === obj.id);
-                return {
-                  ...obj,
-                  highlight: analysis ? analysis.verdict : null,
-                }
-              })}
-              objectSvgMap={{
-                Stove: "/objects/stove.svg",
-                Toilet: "/objects/toilet.svg",
-                Bed: "/objects/bed.svg",
-                Wardrobe: "/objects/wardrobe.svg",
-                Sofa: "/objects/sofa.svg",
-                Pooja: "/objects/pooja.png", // Changed from .svg to .png
-                Stairs: "/objects/stairs.svg",
-                Dining: "/objects/dining.svg",
-                OverheadTank: "/objects/overheadtank.png", // New object
-                UndergroundTank: "/objects/undergroundtank.png", // New object
-              }}
-              northDirection={project.north_direction || 0}
-              onMoveObject={() => {}}
-              onResizeObject={() => {}}
-              onRotateObject={() => {}}
-              onDeleteObject={() => {}}
-              scale={null}
-              wallLengths={[]}
-              setReferenceWallIndex={() => {}}
-              referenceWallIndex={null}
-              wallColors={[]}
-              zone16Regions={vastuAnalysisResult.zones16}
-              highlightedZones={highlightedZones}
-            />
-          </div>
-        </div>
-
-        <div className="mt-8 bg-white p-6 rounded-2xl shadow-lg page-break-before-detailed-report">
-          <h2 className="text-2xl font-bold mb-4 text-gray-800">Detailed Object Report</h2>
-          {vastuAnalysisResult.analyzed_objects.length === 0 ? (
-            <p className="text-gray-400 text-sm italic">No objects placed for detailed analysis.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Object Type</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Zone</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Devta</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Verdict</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Message</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {vastuAnalysisResult.analyzed_objects.map((obj) => (
-                    <tr key={obj.object_id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{obj.object_type}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{obj.zone16_direction || "N/A"}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{obj.devta_region || "N/A"}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{obj.score_impact}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getVerdictColor(obj.verdict)} ${getVerdictTextColor(obj.verdict)}`}>
-                          {obj.verdict}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{obj.message}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        {reportSections.floorPlan && (
+          <div className="mt-8 bg-white p-6 rounded-2xl shadow-lg page-break-before-detailed-report">
+            <h2 className="text-2xl font-bold mb-4 text-gray-800">Floor Plan Overview</h2>
+            <div className="h-150 w-100">
+              <FloorPlanCanvas
+                isStatic={true}
+                floorPlanImage={project.floor_plan_path || null}
+                boundary={project.boundary_normalized || []}
+                placedObjects={(project.placed_objects || []).map(obj => {
+                  const analysis = vastuAnalysisResult.analyzed_objects.find(ao => ao.object_id === obj.id);
+                  return {
+                    ...obj,
+                    highlight: analysis ? analysis.verdict : null,
+                  }
+                })}
+                objectSvgMap={{
+                  Stove: "/objects/stove.svg",
+                  Toilet: "/objects/toilet.svg",
+                  Bed: "/objects/bed.svg",
+                  Wardrobe: "/objects/wardrobe.svg",
+                  Sofa: "/objects/sofa.svg",
+                  Pooja: "/objects/pooja.png",
+                  Stairs: "/objects/stairs.svg",
+                  Dining: "/objects/dining.svg",
+                  OverheadTank: "/objects/overheadtank.png",
+                  UndergroundTank: "/objects/undergroundtank.png",
+                }}
+                northDirection={project.north_direction || 0}
+                onMoveObject={() => {}}
+                onResizeObject={() => {}}
+                onRotateObject={() => {}}
+                onDeleteObject={() => {}}
+                scale={null}
+                wallLengths={[]}
+                setReferenceWallIndex={() => {}}
+                referenceWallIndex={null}
+                wallColors={[]}
+                zone16Regions={vastuAnalysisResult.zones16}
+                highlightedZones={highlightedZones}
+                onObjectClick={handleObjectClick}
+              />
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {solution && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg shadow-lg">
+              <h3 className="text-lg font-bold mb-4">Suggested Solution</h3>
+              <p>{solution}</p>
+              <button
+                onClick={() => setSolution(null)}
+                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+
+
+        {reportSections.detailedReport && (
+          <div className="mt-8 bg-white p-6 rounded-2xl shadow-lg page-break-before-detailed-report">
+            <h2 className="text-2xl font-bold mb-4 text-gray-800">Detailed Object Report</h2>
+            {vastuAnalysisResult.analyzed_objects.length === 0 ? (
+              <p className="text-gray-400 text-sm italic">No objects placed for detailed analysis.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Object Type</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Zone</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Devta</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Verdict</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Message</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {vastuAnalysisResult.analyzed_objects.map((obj) => (
+                      <tr key={obj.object_id}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{obj.object_type}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{obj.zone16_direction || "N/A"}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{obj.devta_region || "N/A"}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{obj.score_impact}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getVerdictColor(obj.verdict)} ${getVerdictTextColor(obj.verdict)}`}>
+                            {obj.verdict}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{obj.message}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

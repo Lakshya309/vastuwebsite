@@ -4,6 +4,7 @@ import React from "react";
 import { DevtaRegion, PlacedObject, Point } from "@/lib/floorPlanInterfaces";
 import { isPointInPolygon } from "@/lib/gridUtils";
 import { ObjectPalette } from "./ObjectPalette";
+import { problemZoneMapping } from "@/lib/problemZoneMapping";
 
 interface ControlPanelProps {
   projectId: string;
@@ -59,8 +60,8 @@ interface ControlPanelProps {
   zone16Regions: any[];
   zone8Regions: any[];
 
-  drawingMode?: "boundary" | "objects" | "select" | "walls" | null;
-  setDrawingMode: (mode: "boundary" | "objects" | "select" | "walls" | null) => void;
+  drawingMode?: "boundary" | "objects" | "select" | null;
+  setDrawingMode: (mode: "boundary" | "objects" | "select" | null) => void;
   boundary?: any;
   setBoundary?: any;
   analysisMode?: any;
@@ -84,6 +85,9 @@ interface ControlPanelProps {
   setReferenceWallUnit: (unit: "feet" | "meters" | "inches") => void;
   wallColors: (string | null)[];
   setWallColors: React.Dispatch<React.SetStateAction<(string | null)[]>>;
+  selectedProblem: string | null;
+  setSelectedProblem: (problem: string | null) => void;
+  setHighlightedZones: (zones: string[]) => void;
 }
 
 export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
@@ -251,33 +255,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
 
             <div className="border-t pt-4">
               <h3 className="text-lg font-bold text-gray-800 mb-2">
-                3. Draw Walls
-              </h3>
-              <p className="text-sm text-gray-500 mb-3">
-                Click and drag to draw walls.
-              </p>
-              <button
-                onClick={() => props.setDrawingMode("walls")}
-                disabled={props.drawingMode === "walls"}
-                className="w-full mb-2 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium disabled:bg-gray-400"
-              >
-                {props.drawingMode === "walls"
-                  ? "Drawing Walls..."
-                  : "Start Drawing Walls"}
-              </button>
-              {props.drawingMode === "walls" && (
-                <button
-                  onClick={() => props.setDrawingMode(null)}
-                  className="w-full mb-2 py-2 bg-green-600 hover:bg-green-700 text-white rounded font-medium"
-                >
-                  Finish Drawing Walls
-                </button>
-              )}
-            </div>
-
-            <div className="border-t pt-4">
-              <h3 className="text-lg font-bold text-gray-800 mb-2">
-                4. Set True North
+                3. Set True North
               </h3>
               <p className="text-sm text-gray-500 mb-2">
                 Rotate until aligned.
@@ -299,7 +277,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
             {props.boundary && props.boundary.length > 2 && (
               <div className="border-t pt-4">
                 <h3 className="text-lg font-bold text-gray-800 mb-2">
-                  5. Set Scale
+                  4. Set Scale
                 </h3>
                 <p className="text-sm text-gray-500 mb-3">
                   First, click on one wall segment in the floor plan to select it as the reference.
@@ -540,6 +518,36 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                                 </span>
                             </div>
                         </div>          </div>
+        )}
+
+        {props.activeView === "grids" && (
+          <div className="space-y-6">
+            <div className="border-t pt-4">
+              <h3 className="text-lg font-bold text-gray-800 mb-2">
+                Highlight Problem Zones
+              </h3>
+              <select
+                value={props.selectedProblem || ""}
+                onChange={(e) => {
+                  const problem = e.target.value;
+                  props.setSelectedProblem(problem);
+                  if (problem && problemZoneMapping[problem]) {
+                    props.setHighlightedZones(problemZoneMapping[problem]);
+                  } else {
+                    props.setHighlightedZones([]);
+                  }
+                }}
+                className="w-full p-2 border rounded-md"
+              >
+                <option value="">Select a problem...</option>
+                {Object.keys(problemZoneMapping).map((problem) => (
+                  <option key={problem} value={problem}>
+                    {problem}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
         )}
 
         {props.activeView === "objects" && (

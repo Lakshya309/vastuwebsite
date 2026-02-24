@@ -5,7 +5,6 @@ import {
   Point,
   DevtaRegion,
   PlacedObject,
-  Wall,
 } from "@/lib/floorPlanInterfaces";
 import { DraggableObject } from "./DraggableObject";
 import { devtaColors } from "@/lib/colorPalette";
@@ -32,12 +31,12 @@ interface FloorPlanCanvasProps {
   shaktiChakraSize?: number;
   plotCentroid?: Point | null;
   drawingObjectBoundary?: Point[];
-  drawingMode?: "boundary" | "objects" | "select" | "walls" | null;
+  drawingMode?: "boundary" | "objects" | "select" | null;
   onDevtaClick?: (devta: DevtaRegion) => void;
   onZoneClick?: (zone: DevtaRegion) => void;
   onPlaceObject?: (newObject: PlacedObject) => void;
   onCanvasClick?: (point: Point) => void;
-  setDrawingMode?: (mode: "boundary" | "objects" | "select" | "walls" | null) => void;
+  setDrawingMode?: (mode: "boundary" | "objects" | "select" | null) => void;
   setDrawingObjectBoundary?: (boundary: Point[]) => void;
   selectedObjectType?: string;
   northDirection: number;
@@ -50,6 +49,8 @@ interface FloorPlanCanvasProps {
   plotHeight?: number | null;
   isStatic?: boolean;
   highlightedZones?: string[];
+  activeView?: "setup" | "grids" | "objects";
+  onObjectClick?: (object: PlacedObject) => void;
 }
 
 const ZONE_NAMES_16 = [
@@ -173,15 +174,15 @@ const drawCanvasContent = (
   shaktiChakraSize: number | undefined,
   plotCentroid: Point | null,
   drawingObjectBoundary: Point[],
-  drawingMode: "boundary" | "objects" | "select" | "walls" | null | undefined,
+  drawingMode: "boundary" | "objects" | "select" | null | undefined,
   hoveredDevta: DevtaRegion | null,
   northDirection: number,
   wallLengths: number[],
   scale: number,
   referenceWallIndex: number | null,
   wallColors: (string | null)[],
-  walls: Wall[],
   highlightedZones: string[] | undefined,
+  activeView?: "setup" | "grids" | "objects",
   plotWidth?: number | null,
   plotHeight?: number | null,
 ) => {
@@ -197,6 +198,36 @@ const drawCanvasContent = (
       ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
       ctx.fillRect(0, 0, width, height);
     }
+  }
+
+  // Draw Marma Data
+  if (marmaData) {
+    // Draw Vansha Lines
+    ctx.strokeStyle = "rgba(128, 0, 128, 0.4)"; // Purple for vansha lines
+    ctx.lineWidth = 1;
+    marmaData.vanshaLines.forEach(line => {
+      if (line.length < 2) return;
+      ctx.beginPath();
+      const start = toPx(line[0]);
+      ctx.moveTo(start.x, start.y);
+      line.slice(1).forEach(p => {
+        const pt = toPx(p);
+        ctx.lineTo(pt.x, pt.y);
+      });
+      ctx.stroke();
+    });
+
+    // Draw Marma Points
+    marmaData.marmaPoints.forEach(p => {
+      const pt = toPx(p);
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2);
+      ctx.fillStyle = "red";
+      ctx.fill();
+      ctx.strokeStyle = "white";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    });
   }
 
   if (shaktiChakra && plotCentroid) {
@@ -297,16 +328,38 @@ const drawCanvasContent = (
     ctx.stroke();
   }
 
-  walls.forEach(wall => {
-    const start = toPx(wall.start);
-    const end = toPx(wall.end);
-    ctx.beginPath();
-    ctx.moveTo(start.x, start.y);
-    ctx.lineTo(end.x, end.y);
-    ctx.lineWidth = wall.thickness;
-    ctx.strokeStyle = wall.color || 'black';
-    ctx.stroke();
-  });
+  // Draw North Indicator in first two tabs
+  if ((activeView === "setup" || activeView === "grids") && boundary.length > 0) {
+    ctx.save();
+    
+    // Determine centroid: use plotCentroid if available, else calculate from boundary
+    let targetCentroid = plotCentroid;
+    if (!targetCentroid && boundary.length > 0) {
+      targetCentroid = getCentroid(boundary);
+    }
+
+    if (targetCentroid) {
+      const centroidPx = toPx(targetCentroid);
+      ctx.translate(centroidPx.x, centroidPx.y);
+      ctx.rotate((northDirection * Math.PI) / 180);
+      
+      // Draw arrow
+      ctx.beginPath();
+      ctx.moveTo(0, -30);
+      ctx.lineTo(-15, 15);
+      ctx.lineTo(15, 15);
+      ctx.closePath();
+      ctx.fillStyle = "red";
+      ctx.fill();
+
+      // Draw 'N'
+      ctx.fillStyle = "black";
+      ctx.font = "bold 18px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("N", 0, -35);
+    }
+    ctx.restore();
+  }
 };
 
 export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
@@ -346,8 +399,9 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
   plotHeight,
   isStatic = false,
   highlightedZones,
+  activeView,
+  onObjectClick,
 }) => {
-  const { walls, addWall } = useProjectStore();
   const [hoveredDevta, setHoveredDevta] = useState<DevtaRegion | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -356,8 +410,6 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
-  const [isDrawingWall, setIsDrawingWall] = useState(false);
-  const [wallStart, setWallStart] = useState<Point | null>(null);
 
   const containerRect = containerRef.current?.getBoundingClientRect();
   const width = containerRect?.width || 800;
@@ -413,8 +465,8 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
       zoom,
       referenceWallIndex,
       wallColors,
-      walls,
       highlightedZones,
+      activeView,
       plotWidth,
       plotHeight,
     );
@@ -424,7 +476,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     zone16Regions, zone8Regions, marmaData, shaktiChakra, shaktiChakraSize,
     plotCentroid, drawingObjectBoundary, drawingMode, hoveredDevta, innerPolygon,
     middlePolygon, northDirection, wallLengths, referenceWallIndex,
-    wallColors, plotWidth, plotHeight, zoom, offset, walls, isStatic, highlightedZones
+    wallColors, plotWidth, plotHeight, zoom, offset, isStatic, highlightedZones, activeView
   ]);
 
   const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
@@ -438,7 +490,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
 
     const zoomFactor = 1.1;
     const newZoom = e.deltaY < 0 ? zoom * zoomFactor : zoom / zoomFactor;
-    const newZoomClamped = Math.max(0.1, Math.min(newZoom, 10));
+    const newZoomClamped = Math.max(1, Math.min(newZoom, 10));
 
     const mouseBeforeZoom = getTransformedPoint(e.clientX, e.clientY);
     
@@ -454,10 +506,6 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     if (e.button === 1) { // Middle mouse button
       setIsPanning(true);
       setPanStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
-    } else if (drawingMode === 'walls') {
-      const point = getTransformedPoint(e.clientX, e.clientY);
-      setWallStart({ x: point.x / width, y: point.y / height });
-      setIsDrawingWall(true);
     }
   };
   
@@ -466,11 +514,6 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
 
     if (isPanning) {
       setOffset({ x: e.clientX - panStart.x, y: e.clientY - panStart.y });
-      return;
-    }
-
-    if (drawingMode === 'walls' && isDrawingWall && wallStart) {
-      // preview wall - logic can be added here
       return;
     }
 
@@ -500,33 +543,35 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
   const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (isStatic) return;
     setIsPanning(false);
-    if (drawingMode === 'walls' && isDrawingWall && wallStart) {
-      const endPoint = getTransformedPoint(e.clientX, e.clientY);
-      addWall({
-        id: new Date().toISOString(),
-        start: wallStart,
-        end: { x: endPoint.x / width, y: endPoint.y / height },
-        thickness: 5,
-      });
-      setIsDrawingWall(false);
-      setWallStart(null);
-    }
   };
 
   const handleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (isStatic || isPanning) return;
-    
+    if (isPanning) return;
+
     const point = getTransformedPoint(e.clientX, e.clientY);
     const normalizedPoint = { x: point.x / width, y: point.y / height };
     
-    if (drawingMode === "boundary" && onDrawBoundary) {
-      onDrawBoundary(normalizedPoint);
-      return;
+    if (!isStatic) {
+      if (drawingMode === "boundary" && onDrawBoundary) {
+        onDrawBoundary(normalizedPoint);
+        return;
+      }
+
+      if (drawingMode === "objects" && onCanvasClick) {
+        onCanvasClick(normalizedPoint);
+        return;
+      }
     }
 
-    if (drawingMode === "objects" && onCanvasClick) {
-      onCanvasClick(normalizedPoint);
-      return;
+    if (onObjectClick) {
+      for (const obj of placedObjects) {
+        const centroid = toPx(obj.centroid);
+        // A simple circular click area for now
+        if (Math.hypot(point.x - centroid.x, point.y - centroid.y) < 20) {
+          onObjectClick(obj);
+          return;
+        }
+      }
     }
     
     let regionClicked = false;
@@ -557,7 +602,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
 
     if (regionClicked) return;
 
-    if ((drawingMode === null || drawingMode === "select") && setReferenceWallIndex) {
+    if (!isStatic && (drawingMode === null || drawingMode === "select") && setReferenceWallIndex) {
       const pxBoundary = boundary.map(toPx);
       let wallClicked = false;
       for (let i = 0; i < pxBoundary.length; i++) {

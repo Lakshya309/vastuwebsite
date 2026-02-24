@@ -83,6 +83,27 @@ export default function Home() {
           </div>
         </section>
 
+        {/* About Manglam Vastu Section */}
+        <section className="mb-32 max-w-4xl mx-auto text-center">
+          <h2 className="text-4xl font-bold mb-6 text-gray-900">About Manglam Vastu</h2>
+          <p className="text-lg text-gray-700 leading-relaxed mb-6">
+            Manglam Vastu is a leading manufacturer of brass aura scanners, metal aura scanners, ground rods, digital aura scanners, and various Vastu articles. We are highly recognized dealers of rudraksha and gemstones, combining fine craftsmanship with modern business practices to create top-quality Aura Scanners, Yantras, Geopathic Stress Remove Rods, all types of Pyramids, and other Vastu products. Our clientele spans across multiple locations around the globe.
+          </p>
+        </section>
+
+        {/* Our Experts Section */}
+        <section className="mb-32">
+          <h2 className="text-4xl font-bold text-center mb-12 text-gray-900">Our Experts</h2>
+          <div className="flex flex-col md:flex-row items-center justify-center bg-white p-8 rounded-2xl shadow-lg border border-gray-200 max-w-2xl mx-auto">
+            <img src="/yogeshe_keshwani.jpeg" alt="Yogesh Keshwani" className="w-32 h-32 rounded-full object-cover mb-6 md:mb-0 md:mr-8" />
+            <div className="text-center md:text-left">
+              <h3 className="text-3xl font-bold text-gray-900 mb-2">Yogesh Keshwani</h3>
+              <p className="text-xl text-blue-600 font-medium mb-2">Astrologer, Vastu Expert, Aura Analyst</p>
+              <p className="text-gray-700 text-lg">10+ Years of Experience</p>
+            </div>
+          </div>
+        </section>
+
         {/* USE-CASE CENTRIC MODELS: USER vs ASTROLOGER */}
         <section className="grid md:grid-cols-2 gap-8 mb-32">
           {/* For the Homeowner/User */}
@@ -139,7 +160,30 @@ export default function Home() {
           </div>
         </section>
 
+        {/* New Features Section */}
+        <section className="mb-32">
+          <h2 className="text-4xl font-bold text-center mb-12 text-gray-900">Core Features</h2>
+          <div className="grid md:grid-cols-3 gap-8 text-center">
+            <div className="p-8 bg-white rounded-2xl shadow-lg border border-gray-200">
+              <h3 className="text-2xl font-bold mb-4">Vastu Analysis Engine</h3>
+              <p className="text-gray-700">Our advanced engine analyzes your floor plan against ancient Vastu principles to provide a comprehensive compliance score.</p>
+            </div>
+            <div className="p-8 bg-white rounded-2xl shadow-lg border border-gray-200">
+              <h3 className="text-2xl font-bold mb-4">Interactive Floor Plan</h3>
+              <p className="text-gray-700">Easily draw your floor plan, place furniture, and get real-time feedback on your design.</p>
+            </div>
+            <div className="p-8 bg-white rounded-2xl shadow-lg border border-gray-200">
+              <h3 className="text-2xl font-bold mb-4">Detailed Reporting</h3>
+              <p className="text-gray-700">Generate a detailed PDF report with actionable insights and recommendations to improve your space's harmony.</p>
+            </div>
+          </div>
+        </section>
+
       </main>
+
+      <footer className="relative z-10 py-10 text-center text-gray-600 text-sm">
+        <p>© Copyright 2021, All Rights Reserved, Yogesh Keshwani & Sons HUF, Manglam Vastu</p>
+      </footer>
     </div>
   );
 }

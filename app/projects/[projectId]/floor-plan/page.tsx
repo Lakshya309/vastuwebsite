@@ -60,6 +60,8 @@ export default function FloorPlanPage() {
   const [referenceWallLength, setReferenceWallLength] = useState<number | null>(null);
   const [referenceWallUnit, setReferenceWallUnit] = useState<"feet" | "meters" | "inches">("meters");
   const [wallColors, setWallColors] = useState<(string | null)[]>([]);
+  const [selectedProblem, setSelectedProblem] = useState<string | null>(null);
+  const [highlightedZones, setHighlightedZones] = useState<string[]>([]);
 
   const uploadFloorPlan = async (file: File) => {
     const formData = new FormData();
@@ -107,7 +109,7 @@ export default function FloorPlanPage() {
 
   // 3. Analysis Hooks & Debouncing
   const [drawingMode, setDrawingMode] = useState<
-    "boundary" | "objects" | "select" | "walls" | null
+    "boundary" | "objects" | "select" | null
   >(null);
   const {
     devtaRegions,
@@ -488,6 +490,8 @@ export default function FloorPlanPage() {
               wallColors={wallColors}
               plotWidth={project?.plot_width}
               plotHeight={project?.plot_height}
+              activeView={activeView}
+              highlightedZones={highlightedZones}
             />
 
             {/* Overlay Status Indicators */}
@@ -571,6 +575,9 @@ export default function FloorPlanPage() {
           setReferenceWallUnit={setReferenceWallUnit}
           wallColors={wallColors}
           setWallColors={setWallColors}
+          selectedProblem={selectedProblem}
+          setSelectedProblem={setSelectedProblem}
+          setHighlightedZones={setHighlightedZones}
         />
       </div>
     </div>

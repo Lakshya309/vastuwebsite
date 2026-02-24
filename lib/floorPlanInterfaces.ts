@@ -48,12 +48,4 @@ export interface MarmaPoint {
   // relatedDevta?: string;
 }
 
-export interface Wall {
-  id: string;
-  start: Point;
-  end: Point;
-  thickness: number;
-  color?: string;
-}
-
 // Add other common interfaces if they were previously in this file and are needed elsewhere.
