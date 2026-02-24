@@ -11,6 +11,10 @@ interface DraggableObjectProps {
   onDelete: (id: string) => void;
   objectSvgMap: { [key: string]: string };
   canvasRef: React.RefObject<HTMLDivElement | null>;
+  highlight?: "CRITICAL" | "BAD" | null;
+  isStatic?: boolean;
+  zoom: number;
+  offset: { x: number; y: number };
 }
 
 export const DraggableObject: React.FC<DraggableObjectProps> = ({
@@ -21,6 +25,10 @@ export const DraggableObject: React.FC<DraggableObjectProps> = ({
   onDelete,
   objectSvgMap,
   canvasRef,
+  highlight,
+  isStatic,
+  zoom,
+  offset,
 }) => {
   const objectRef = useRef<HTMLDivElement>(null);
 
@@ -45,6 +53,7 @@ export const DraggableObject: React.FC<DraggableObjectProps> = ({
   };
 
   const onMouseDown = (e: React.MouseEvent) => {
+    if (isStatic) return;
     e.preventDefault();
     e.stopPropagation();
 
@@ -114,14 +123,22 @@ export const DraggableObject: React.FC<DraggableObjectProps> = ({
   };
 
   const canvas = getCanvasDims();
-  const width =
-    (object.boundary_normalized[1].x -
-      object.boundary_normalized[0].x) *
-    canvas.width;
-  const height =
-    (object.boundary_normalized[3].y -
-      object.boundary_normalized[0].y) *
-    canvas.height;
+  
+  const worldX = object.boundary_normalized[0].x * canvas.width;
+  const worldY = object.boundary_normalized[0].y * canvas.height;
+  const worldWidth = (object.boundary_normalized[1].x - object.boundary_normalized[0].x) * canvas.width;
+  const worldHeight = (object.boundary_normalized[3].y - object.boundary_normalized[0].y) * canvas.height;
+
+  const screenX = worldX * zoom + offset.x;
+  const screenY = worldY * zoom + offset.y;
+  const screenWidth = worldWidth * zoom;
+  const screenHeight = worldHeight * zoom;
+
+  const getHighlightColor = () => {
+    if (highlight === "CRITICAL") return "red";
+    if (highlight === "BAD") return "orange";
+    return isStatic ? "transparent" : "#2563eb";
+  }
 
   return (
     <div
@@ -129,14 +146,14 @@ export const DraggableObject: React.FC<DraggableObjectProps> = ({
       onMouseDown={onMouseDown}
       style={{
         position: "absolute",
-        left: object.boundary_normalized[0].x * canvas.width,
-        top: object.boundary_normalized[0].y * canvas.height,
-        width,
-        height,
+        left: screenX,
+        top: screenY,
+        width: screenWidth,
+        height: screenHeight,
         transform: `rotate(${object.rotation || 0}deg)`,
-        cursor: "grab",
+        cursor: isStatic ? "default" : "grab",
         pointerEvents: "auto",
-        border: "1px solid #2563eb",
+        border: `2px solid ${getHighlightColor()}`,
       }}
     >
       <img
@@ -146,49 +163,53 @@ export const DraggableObject: React.FC<DraggableObjectProps> = ({
         style={{ width: "100%", height: "100%" }}
       />
 
-      <button
-        onClick={() => onDelete(object.id)}
-        style={{
-          position: "absolute",
-          top: -10,
-          right: -10,
-          background: "red",
-          color: "white",
-          borderRadius: "50%",
-          width: 20,
-          height: 20,
-          border: "none",
-          cursor: "pointer",
-        }}
-      >
-        ×
-      </button>
+      {!isStatic && (
+        <>
+          <button
+            onClick={() => onDelete(object.id)}
+            style={{
+              position: "absolute",
+              top: -10,
+              right: -10,
+              background: "red",
+              color: "white",
+              borderRadius: "50%",
+              width: 20,
+              height: 20,
+              border: "none",
+              cursor: "pointer",
+            }}
+          >
+            ×
+          </button>
 
-      <div
-        className="resize-handle"
-        style={{
-          position: "absolute",
-          bottom: 0,
-          right: 0,
-          width: 10,
-          height: 10,
-          background: "#2563eb",
-          cursor: "nwse-resize",
-        }}
-      />
+          <div
+            className="resize-handle"
+            style={{
+              position: "absolute",
+              bottom: 0,
+              right: 0,
+              width: 10,
+              height: 10,
+              background: "#2563eb",
+              cursor: "nwse-resize",
+            }}
+          />
 
-      <div
-        className="rotate-handle"
-        style={{
-          position: "absolute",
-          top: -10,
-          left: -10,
-          width: 10,
-          height: 10,
-          background: "green",
-          cursor: "grab",
-        }}
-      />
+          <div
+            className="rotate-handle"
+            style={{
+              position: "absolute",
+              top: -10,
+              left: -10,
+              width: 10,
+              height: 10,
+              background: "green",
+              cursor: "grab",
+            }}
+          />
+        </>
+      )}
     </div>
   );
 };

@@ -107,7 +107,7 @@ export default function FloorPlanPage() {
 
   // 3. Analysis Hooks & Debouncing
   const [drawingMode, setDrawingMode] = useState<
-    "boundary" | "objects" | "select" | null
+    "boundary" | "objects" | "select" | "walls" | null
   >(null);
   const {
     devtaRegions,
@@ -419,9 +419,11 @@ export default function FloorPlanPage() {
     Bed: "/objects/bed.svg",
     Wardrobe: "/objects/wardrobe.svg",
     Sofa: "/objects/sofa.svg",
-    Pooja: "/objects/pooja.svg",
+    Pooja: "/objects/pooja.png", // Changed from .svg to .png
     Stairs: "/objects/stairs.svg",
     Dining: "/objects/dining.svg",
+    OverheadTank: "/objects/overheadtank.png", // New object
+    UndergroundTank: "/objects/undergroundtank.png", // New object
   };
 
   return (
@@ -548,6 +550,7 @@ export default function FloorPlanPage() {
           zone16Regions={zones16}
           zone8Regions={zones8}
           drawingMode={drawingMode}
+          setDrawingMode={setDrawingMode}
           boundary={boundary}
           handleSaveChanges={handleSaveChanges}
           handleSaveObjects={handleSaveObjects}

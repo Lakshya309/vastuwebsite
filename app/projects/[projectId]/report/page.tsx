@@ -18,11 +18,12 @@ import {
 } from "recharts";
 import domToImage from "dom-to-image";
 import jsPDF from "jspdf";
-import { Point } from "../../../../lib/floorPlanInterfaces";
+import { Point, PlacedObject } from "../../../../lib/floorPlanInterfaces";
 import { calculateBoundaryDistribution } from "../../../utils/calculateBoundaryDistribution";
 import { calculateAreaDistribution } from "../../../utils/calculateAreaDistribution";
 import { ZoneBarChart } from "../../../../components/ZoneBarChart";
 import { DevtaBarChart } from "../../../../components/DevtaBarChart";
+import { FloorPlanCanvas } from "../../../../components/floor-plan/FloorPlanCanvas";
 
 // --- INTERFACES ---
 
@@ -31,17 +32,12 @@ interface Project {
   name: string;
   creator_name?: string;
   report_for?: string;
+  floor_plan_path?: string | null; // Added to interface for image
   boundary_normalized: Point[] | null;
   north_direction: number | null;
+  placed_objects: PlacedObject[] | null;
 }
 
-interface PlacedObject {
-  id: string;
-  project_id: string;
-  object_type: string;
-  boundary_normalized: Point[];
-  centroid: Point;
-}
 
 interface AnalyzedObjectResult {
   object_id: string;
@@ -68,6 +64,7 @@ interface VastuAnalysisResult {
   devta_areas_45: DevtaArea[];
   zone_areas_16: DevtaArea[];
   zone_boundary_16: DevtaArea[];
+  zones16: any[];
 }
 
 const ZONES_DEFINITION = [
@@ -86,16 +83,16 @@ const ZONES_DEFINITION = [
   { zone: 'WNW', startAngle: 281.25, endAngle: 303.75 },
   { zone: 'NW', startAngle: 303.75, endAngle: 326.25 },
   { zone: 'NNW', startAngle: 326.25, endAngle: 348.75 },
-  { zone: 'N', startAngle: 348.75, endAngle: 11.25 }, // Special case for N zone wrapping around 0/360
+  { zone: 'N', startAngle: 348.75, endAngle: 11.25 },
 ];
 
 
 // --- CONSTANTS ---
 const COLORS = {
-  EXCELLENT: "#10B981", // Green
-  GOOD: "#34D399", // Lighter Green
-  BAD: "#F59E0B", // Amber
-  CRITICAL: "#EF4444", // Red
+  EXCELLENT: "#10B981",
+  GOOD: "#34D399",
+  BAD: "#F59E0B",
+  CRITICAL: "#EF4444",
 };
 
 const getVerdictTextColor = (verdict: string) => {
@@ -122,7 +119,7 @@ const getVerdictColor = (verdict: string) => {
 export default function ReportPage() {
   const params = useParams();
   const projectId = params.projectId as string;
-  const { liveNorthDirection, setLiveNorthDirection } = useProjectStore();
+  const { setLiveNorthDirection } = useProjectStore();
   const reportContentRef = useRef<HTMLDivElement>(null);
 
   const [project, setProject] = useState<Project | null>(null);
@@ -130,7 +127,7 @@ export default function ReportPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [zoneGraphData, setZoneGraphData] = useState<any[]>([]);
-
+  const [highlightedZones, setHighlightedZones] = useState<string[]>([]);
 
 
   // --- PDF Export Logic ---
@@ -264,6 +261,12 @@ export default function ReportPage() {
         }
         const vastuData: VastuAnalysisResult = await analysisResponse.json();
         setVastuAnalysisResult(vastuData);
+
+        const badZones = vastuData.analyzed_objects
+          .filter(obj => obj.verdict === 'BAD' || obj.verdict === 'CRITICAL')
+          .map(obj => obj.zone16_direction)
+          .filter((zone): zone is string => zone !== null);
+        setHighlightedZones([...new Set(badZones)]);
 
         const projectResponse = await fetch(`/api/projects/${projectId}`);
         if (!projectResponse.ok) {
@@ -538,6 +541,48 @@ export default function ReportPage() {
             />
           )}
         </div>
+        
+        <div className="mt-8 bg-white p-6 rounded-2xl shadow-lg page-break-before-detailed-report">
+          <h2 className="text-2xl font-bold mb-4 text-gray-800">Floor Plan Overview</h2>
+          <div className="h-150 w-100">
+            <FloorPlanCanvas
+              isStatic={true}
+              floorPlanImage={project.floor_plan_path || null} // Use floor_plan_path from project
+              boundary={project.boundary_normalized || []}
+              placedObjects={(project.placed_objects || []).map(obj => {
+                const analysis = vastuAnalysisResult.analyzed_objects.find(ao => ao.object_id === obj.id);
+                return {
+                  ...obj,
+                  highlight: analysis ? analysis.verdict : null,
+                }
+              })}
+              objectSvgMap={{
+                Stove: "/objects/stove.svg",
+                Toilet: "/objects/toilet.svg",
+                Bed: "/objects/bed.svg",
+                Wardrobe: "/objects/wardrobe.svg",
+                Sofa: "/objects/sofa.svg",
+                Pooja: "/objects/pooja.png", // Changed from .svg to .png
+                Stairs: "/objects/stairs.svg",
+                Dining: "/objects/dining.svg",
+                OverheadTank: "/objects/overheadtank.png", // New object
+                UndergroundTank: "/objects/undergroundtank.png", // New object
+              }}
+              northDirection={project.north_direction || 0}
+              onMoveObject={() => {}}
+              onResizeObject={() => {}}
+              onRotateObject={() => {}}
+              onDeleteObject={() => {}}
+              scale={null}
+              wallLengths={[]}
+              setReferenceWallIndex={() => {}}
+              referenceWallIndex={null}
+              wallColors={[]}
+              zone16Regions={vastuAnalysisResult.zones16}
+              highlightedZones={highlightedZones}
+            />
+          </div>
+        </div>
 
         <div className="mt-8 bg-white p-6 rounded-2xl shadow-lg page-break-before-detailed-report">
           <h2 className="text-2xl font-bold mb-4 text-gray-800">Detailed Object Report</h2>
@@ -580,6 +625,3 @@ export default function ReportPage() {
     </div>
   );
 }
-
-
-

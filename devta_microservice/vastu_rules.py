@@ -143,7 +143,7 @@ VASTU_RULES: ObjectRules = {
     "SW": -10,
     "WSW": -10,
     "WNW": 10,
-    "NW": -10,
+    "NW": 10,
     "NNW": 10,
     "N": -10
   },
@@ -290,6 +290,20 @@ VASTU_RULES: ObjectRules = {
     "NW": -10,
     "NNW": -10,
     "N": 10
+  },
+  "OVERHEAD TANK": {
+    "NE": -30, "NNE": -20, "NE": -20, "ENE": -10,
+    "E": -10, "ESE": 0, "SE": 10, "SSE": 20,
+    "S": 30, "SSW": 40, "SW": 50, "WSW": 40,
+    "W": 30, "WNW": 20, "NW": 10, "NNW": 0,
+    "N": -10
+  },
+  "UNDERGROUND TANK": {
+    "NE": 50, "NNE": 40, "NE": 30, "ENE": 20,
+    "E": 10, "ESE": 0, "SE": -10, "SSE": -20,
+    "S": -30, "SSW": -40, "SW": -50, "WSW": -40,
+    "W": -30, "WNW": -20, "NW": -10, "NNW": 0,
+    "N": 10
   }
 }
 
@@ -324,6 +338,10 @@ def get_vastu_score_impact(object_type: str, direction: Direction) -> int:
         normalized_object_type = "PUJA"
     elif normalized_object_type == "STAIRS":
         normalized_object_type = "STAIRCASE"
+    elif normalized_object_type == "OVERHEADTANK":
+        normalized_object_type = "OVERHEAD TANK"
+    elif normalized_object_type == "UNDERGROUNDTANK":
+        normalized_object_type = "UNDERGROUND TANK"
 
     object_rules = VASTU_RULES.get(normalized_object_type)
     if object_rules:

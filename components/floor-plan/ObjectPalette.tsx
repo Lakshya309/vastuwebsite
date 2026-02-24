@@ -38,9 +38,11 @@ export const ObjectPalette: React.FC<ObjectPaletteProps> = ({
     { type: "Bed", icon: "/objects/bed.svg" },
     { type: "Wardrobe", icon: "/objects/wardrobe.svg" },
     { type: "Sofa", icon: "/objects/sofa.svg" },
-    { type: "Pooja", icon: "/objects/pooja.svg" },
+    { type: "Pooja", icon: "/objects/pooja.png" },
     { type: "Stairs", icon: "/objects/stairs.svg" },
     { type: "Dining", icon: "/objects/dining.svg" },
+    { type: "OverheadTank", icon: "/objects/overheadtank.png" },
+    { type: "UndergroundTank", icon: "/objects/undergroundtank.png" },
   ];
 
   return (

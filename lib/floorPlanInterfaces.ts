@@ -13,6 +13,7 @@ export interface PlacedObject {
   boundary_normalized: Point[];
   centroid: Point;
   rotation?: number; // Optional rotation property
+  highlight?: "CRITICAL" | "BAD" | null;
 }
 
 export interface DevtaRegion {
@@ -45,6 +46,14 @@ export interface MarmaPoint {
   // Add specific properties for a Marma point if known, e.g.,
   // vitalityScore?: number;
   // relatedDevta?: string;
+}
+
+export interface Wall {
+  id: string;
+  start: Point;
+  end: Point;
+  thickness: number;
+  color?: string;
 }
 
 // Add other common interfaces if they were previously in this file and are needed elsewhere.
