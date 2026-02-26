@@ -1,94 +1,190 @@
-import { NextRequest, NextResponse } from "next/server";
-import { adminAuth } from "../../../../lib/firebaseAdmin";
-import { supabaseAdmin } from "../../../../lib/supabaseAdmin";
+import { NextResponse } from 'next/server'
+import { createServerSupabaseClient } from '../../../../lib/supabase'
 
-export async function GET(req: NextRequest, { params }: { params: { projectId: string } }) {
-  try {
-    const authorization = req.headers.get("Authorization");
-    if (!authorization || !authorization.startsWith("Bearer ")) {
-      return NextResponse.json({ message: "Unauthorized: No token provided" }, { status: 401 });
-    }
-    const idToken = authorization.split("Bearer ")[1];
-    const decodedToken = await adminAuth.verifyIdToken(idToken);
-    const uid = decodedToken.uid;
-    const { projectId } = await params;
-    const { searchParams } = new URL(req.url);
-    const includeAnalysis = searchParams.get("include_analysis") === "true";
-
-    const { data: project, error } = await supabaseAdmin
-      .from("projects")
-      .select("*")
-      .eq("id", projectId)
-      .eq("user_id", uid)
-      .single();
-
-    if (error) {
-      console.error("Supabase select error:", error);
-      return NextResponse.json({ message: "Failed to fetch project from database", error: error.message }, { status: 500 });
-    }
-
-    if (!project) {
-      return NextResponse.json({ message: "Project not found or you do not have permission to view it." }, { status: 404 });
-    }
-
-    if (includeAnalysis) {
-      const { data: analysis, error: analysisError } = await supabaseAdmin
-        .from("analyses")
-        .select(`*, analysis_items (*)`)
-        .eq("project_id", projectId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
-      
-      if (analysisError && analysisError.code !== 'PGRST116') { // Ignore 'exact one row not found'
-        console.error("Supabase analysis fetch error:", analysisError);
-      }
-      
-      return NextResponse.json({ project: { ...project, analysis: analysis || null } }, { status: 200 });
-    }
-
-    return NextResponse.json({ project }, { status: 200 });
-  } catch (error: any) {
-    console.error("Error fetching project:", error);
-    if (error.code === 'auth/id-token-expired' || error.code === 'auth/id-token-revoked') {
-      return NextResponse.json({ message: "Unauthorized: Invalid token", error: error.message }, { status: 401 });
-    }
-    return NextResponse.json({ message: "Failed to fetch project", error: error.message }, { status: 500 });
-  }
+type RouteContext = {
+  params: { projectId: string }
 }
 
-export async function PUT(req: NextRequest, { params }: { params: { projectId: string } }) {
-  try {
-    const authorization = req.headers.get("Authorization");
-    if (!authorization || !authorization.startsWith("Bearer ")) {
-      return NextResponse.json({ message: "Unauthorized: No token provided" }, { status: 401 });
-    }
-    const idToken = authorization.split("Bearer ")[1];
-    const decodedToken = await adminAuth.verifyIdToken(idToken);
-    const uid = decodedToken.uid;
-    const { projectId } = await params;
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ projectId: string }> }
+) {
+  const supabase = await createServerSupabaseClient()
+  const { projectId } = await params
 
-    const { boundary_normalized, north_direction } = await req.json();
+  if (!projectId) {
+    return NextResponse.json(
+      { error: 'Project ID is required' },
+      { status: 400 }
+    )
+  }
 
-    const { data, error } = await supabaseAdmin
-      .from("projects")
-      .update({ boundary_normalized, north_direction })
-      .eq("id", projectId)
-      .eq("user_id", uid)
-      .select()
+  const { data: project, error } = await supabase
+    .from('projects')
+    .select(`
+      *,
+      project_objects (
+        id,
+        object_type,
+        boundary_normalized,
+        centroid
+      )
+    `)
+    .eq('id', projectId)
+    .single()
+
+  if (error) {
+    return NextResponse.json(
+      { error: error.message },
+      { status: error.code === 'PGRST116' ? 404 : 500 }
+    )
+  }
+
+  let floor_plan_path = null;
+  if (project.active_map_plot_id) {
+    const { data: mapPlot, error: mapPlotError } = await supabase
+      .from('map_plots')
+      .select('storage_path')
+      .eq('id', project.active_map_plot_id)
       .single();
 
-    if (error) {
-      console.error("Supabase update error:", error);
-      return NextResponse.json({ message: "Failed to update project in database", error: error.message }, { status: 500 });
+    if (mapPlotError) {
+      console.error("Error fetching map plot:", mapPlotError);
+    } else {
+      const { data: publicUrlData } = supabase.storage
+        .from('floor-plans')
+        .getPublicUrl(mapPlot.storage_path);
+      floor_plan_path = publicUrlData.publicUrl;
     }
-
-    return NextResponse.json({ message: "Project updated successfully", project: data }, { status: 200 });
-  } catch (error: any) {
-    console.error("Error updating project:", error);
-    if (error.code === 'auth/id-token-expired' || error.code === 'auth/id-token-revoked') {
-      return NextResponse.json({ message: "Unauthorized: Invalid token", error: error.message }, { status: 401 });
-    }
-    return NextResponse.json({ message: "Failed to update project", error: error.message }, { status: 500 });
   }
+
+  return NextResponse.json(
+    {
+      project: {
+        ...project,
+        floor_plan_path: floor_plan_path,
+        placed_objects: project.project_objects ?? [],
+      },
+    },
+    { status: 200 }
+  )
+}
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ projectId: string }> }
+) {
+  const supabase = await createServerSupabaseClient()
+  const { projectId } = await params
+
+  const body = await request.json()
+  const updates: Record<string, any> = {}
+
+  if (body.boundary_normalized !== undefined)
+    updates.boundary_normalized = body.boundary_normalized
+
+  if (body.north_direction !== undefined)
+    updates.north_direction = body.north_direction
+
+  if (body.status !== undefined) {
+    updates.status = body.status
+    if (body.status === 'completed') {
+      updates.completed_at = new Date().toISOString()
+    }
+  }
+
+  if (!Object.keys(updates).length) {
+    return NextResponse.json(
+      { error: 'No valid fields to update' },
+      { status: 400 }
+    )
+  }
+
+  const { data, error } = await supabase
+    .from('projects')
+    .update(updates)
+    .eq('id', projectId)
+    .select()
+    .maybeSingle()
+
+  if (error) {
+    return NextResponse.json(
+      { error: error.message },
+      { status: 500 }
+    )
+  }
+
+  if (!data) {
+    return NextResponse.json(
+      { error: 'Project not found' },
+      { status: 404 }
+    )
+  }
+
+  return NextResponse.json(
+    { message: 'Project updated successfully', project: data },
+    { status: 200 }
+  )
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ projectId: string }> }
+) {
+  const supabase = await createServerSupabaseClient()
+  const { projectId } = await params
+
+  if (!projectId) {
+    return NextResponse.json(
+      { error: 'Project ID is required' },
+      { status: 400 }
+    )
+  }
+
+  // 1. Delete related analyses
+  const { error: analysesError } = await supabase
+    .from('analyses')
+    .delete()
+    .eq('project_id', projectId)
+
+  if (analysesError) {
+    console.error('Error deleting analyses:', analysesError)
+    return NextResponse.json(
+      { error: 'Failed to delete related analyses', details: analysesError.message },
+      { status: 500 }
+    )
+  }
+
+  // 2. Delete related project_objects
+  const { error: objectsError } = await supabase
+    .from('project_objects')
+    .delete()
+    .eq('project_id', projectId)
+
+  if (objectsError) {
+    console.error('Error deleting project objects:', objectsError)
+    return NextResponse.json(
+      { error: 'Failed to delete related project objects', details: objectsError.message },
+      { status: 500 }
+    )
+  }
+
+  // 3. Delete the project itself
+  const { error: projectError } = await supabase
+    .from('projects')
+    .delete()
+    .eq('id', projectId)
+
+  if (projectError) {
+    console.error('Error deleting project:', projectError)
+    return NextResponse.json(
+      { error: 'Failed to delete project', details: projectError.message },
+      { status: 500 }
+    )
+  }
+
+  return NextResponse.json(
+    { message: 'Project and all related data deleted successfully' },
+    { status: 200 }
+  )
 }

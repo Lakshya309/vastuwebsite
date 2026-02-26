@@ -1,52 +1,51 @@
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import AuthGuard from "../../../components/AuthGuard"; // Adjust path as necessary
-import { useAuthStore } from "../../../lib/store/authStore"; // Import the auth store
-import { auth } from "../../../lib/firebase"; // Import firebase auth instance
 
 export default function NewProjectPage() {
   const [projectName, setProjectName] = useState("");
+  const [creatorName, setCreatorName] = useState("");
+  const [reportFor, setReportFor] = useState("");
+  const [plotType, setPlotType] = useState<"upload" | "manual">("upload");
+  const [plotWidth, setPlotWidth] = useState("");
+  const [plotHeight, setPlotHeight] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
-  const { user } = useAuthStore(); // Get user from auth store
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
-    if (!user) {
-      setError("User not authenticated.");
-      setLoading(false);
-      router.push("/login"); // Redirect to login if user is somehow missing
-      return;
-    }
-
     try {
-      const idToken = await user.getIdToken(); // Get Firebase ID token
-
       const response = await fetch("/api/projects", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${idToken}`, // Send ID token
         },
-        body: JSON.stringify({ name: projectName }),
+        body: JSON.stringify({
+          name: projectName,
+          creator_name: creatorName,
+          report_for: reportFor,
+          plot_width: plotType === "manual" ? parseFloat(plotWidth) : null,
+          plot_height: plotType === "manual" ? parseFloat(plotHeight) : null,
+        }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to create project");
+      if (response.status === 401) {
+        router.push("/login");
+        return;
       }
 
-      const data = await response.json();
-      console.log("Project created successfully:", data.project);
-      router.push("/projects"); // Redirect to the projects list
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || "Failed to create project");
+      }
+
+      router.push("/projects");
     } catch (err: any) {
-      console.error("Error creating project:", err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -54,37 +53,99 @@ export default function NewProjectPage() {
   };
 
   return (
-    <AuthGuard>
-      <div className="min-h-screen bg-gray-50 text-gray-900 flex items-center justify-center p-4">
-        <div className="bg-white p-8 rounded-2xl shadow-sm w-full max-w-md">
-          <h1 className="text-3xl font-bold text-center mb-6">Create New Project</h1>
-          <form onSubmit={handleSubmit}>
-            <div className="mb-6">
-              <label htmlFor="projectName" className="block text-sm font-medium text-gray-700 mb-2">
-                Project Name
-              </label>
-              <input
-                type="text"
-                id="projectName"
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
-                placeholder="e.g., Client House - John Doe"
-                value={projectName}
-                onChange={(e) => setProjectName(e.target.value)}
-                required
-                disabled={loading}
-              />
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="bg-white p-8 rounded-2xl w-full max-w-md">
+        <h1 className="text-3xl font-bold text-center mb-6">
+          Create New Project
+        </h1>
+
+        <form onSubmit={handleSubmit}>
+          <div className="space-y-4">
+            <input
+              type="text"
+              className="w-full p-3 border rounded-lg"
+              placeholder="Project name"
+              value={projectName}
+              onChange={(e) => setProjectName(e.target.value)}
+              required
+            />
+            <input
+              type="text"
+              className="w-full p-3 border rounded-lg"
+              placeholder="Creator's name"
+              value={creatorName}
+              onChange={(e) => setCreatorName(e.target.value)}
+              required
+            />
+            <input
+              type="text"
+              className="w-full p-3 border rounded-lg"
+              placeholder="Report for"
+              value={reportFor}
+              onChange={(e) => setReportFor(e.target.value)}
+              required
+            />
+
+            <div className="flex gap-4 p-1 bg-gray-100 rounded-lg">
+              <button
+                type="button"
+                onClick={() => setPlotType("upload")}
+                className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
+                  plotType === "upload"
+                    ? "bg-white text-indigo-600 shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                Upload Map
+              </button>
+              <button
+                type="button"
+                onClick={() => setPlotType("manual")}
+                className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
+                  plotType === "manual"
+                    ? "bg-white text-indigo-600 shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                Manual Plot
+              </button>
             </div>
-            {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
-            <button
-              type="submit"
-              className="w-full px-4 py-3 bg-indigo-600 text-white rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-              disabled={loading}
-            >
-              {loading ? "Creating..." : "Create Project"}
-            </button>
-          </form>
-        </div>
+
+            {plotType === "manual" && (
+              <div className="grid grid-cols-2 gap-4">
+                <input
+                  type="number"
+                  step="any"
+                  className="w-full p-3 border rounded-lg"
+                  placeholder="Width (ft)"
+                  value={plotWidth}
+                  onChange={(e) => setPlotWidth(e.target.value)}
+                  required
+                />
+                <input
+                  type="number"
+                  step="any"
+                  className="w-full p-3 border rounded-lg"
+                  placeholder="Height (ft)"
+                  value={plotHeight}
+                  onChange={(e) => setPlotHeight(e.target.value)}
+                  required
+                />
+              </div>
+            )}
+          </div>
+
+          {error && <p className="text-red-500 my-3">{error}</p>}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-indigo-600 text-white py-3 rounded-lg mt-6"
+          >
+            {loading ? "Creating..." : "Create Project"}
+          </button>
+        </form>
       </div>
-    </AuthGuard>
+    </div>
   );
 }

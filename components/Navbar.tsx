@@ -1,27 +1,34 @@
-"use client";
-
-import React from "react";
 import Link from "next/link";
-import { useAuthStore } from "../lib/store/authStore";
-import { auth } from "../lib/firebase";
-import { useRouter } from "next/navigation";
+import { getUser, UserWithProfileAndCredits } from "../lib/auth"; // Import UserWithProfileAndCredits
+import LogoutButton from "./LogoutButton";
 
-const Navbar = () => {
-  const { user } = useAuthStore();
-  const router = useRouter();
+const Navbar = async () => {
+  const user: UserWithProfileAndCredits | null = await getUser(); // Use the explicit type
 
-  const handleLogout = async () => {
-    await auth.signOut();
-    router.push("/login");
-  };
+  const isAstrologer = user?.profile?.role === 'astrologer';
+  const isAdmin = user?.profile?.role === 'admin';
+  const isUser = user?.profile?.role === 'user';
+
+  let astrologerAccessMessage = '';
+  if (isAstrologer && user?.profile) {
+    const now = new Date();
+    const validFrom = user.profile.valid_from ? new Date(user.profile.valid_from) : null;
+    const validTo = user.profile.valid_to ? new Date(user.profile.valid_to) : null;
+
+    if (validFrom && validTo && now >= validFrom && now <= validTo) {
+      astrologerAccessMessage = `Valid till ${validTo.toLocaleDateString()} (Unlimited)`;
+    } else {
+      astrologerAccessMessage = 'Astrologer access expired';
+    }
+  }
 
   return (
-    <nav className="bg-white shadow-md">
+    <nav className="relative z-20 bg-white shadow-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center">
             <Link href="/" className="text-2xl font-bold text-gray-900">
-              Vastu AI
+             Mangalam Vastu 
             </Link>
           </div>
           <div className="hidden md:block">
@@ -40,21 +47,34 @@ const Navbar = () => {
                   Projects
                 </Link>
               )}
+              {isAdmin && (
+                <Link
+                  href="/admin"
+                  className="text-gray-700 hover:bg-gray-200 hover:text-black px-3 py-2 rounded-md text-sm font-medium"
+                >
+                  Admin
+                </Link>
+              )}
             </div>
           </div>
           <div className="hidden md:block">
             <div className="ml-4 flex items-center md:ml-6">
-              {user ? (
+              {user ? ( // Use 'user' directly now
                 <>
                   <span className="text-gray-700 text-sm mr-4">
                     {user.email}
                   </span>
-                  <button
-                    onClick={handleLogout}
-                    className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded"
-                  >
-                    Logout
-                  </button>
+                  {isUser && user.profile?.credits !== undefined && (
+                    <span className="text-gray-700 text-sm mr-4">
+                      Credits: {user.profile.credits}
+                    </span>
+                  )}
+                  {isAstrologer && (
+                    <span className={`text-sm mr-4 ${astrologerAccessMessage.includes('expired') ? 'text-red-500' : 'text-green-700'}`}>
+                      {astrologerAccessMessage}
+                    </span>
+                  )}
+                  <LogoutButton />
                 </>
               ) : (
                 <div className="space-x-4">

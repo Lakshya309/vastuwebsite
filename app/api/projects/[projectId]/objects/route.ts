@@ -1,143 +1,149 @@
-import { NextRequest, NextResponse } from "next/server";
-import { adminAuth } from "../../../../../lib/firebaseAdmin";
-import { supabaseAdmin } from "../../../../../lib/supabaseAdmin";
+import { NextResponse } from 'next/server';
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 
-export async function GET(req: NextRequest, { params }: { params: { projectId: string } }) {
+export async function GET(
+  request: Request,
+  context: { params: Promise<{ projectId: string }> }
+) {
+  const cookieStore = await cookies();
+  const { projectId } = await context.params;
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value;
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          cookieStore.set({ name, value, ...options });
+        },
+        remove(name: string, options: CookieOptions) {
+          cookieStore.set({ name, value: '', ...options });
+        },
+      },
+    }
+  );
+
+  if (!projectId) {
+    return NextResponse.json(
+      { error: "Project ID is required" },
+      { status: 400 },
+    );
+  }
+
   try {
-    const authorization = req.headers.get("Authorization");
-    if (!authorization || !authorization.startsWith("Bearer ")) {
-      return NextResponse.json({ message: "Unauthorized: No token provided" }, { status: 401 });
-    }
-    const idToken = authorization.split("Bearer ")[1];
-    const decodedToken = await adminAuth.verifyIdToken(idToken);
-    const uid = decodedToken.uid;
-    const { projectId } = await params;
-    console.log("projectId:", projectId);
-    console.log("uid:", uid);
-
-    // First, verify that the user has access to the project
-    const { data: project, error: projectError } = await supabaseAdmin
-      .from("projects")
-      .select("id")
-      .eq("id", projectId)
-      .eq("user_id", uid)
-      .single();
-    
-    if (projectError) {
-      console.error("Supabase error fetching project:", projectError);
-    }
-
-    if (projectError || !project) {
-      return NextResponse.json({ message: "Project not found or you do not have permission to view it." }, { status: 404 });
-    }
-
-    const { data: objects, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from("project_objects")
       .select("*")
       .eq("project_id", projectId);
 
     if (error) {
-      console.error("Supabase select error:", error);
-      return NextResponse.json({ message: "Failed to fetch project objects from database", error: error.message }, { status: 500 });
+      throw error;
     }
 
-    return NextResponse.json({ objects }, { status: 200 });
-  } catch (error: any) {
-    console.error("Error fetching project objects:", error);
-    if (error.code === 'auth/id-token-expired' || error.code === 'auth/id-token-revoked') {
-      return NextResponse.json({ message: "Unauthorized: Invalid token", error: error.message }, { status: 401 });
-    }
-    return NextResponse.json({ message: "Failed to fetch project objects", error: error.message }, { status: 500 });
+    return NextResponse.json({ objects: data }, { status: 200 });
+  } catch (err: any) {
+    console.error("Server-side error:", err);
+    return NextResponse.json(
+      { error: "Failed to fetch objects", details: err.message },
+      { status: 500 },
+    );
   }
 }
 
-export async function POST(req: NextRequest, { params }: { params: { projectId: string } }) {
-  try {
-    const authorization = req.headers.get("Authorization");
-    if (!authorization || !authorization.startsWith("Bearer ")) {
-      return NextResponse.json({ message: "Unauthorized: No token provided" }, { status: 401 });
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ projectId: string }> }
+) {
+  const cookieStore = await cookies();
+  const { projectId } = await context.params;
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value;
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          cookieStore.set({ name, value, ...options });
+        },
+        remove(name: string, options: CookieOptions) {
+          cookieStore.set({ name, value: '', ...options });
+        },
+      },
     }
-    const idToken = authorization.split("Bearer ")[1];
-    const decodedToken = await adminAuth.verifyIdToken(idToken);
-    const uid = decodedToken.uid;
-    const { projectId } = await params;
+  );
 
-    // First, verify that the user has access to the project
-    const { data: project, error: projectError } = await supabaseAdmin
-        .from("projects")
-        .select("id")
-        .eq("id", projectId)
-        .eq("user_id", uid)
-        .single();
-
-    if (projectError || !project) {
-        return NextResponse.json({ message: "Project not found or you do not have permission to create objects in it." }, { status: 404 });
-    }
-
-    const objectData = await req.json();
-
-    const { data, error } = await supabaseAdmin
-      .from("project_objects")
-      .insert({ ...objectData, project_id: projectId })
-      .select()
-      .single();
-
-    if (error) {
-      console.error("Supabase insert error:", error);
-      return NextResponse.json({ message: "Failed to create project object in database", error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ message: "Project object created successfully", object: data }, { status: 201 });
-  } catch (error: any) {
-    console.error("Error creating project object:", error);
-    if (error.code === 'auth/id-token-expired' || error.code === 'auth/id-token-revoked') {
-      return NextResponse.json({ message: "Unauthorized: Invalid token", error: error.message }, { status: 401 });
-    }
-    return NextResponse.json({ message: "Failed to create project object", error: error.message }, { status: 500 });
+  if (!projectId) {
+    return NextResponse.json(
+      { error: "Project ID is required" },
+      { status: 400 },
+    );
   }
-}
 
-export async function DELETE(req: NextRequest, { params }: { params: { projectId: string } }) {
+  const body = await request.json();
+  const objects = body?.objects;
+
+  if (!Array.isArray(objects)) {
+    return NextResponse.json(
+      { error: "Invalid objects data" },
+      { status: 400 },
+    );
+  }
+
   try {
-    const authorization = req.headers.get("Authorization");
-    if (!authorization || !authorization.startsWith("Bearer ")) {
-      return NextResponse.json({ message: "Unauthorized: No token provided" }, { status: 401 });
-    }
-    const idToken = authorization.split("Bearer ")[1];
-    const decodedToken = await adminAuth.verifyIdToken(idToken);
-    const uid = decodedToken.uid;
-    const { projectId } = params;
-
-    // Verify that the user has access to the project
-    const { data: project, error: projectError } = await supabaseAdmin
-      .from("projects")
-      .select("id")
-      .eq("id", projectId)
-      .eq("user_id", uid)
-      .single();
-
-    if (projectError || !project) {
-      return NextResponse.json({ message: "Project not found or you do not have permission to delete its objects." }, { status: 404 });
-    }
-
-    // Delete all objects for the given project
-    const { error: deleteError } = await supabaseAdmin
+    // 1️⃣ Delete existing objects for the project
+    const { error: deleteError } = await supabase
       .from("project_objects")
       .delete()
       .eq("project_id", projectId);
 
     if (deleteError) {
-      console.error("Supabase delete error:", deleteError);
-      return NextResponse.json({ message: "Failed to delete project objects.", error: deleteError.message }, { status: 500 });
+      throw deleteError;
     }
 
-    return NextResponse.json({ message: "All objects for the project have been deleted." }, { status: 200 });
-  } catch (error: any)
-{
-    console.error("Error deleting project objects:", error);
-    if (error.code === 'auth/id-token-expired' || error.code === 'auth/id-token-revoked') {
-      return NextResponse.json({ message: "Unauthorized: Invalid token", error: error.message }, { status: 401 });
+    // 2️⃣ Prepare new objects
+    const objectsToInsert = objects.map((obj: any) => ({
+      project_id: projectId,
+      object_type: obj.object_type,
+      boundary_normalized: obj.boundary_normalized,
+      centroid: obj.centroid,
+    }));
+
+    if (objectsToInsert.length === 0) {
+      return NextResponse.json(
+        { message: "No objects to insert", objects: [] },
+        { status: 200 },
+      );
     }
-    return NextResponse.json({ message: "Failed to delete project objects", error: error.message }, { status: 500 });
+
+    // 3️⃣ Insert new objects
+    const { data, error: insertError } = await supabase
+      .from("project_objects")
+      .insert(objectsToInsert)
+      .select();
+
+    if (insertError) {
+      throw insertError;
+    }
+
+    return NextResponse.json(
+      {
+        message: "Objects saved successfully",
+        objects: data,
+      },
+      { status: 200 },
+    );
+  } catch (err: any) {
+    console.error("Server-side error:", err);
+    return NextResponse.json(
+      { error: "Failed to save objects", details: err.message },
+      { status: 500 },
+    );
   }
 }

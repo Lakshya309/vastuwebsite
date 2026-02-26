@@ -1,0 +1,18 @@
+export const zoneDescriptions: { [key: string]: string } = {
+  "N": "Opportunities and Career",
+  "NNE": "Health and Immunity",
+  "NE": "Clarity and Wisdom",
+  "ENE": "Fun, Refreshment, and Rejuvenation",
+  "E": "Social Connections and Networking",
+  "ESE": "Churning, Analysis, and Anxiety",
+  "SE": "Cash Flow and Implementation (Fire)",
+  "SSE": "Confidence and Strength",
+  "S": "Fame, Relaxation, and Recognition",
+  "SSW": "Disposal, Waste, and Reduced Utility",
+  "SW": "Relationships, Stability, and Skills",
+  "WSW": "Education, Savings, and Studies",
+  "W": "Profits and Gains",
+  "WNW": "Depression, Detoxification, and Emotional Release",
+  "NW": "Support, Banking, and Helpful People",
+  "NNW": "Attraction and Intimacy",
+};
