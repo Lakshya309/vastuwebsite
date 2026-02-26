@@ -48,4 +48,13 @@ export interface MarmaPoint {
   // relatedDevta?: string;
 }
 
+export interface Wall {
+  id: string;
+  start: Point;
+  end: Point;
+  color: string;
+  thickness: number;
+  length?: number; // length in real-world units (feet/meters)
+}
+
 // Add other common interfaces if they were previously in this file and are needed elsewhere.

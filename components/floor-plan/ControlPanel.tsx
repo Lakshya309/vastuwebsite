@@ -1,7 +1,7 @@
 // components/floor-plan/ControlPanel.tsx
 "use client";
 import React from "react";
-import { DevtaRegion, PlacedObject, Point } from "@/lib/floorPlanInterfaces";
+import { DevtaRegion, PlacedObject, Point, Wall } from "@/lib/floorPlanInterfaces";
 import { isPointInPolygon } from "@/lib/gridUtils";
 import { ObjectPalette } from "./ObjectPalette";
 import { problemZoneMapping } from "@/lib/problemZoneMapping";
@@ -60,8 +60,8 @@ interface ControlPanelProps {
   zone16Regions: any[];
   zone8Regions: any[];
 
-  drawingMode?: "boundary" | "objects" | "select" | null;
-  setDrawingMode: (mode: "boundary" | "objects" | "select" | null) => void;
+  drawingMode?: "boundary" | "objects" | "select" | "wall" | null;
+  setDrawingMode: (mode: "boundary" | "objects" | "select" | "wall" | null) => void;
   boundary?: any;
   setBoundary?: any;
   analysisMode?: any;
@@ -88,6 +88,14 @@ interface ControlPanelProps {
   selectedProblem: string | null;
   setSelectedProblem: (problem: string | null) => void;
   setHighlightedZones: (zones: string[]) => void;
+
+  // Wall props
+  walls?: Wall[];
+  onAddWall?: (wall: Wall) => void;
+  onUpdateWall?: (wall: Wall) => void;
+  onDeleteWall?: (id: string) => void;
+  selectedWall?: Wall | null;
+  onSelectWall?: (wall: Wall | null) => void;
 }
 
 export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
@@ -251,6 +259,61 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                   Reset Boundary
                 </button>
               </div>
+            </div>
+
+            <div className="border-t pt-4">
+              <h3 className="text-lg font-bold text-gray-800 mb-2">
+                2b. Internal Walls
+              </h3>
+              <p className="text-sm text-gray-500 mb-3">
+                Draw internal walls. They snap to boundaries and stay at right angles.
+              </p>
+              <button
+                onClick={() => props.setDrawingMode(props.drawingMode === "wall" ? null : "wall")}
+                className={`w-full mb-2 py-2 rounded font-medium ${
+                  props.drawingMode === "wall"
+                    ? "bg-orange-600 hover:bg-orange-700 text-white"
+                    : "bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300"
+                }`}
+              >
+                {props.drawingMode === "wall"
+                  ? "Stop Drawing Wall"
+                  : "Start Drawing Wall"}
+              </button>
+
+              {props.selectedWall && (
+                <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-lg space-y-3">
+                  <div className="flex justify-between items-center">
+                    <h4 className="font-bold text-orange-800">Edit Wall</h4>
+                    <button 
+                      onClick={() => props.onDeleteWall && props.onDeleteWall(props.selectedWall!.id)}
+                      className="text-red-600 hover:text-red-800 text-xs font-semibold"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Color</label>
+                    <input 
+                      type="color" 
+                      value={props.selectedWall.color}
+                      onChange={(e) => props.onUpdateWall && props.onUpdateWall({...props.selectedWall!, color: e.target.value})}
+                      className="w-full h-8 cursor-pointer rounded"
+                    />
+                  </div>
+                  {props.selectedWall.length && (
+                    <div className="text-sm text-gray-700">
+                      <span className="font-medium">Length:</span> {props.selectedWall.length.toFixed(2)} {props.referenceWallUnit}
+                    </div>
+                  )}
+                  <button 
+                    onClick={() => props.onSelectWall && props.onSelectWall(null)}
+                    className="w-full py-1 text-xs text-orange-700 hover:underline"
+                  >
+                    Deselect
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="border-t pt-4">
@@ -517,7 +580,18 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                                     }
                                 </span>
                             </div>
-                        </div>          </div>
+                        </div>
+                        <div className="border-t pt-6 mt-4">
+                            <button
+                                onClick={() =>
+                                    props.handleSaveObjects && props.handleSaveObjects()
+                                }
+                                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold shadow-md"
+                            >
+                                View Detailed Report →
+                            </button>
+                        </div>
+          </div>
         )}
 
         {props.activeView === "grids" && (
@@ -558,8 +632,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                 onClick={() =>
                   props.handleSaveObjects && props.handleSaveObjects()
                 }
-                disabled={props.placedObjects.length < 1}
-                className="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold shadow-md disabled:bg-gray-400 disabled:cursor-not-allowed"
+                className="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold shadow-md"
               >
                 Save & Next →
               </button>

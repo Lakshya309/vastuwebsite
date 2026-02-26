@@ -1,2 +1,0 @@
-ALTER TABLE public.analyses
-ADD COLUMN report_paid BOOLEAN NOT NULL DEFAULT FALSE;

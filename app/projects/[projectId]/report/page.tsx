@@ -408,9 +408,31 @@ export default function ReportPage() {
         }
       `}</style>
 
-      <div id="report-content" ref={reportContentRef} className="bg-white">
+      <div id="report-content" ref={reportContentRef} className="bg-white p-8">
+        {/* Professional Header */}
+        <div className="flex justify-between items-start border-b-2 border-gray-800 pb-6 mb-8">
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-xl">
+              MV
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">Manglam Vastu</h2>
+              <p className="text-sm text-gray-600 italic">Vedic Architecture & Sacred Science</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <h1 className="text-3xl font-extrabold text-blue-700 uppercase tracking-tight">Vastu Analysis Report</h1>
+            <div className="mt-2 space-y-1">
+              <p className="text-sm font-medium text-gray-700">Project: <span className="text-gray-900">{project.name}</span></p>
+              <p className="text-sm font-medium text-gray-700">Created For: <span className="text-gray-900">{project.report_for || "Valued Client"}</span></p>
+              <p className="text-sm font-medium text-gray-700">Expert: <span className="text-gray-900">{project.creator_name || "Yogesh Keshwani"}</span></p>
+              <p className="text-xs text-gray-500">{new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+            </div>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-          {reportSections.overallCompliance && (
+          {reportSections.overallCompliance && vastuAnalysisResult.analyzed_objects.length > 0 && (
             <div className="md:col-span-1 bg-white p-6 rounded-2xl shadow-lg flex flex-col items-center justify-center">
               <h2 className="text-2xl font-bold mb-4 text-gray-800">Overall Vastu Compliance</h2>
               <div className="relative w-48 h-48">
@@ -446,13 +468,10 @@ export default function ReportPage() {
             </div>
           )}
 
-          {reportSections.objectDistribution && (
+          {reportSections.objectDistribution && vastuAnalysisResult.analyzed_objects.length > 0 && (
             <div className="md:col-span-2 bg-white p-6 rounded-2xl shadow-lg flex flex-col items-center justify-center">
               <h2 className="text-2xl font-bold mb-4 text-gray-800">Object Status Distribution</h2>
-              {vastuAnalysisResult.analyzed_objects.length === 0 ? (
-                <p className="text-gray-400 text-sm italic">No objects placed for distribution analysis.</p>
-              ) : (
-                <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
                     <Pie
                       data={Object.values(
@@ -491,7 +510,7 @@ export default function ReportPage() {
                                         />
                                         <Legend />
                                       </PieChart>
-                                    </ResponsiveContainer>              )}
+                                    </ResponsiveContainer>
             </div>
           )}
         </div>
@@ -532,7 +551,7 @@ export default function ReportPage() {
           )}
         </div>
         
-        {reportSections.floorPlan && (
+        {reportSections.floorPlan && vastuAnalysisResult.analyzed_objects.length > 0 && (
           <div className="mt-8 bg-white p-6 rounded-2xl shadow-lg page-break-before-detailed-report">
             <h2 className="text-2xl font-bold mb-4 text-gray-800 text-center">Floor Plan Overview</h2>
             <div className="flex justify-center">
@@ -595,43 +614,39 @@ export default function ReportPage() {
         )}
 
 
-        {reportSections.detailedReport && (
+        {reportSections.detailedReport && vastuAnalysisResult.analyzed_objects.length > 0 && (
           <div className="mt-8 bg-white p-6 rounded-2xl shadow-lg page-break-before-detailed-report">
             <h2 className="text-2xl font-bold mb-4 text-gray-800">Detailed Object Report</h2>
-            {vastuAnalysisResult.analyzed_objects.length === 0 ? (
-              <p className="text-gray-400 text-sm italic">No objects placed for detailed analysis.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Object Type</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Zone</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Devta</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Verdict</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Message</th>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Object Type</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Zone</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Devta</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Verdict</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Message</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {vastuAnalysisResult.analyzed_objects.map((obj) => (
+                    <tr key={obj.object_id}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{obj.object_type}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{obj.zone16_direction || "N/A"}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{obj.devta_region || "N/A"}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{obj.score_impact}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" style={{...getVerdictColor(obj.verdict), ...getVerdictTextColor(obj.verdict)}}>
+                          {obj.verdict}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{obj.message}</td>
                     </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {vastuAnalysisResult.analyzed_objects.map((obj) => (
-                      <tr key={obj.object_id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{obj.object_type}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{obj.zone16_direction || "N/A"}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{obj.devta_region || "N/A"}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{obj.score_impact}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" style={{...getVerdictColor(obj.verdict), ...getVerdictTextColor(obj.verdict)}}>
-                            {obj.verdict}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{obj.message}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

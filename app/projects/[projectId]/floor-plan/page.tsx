@@ -10,7 +10,7 @@ import { useMarmaAnalysis } from "@/hooks/useMarmaAnalysis";
 import { FloorPlanCanvas } from "@/components/floor-plan/FloorPlanCanvas";
 import { ControlPanel } from "@/components/floor-plan/ControlPanel";
 import { DevtaInfoCard } from "@/components/floor-plan/DevtaInfoCard";
-import { PlacedObject, DevtaRegion, Point } from "@/lib/floorPlanInterfaces";
+import { PlacedObject, DevtaRegion, Point, Wall } from "@/lib/floorPlanInterfaces";
 
 export default function FloorPlanPage() {
   const params = useParams();
@@ -62,6 +62,36 @@ export default function FloorPlanPage() {
   const [wallColors, setWallColors] = useState<(string | null)[]>([]);
   const [selectedProblem, setSelectedProblem] = useState<string | null>(null);
   const [highlightedZones, setHighlightedZones] = useState<string[]>([]);
+  const [walls, setWalls] = useState<Wall[]>([]);
+  const [selectedWall, setSelectedWall] = useState<Wall | null>(null);
+
+  const handleAddWall = (wall: Wall) => {
+    // Calculate real-world length if scale is available
+    if (scale) {
+      const canvasWidth = 800; // Match internal canvas width
+      const canvasHeight = 600;
+      const pixelLength = Math.sqrt(
+        Math.pow((wall.end.x - wall.start.x) * canvasWidth, 2) +
+        Math.pow((wall.end.y - wall.start.y) * canvasHeight, 2)
+      );
+      wall.length = pixelLength * scale;
+    }
+    setWalls((prev) => [...prev, wall]);
+  };
+
+  const handleUpdateWall = (updatedWall: Wall) => {
+    setWalls((prev) => prev.map((w) => (w.id === updatedWall.id ? updatedWall : w)));
+    if (selectedWall?.id === updatedWall.id) {
+      setSelectedWall(updatedWall);
+    }
+  };
+
+  const handleDeleteWall = (id: string) => {
+    setWalls((prev) => prev.filter((w) => w.id !== id));
+    if (selectedWall?.id === id) {
+      setSelectedWall(null);
+    }
+  };
 
   const uploadFloorPlan = async (file: File) => {
     const formData = new FormData();
@@ -109,7 +139,7 @@ export default function FloorPlanPage() {
 
   // 3. Analysis Hooks & Debouncing
   const [drawingMode, setDrawingMode] = useState<
-    "boundary" | "objects" | "select" | null
+    "boundary" | "objects" | "select" | "wall" | null
   >(null);
   const {
     devtaRegions,
@@ -492,6 +522,10 @@ export default function FloorPlanPage() {
               plotHeight={project?.plot_height}
               activeView={activeView}
               highlightedZones={highlightedZones}
+              walls={walls}
+              onAddWall={handleAddWall}
+              onSelectWall={setSelectedWall}
+              selectedWall={selectedWall}
             />
 
             {/* Overlay Status Indicators */}
@@ -578,6 +612,13 @@ export default function FloorPlanPage() {
           selectedProblem={selectedProblem}
           setSelectedProblem={setSelectedProblem}
           setHighlightedZones={setHighlightedZones}
+          // Wall props
+          walls={walls}
+          onAddWall={handleAddWall}
+          onUpdateWall={handleUpdateWall}
+          onDeleteWall={handleDeleteWall}
+          selectedWall={selectedWall}
+          onSelectWall={setSelectedWall}
         />
       </div>
     </div>

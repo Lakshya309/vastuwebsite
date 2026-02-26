@@ -5,6 +5,7 @@ import {
   Point,
   DevtaRegion,
   PlacedObject,
+  Wall,
 } from "@/lib/floorPlanInterfaces";
 import { DraggableObject } from "./DraggableObject";
 import { devtaColors } from "@/lib/colorPalette";
@@ -36,7 +37,7 @@ interface FloorPlanCanvasProps {
   onZoneClick?: (zone: DevtaRegion) => void;
   onPlaceObject?: (newObject: PlacedObject) => void;
   onCanvasClick?: (point: Point) => void;
-  setDrawingMode?: (mode: "boundary" | "objects" | "select" | null) => void;
+  setDrawingMode?: (mode: "boundary" | "objects" | "select" | "wall" | null) => void;
   setDrawingObjectBoundary?: (boundary: Point[]) => void;
   selectedObjectType?: string;
   northDirection: number;
@@ -51,6 +52,10 @@ interface FloorPlanCanvasProps {
   highlightedZones?: string[];
   activeView?: "setup" | "grids" | "objects";
   onObjectClick?: (object: PlacedObject) => void;
+  walls?: Wall[];
+  onAddWall?: (wall: Wall) => void;
+  onSelectWall?: (wall: Wall | null) => void;
+  selectedWall?: Wall | null;
 }
 
 const ZONE_NAMES_16 = [
@@ -178,13 +183,17 @@ const drawCanvasContent = (
   hoveredDevta: DevtaRegion | null,
   northDirection: number,
   wallLengths: number[],
-  scale: number,
+  zoom: number,
   referenceWallIndex: number | null,
   wallColors: (string | null)[],
   highlightedZones: string[] | undefined,
   activeView?: "setup" | "grids" | "objects",
   plotWidth?: number | null,
   plotHeight?: number | null,
+  walls?: Wall[],
+  currentDrawingWall?: { start: Point; end: Point } | null,
+  selectedWall?: Wall | null,
+  realScale?: number | null,
 ) => {
   const toPx = (p: Point) => ({ x: p.x * width, y: p.y * height });
 
@@ -197,6 +206,69 @@ const drawCanvasContent = (
     ) {
       ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
       ctx.fillRect(0, 0, width, height);
+    }
+  }
+
+  // Draw Walls
+  if (walls) {
+    walls.forEach(wall => {
+      const p1 = toPx(wall.start);
+      const p2 = toPx(wall.end);
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.lineWidth = wall.thickness || 5;
+      ctx.strokeStyle = wall.color || "#000";
+      
+      // Highlight selected wall
+      if (selectedWall && selectedWall.id === wall.id) {
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = "rgba(0, 0, 255, 0.5)";
+      } else {
+        ctx.shadowBlur = 0;
+      }
+      
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // Draw length label
+      if (wall.length) {
+        const midX = (p1.x + p2.x) / 2;
+        const midY = (p1.y + p2.y) / 2;
+        ctx.fillStyle = "#000";
+        ctx.font = "12px Arial";
+        ctx.fillText(`${wall.length.toFixed(2)}`, midX, midY - 5);
+      }
+    });
+  }
+
+  // Draw current drawing wall
+  if (currentDrawingWall) {
+    const p1 = toPx(currentDrawingWall.start);
+    const p2 = toPx(currentDrawingWall.end);
+    ctx.beginPath();
+    ctx.moveTo(p1.x, p1.y);
+    ctx.lineTo(p2.x, p2.y);
+    ctx.lineWidth = 3;
+    ctx.setLineDash([5, 5]);
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.5)";
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Draw length preview
+    const canvasWidth = 800;
+    const canvasHeight = 600;
+    const pixelLength = Math.sqrt(
+      Math.pow((currentDrawingWall.end.x - currentDrawingWall.start.x) * canvasWidth, 2) +
+      Math.pow((currentDrawingWall.end.y - currentDrawingWall.start.y) * canvasHeight, 2)
+    );
+    if (realScale) {
+      const realLength = pixelLength * realScale;
+      const midX = (p1.x + p2.x) / 2;
+      const midY = (p1.y + p2.y) / 2;
+      ctx.fillStyle = "blue";
+      ctx.font = "bold 12px Arial";
+      ctx.fillText(`${realLength.toFixed(2)}`, midX, midY - 10);
     }
   }
 
@@ -391,6 +463,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
   setDrawingObjectBoundary,
   selectedObjectType,
   northDirection,
+  scale,
   wallLengths,
   setReferenceWallIndex,
   referenceWallIndex,
@@ -401,8 +474,13 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
   highlightedZones,
   activeView,
   onObjectClick,
+  walls = [],
+  onAddWall,
+  onSelectWall,
+  selectedWall,
 }) => {
   const [hoveredDevta, setHoveredDevta] = useState<DevtaRegion | null>(null);
+  const [currentDrawingWall, setCurrentDrawingWall] = useState<{ start: Point; end: Point } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -476,6 +554,10 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
       activeView,
       plotWidth,
       plotHeight,
+      walls,
+      currentDrawingWall,
+      selectedWall,
+      scale
     );
     ctx.restore();
   }, [
@@ -483,7 +565,8 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     zone16Regions, zone8Regions, marmaData, shaktiChakra, shaktiChakraSize,
     plotCentroid, drawingObjectBoundary, drawingMode, hoveredDevta, innerPolygon,
     middlePolygon, northDirection, wallLengths, referenceWallIndex,
-    wallColors, plotWidth, plotHeight, zoom, offset, isStatic, highlightedZones, activeView
+    wallColors, plotWidth, plotHeight, zoom, offset, isStatic, highlightedZones, activeView,
+    walls, currentDrawingWall, selectedWall, scale
   ]);
 
   const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
@@ -516,6 +599,46 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     }
   };
   
+  const getSnappedPoint = (point: Point): Point => {
+    let snappedPoint = { ...point };
+    const tolerance = 15 / zoom; // Snapping tolerance in pixels
+
+    // Snap to boundary
+    if (boundary.length > 0) {
+      for (let i = 0; i < boundary.length; i++) {
+        const p1 = boundary[i];
+        const p2 = boundary[(i + 1) % boundary.length];
+        
+        // Find nearest point on segment p1-p2
+        const L2 = (p2.x - p1.x) * (p2.x - p1.x) + (p2.y - p1.y) * (p2.y - p1.y);
+        if (L2 === 0) continue;
+        const t = ((point.x - p1.x) * (p2.x - p1.x) + (point.y - p1.y) * (p2.y - p1.y)) / L2;
+        const projectionT = Math.max(0, Math.min(1, t));
+        const projectionX = p1.x + projectionT * (p2.x - p1.x);
+        const projectionY = p1.y + projectionT * (p2.y - p1.y);
+
+        const dist = Math.sqrt(Math.pow(point.x - projectionX, 2) + Math.pow(point.y - projectionY, 2));
+        if (dist * Math.min(width, height) < tolerance) {
+          snappedPoint = { x: projectionX, y: projectionY };
+          break;
+        }
+      }
+    }
+
+    // Orthogonality (if drawing a wall)
+    if (currentDrawingWall) {
+      const dx = Math.abs(snappedPoint.x - currentDrawingWall.start.x);
+      const dy = Math.abs(snappedPoint.y - currentDrawingWall.start.y);
+      if (dx > dy) {
+        snappedPoint.y = currentDrawingWall.start.y;
+      } else {
+        snappedPoint.x = currentDrawingWall.start.x;
+      }
+    }
+
+    return snappedPoint;
+  };
+
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (isStatic) return;
 
@@ -525,6 +648,15 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     }
 
     const point = getTransformedPoint(e.clientX, e.clientY);
+
+    if (drawingMode === "wall" && currentDrawingWall) {
+      const snappedPoint = getSnappedPoint({ x: point.x / width, y: point.y / height });
+      setCurrentDrawingWall({
+        start: currentDrawingWall.start,
+        end: snappedPoint,
+      });
+      return;
+    }
 
     let foundRegion = null;
     const allRegions = [...devtaRegions, ...zone16Regions, ...zone8Regions];
@@ -564,10 +696,44 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
         return;
       }
 
+      if (drawingMode === "wall") {
+        if (!currentDrawingWall) {
+          const snappedStart = getSnappedPoint(normalizedPoint);
+          setCurrentDrawingWall({ start: snappedStart, end: snappedStart });
+        } else {
+          const snappedEnd = getSnappedPoint(normalizedPoint);
+          const newWall: Wall = {
+            id: new Date().toISOString(),
+            start: currentDrawingWall.start,
+            end: snappedEnd,
+            color: "#000",
+            thickness: 5,
+          };
+          if (onAddWall) onAddWall(newWall);
+          setCurrentDrawingWall(null);
+        }
+        return;
+      }
+
       if (drawingMode === "objects" && onCanvasClick) {
         onCanvasClick(normalizedPoint);
         return;
       }
+    }
+
+    // Check if wall clicked
+    if (!isStatic && walls.length > 0) {
+      let wallClicked = false;
+      for (const wall of walls) {
+        const p1 = toPx(wall.start);
+        const p2 = toPx(wall.end);
+        if (isPointNearLineSegment(point.x, point.y, p1.x, p1.y, p2.x, p2.y)) {
+          if (onSelectWall) onSelectWall(wall);
+          wallClicked = true;
+          break;
+        }
+      }
+      if (wallClicked) return;
     }
 
     if (onObjectClick) {

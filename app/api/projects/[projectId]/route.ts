@@ -126,3 +126,65 @@ export async function PATCH(
     { status: 200 }
   )
 }
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ projectId: string }> }
+) {
+  const supabase = await createServerSupabaseClient()
+  const { projectId } = await params
+
+  if (!projectId) {
+    return NextResponse.json(
+      { error: 'Project ID is required' },
+      { status: 400 }
+    )
+  }
+
+  // 1. Delete related analyses
+  const { error: analysesError } = await supabase
+    .from('analyses')
+    .delete()
+    .eq('project_id', projectId)
+
+  if (analysesError) {
+    console.error('Error deleting analyses:', analysesError)
+    return NextResponse.json(
+      { error: 'Failed to delete related analyses', details: analysesError.message },
+      { status: 500 }
+    )
+  }
+
+  // 2. Delete related project_objects
+  const { error: objectsError } = await supabase
+    .from('project_objects')
+    .delete()
+    .eq('project_id', projectId)
+
+  if (objectsError) {
+    console.error('Error deleting project objects:', objectsError)
+    return NextResponse.json(
+      { error: 'Failed to delete related project objects', details: objectsError.message },
+      { status: 500 }
+    )
+  }
+
+  // 3. Delete the project itself
+  const { error: projectError } = await supabase
+    .from('projects')
+    .delete()
+    .eq('id', projectId)
+
+  if (projectError) {
+    console.error('Error deleting project:', projectError)
+    return NextResponse.json(
+      { error: 'Failed to delete project', details: projectError.message },
+      { status: 500 }
+    )
+  }
+
+  return NextResponse.json(
+    { message: 'Project and all related data deleted successfully' },
+    { status: 200 }
+  )
+}
