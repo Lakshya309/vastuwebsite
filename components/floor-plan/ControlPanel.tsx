@@ -136,7 +136,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
       const newScale = realLengthInMeters / pixelLength;
       props.setScale(newScale);
 
-      const newWallLengths = props.boundary.map((_, i) => {
+      const newWallLengths = props.boundary.map((_: any, i: number) => {
         const point1 = props.boundary[i];
         const point2 = props.boundary[(i + 1) % props.boundary.length];
         const lengthInPixels = Math.sqrt(

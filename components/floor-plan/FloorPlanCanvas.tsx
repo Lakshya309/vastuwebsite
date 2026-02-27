@@ -32,7 +32,7 @@ interface FloorPlanCanvasProps {
   shaktiChakraSize?: number;
   plotCentroid?: Point | null;
   drawingObjectBoundary?: Point[];
-  drawingMode?: "boundary" | "objects" | "select" | null;
+  drawingMode?: "boundary" | "objects" | "select" | "wall" | null;
   onDevtaClick?: (devta: DevtaRegion) => void;
   onZoneClick?: (zone: DevtaRegion) => void;
   onPlaceObject?: (newObject: PlacedObject) => void;
@@ -179,7 +179,7 @@ const drawCanvasContent = (
   shaktiChakraSize: number | undefined,
   plotCentroid: Point | null,
   drawingObjectBoundary: Point[],
-  drawingMode: "boundary" | "objects" | "select" | null | undefined,
+  drawingMode: "boundary" | "objects" | "select" | "wall" | null | undefined,
   hoveredDevta: DevtaRegion | null,
   northDirection: number,
   wallLengths: number[],
