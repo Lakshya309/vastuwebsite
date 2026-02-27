@@ -99,8 +99,10 @@ export async function GET(request: NextRequest) {
         );
     }
 
+    const MICROSERVICE_URL = process.env.MICROSERVICE_URL || "http://72.61.224.232:8001";
+
     // Call the Python service directly with retrieved parameters and objects
-    const response = await fetch("http://127.0.0.1:5000/analyze_objects", {
+    const response = await fetch(`${MICROSERVICE_URL}/analyze_objects`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
