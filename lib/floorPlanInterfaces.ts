@@ -13,7 +13,7 @@ export interface PlacedObject {
   boundary_normalized: Point[];
   centroid: Point;
   rotation?: number; // Optional rotation property
-  highlight?: "CRITICAL" | "BAD" | null;
+  highlight?: "CRITICAL" | "BAD" | "GOOD" | "EXCELLENT" | null;
 }
 
 export interface DevtaRegion {
@@ -34,6 +34,8 @@ export interface ProjectData {
   boundary_normalized: Point[] | null;
   north_direction: number | null;
   placed_objects: PlacedObject[] | null;
+  plot_width?: number | null;
+  plot_height?: number | null;
   profiles?: {
     email: string | null;
   } | null;

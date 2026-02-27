@@ -431,7 +431,7 @@ export default function FloorPlanPage() {
 
       setRefreshKey(prev => prev + 1); // Trigger refresh of data
 
-      let finalAnalysisId = currentAnalysisId;
+      const finalAnalysisId = currentAnalysisId;
 
       if (!finalAnalysisId) {
         alert("No active analysis to generate report for. Please initiate an analysis first.");

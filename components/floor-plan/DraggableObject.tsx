@@ -11,7 +11,7 @@ interface DraggableObjectProps {
   onDelete: (id: string) => void;
   objectSvgMap: { [key: string]: string };
   canvasRef: React.RefObject<HTMLDivElement | null>;
-  highlight?: "CRITICAL" | "BAD" | null;
+  highlight?: "CRITICAL" | "BAD" | "GOOD" | "EXCELLENT" | null;
   isStatic?: boolean;
   zoom: number;
   offset: { x: number; y: number };
@@ -42,15 +42,14 @@ export const DraggableObject: React.FC<DraggableObjectProps> = ({
     startHeight: 0,
   });
 
-  const getCanvasDims = () => {
-    const rect = canvasRef.current?.getBoundingClientRect();
-    return {
-      width: rect?.width ?? 1,
-      height: rect?.height ?? 1,
-      left: rect?.left ?? 0,
-      top: rect?.top ?? 0,
-    };
-  };
+  const [dimensions, setDimensions] = React.useState({ width: 1, height: 1 });
+
+  React.useEffect(() => {
+    if (canvasRef.current) {
+      const rect = canvasRef.current.getBoundingClientRect();
+      setDimensions({ width: rect.width, height: rect.height });
+    }
+  }, [canvasRef]);
 
   const onMouseDown = (e: React.MouseEvent) => {
     if (isStatic) return;
@@ -65,10 +64,11 @@ export const DraggableObject: React.FC<DraggableObjectProps> = ({
       ? "rotate"
       : "drag";
 
-    const canvas = getCanvasDims();
+    const canvasWidth = dimensions.width;
+    const canvasHeight = dimensions.height;
 
-    dragState.current.startMouseX = e.clientX - canvas.left;
-    dragState.current.startMouseY = e.clientY - canvas.top;
+    dragState.current.startMouseX = e.clientX;
+    dragState.current.startMouseY = e.clientY;
     dragState.current.startX = object.boundary_normalized[0].x;
     dragState.current.startY = object.boundary_normalized[0].y;
     dragState.current.startWidth =
@@ -83,13 +83,11 @@ export const DraggableObject: React.FC<DraggableObjectProps> = ({
   };
 
   const onMouseMove = (e: MouseEvent) => {
-    const canvas = getCanvasDims();
+    const canvasWidth = dimensions.width;
+    const canvasHeight = dimensions.height;
 
-    const mx = e.clientX - canvas.left;
-    const my = e.clientY - canvas.top;
-
-    const dx = (mx - dragState.current.startMouseX) / canvas.width;
-    const dy = (my - dragState.current.startMouseY) / canvas.height;
+    const dx = (e.clientX - dragState.current.startMouseX) / (canvasWidth * zoom);
+    const dy = (e.clientY - dragState.current.startMouseY) / (canvasHeight * zoom);
 
     if (dragState.current.mode === "drag") {
       onMove(
@@ -122,15 +120,16 @@ export const DraggableObject: React.FC<DraggableObjectProps> = ({
     window.removeEventListener("mouseup", onMouseUp);
   };
   
-  const canvas = getCanvasDims();
-  const screenX = object.boundary_normalized[0].x * canvas.width * zoom + offset.x;
-  const screenY = object.boundary_normalized[0].y * canvas.height * zoom + offset.y;
-  const screenWidth = (object.boundary_normalized[1].x - object.boundary_normalized[0].x) * canvas.width * zoom;
-  const screenHeight = (object.boundary_normalized[3].y - object.boundary_normalized[0].y) * canvas.height * zoom;
+  const screenX = object.boundary_normalized[0].x * dimensions.width * zoom + offset.x;
+  const screenY = object.boundary_normalized[0].y * dimensions.height * zoom + offset.y;
+  const screenWidth = (object.boundary_normalized[1].x - object.boundary_normalized[0].x) * dimensions.width * zoom;
+  const screenHeight = (object.boundary_normalized[3].y - object.boundary_normalized[0].y) * dimensions.height * zoom;
   
   const getHighlightColor = () => {
     if (highlight === "CRITICAL") return "red";
     if (highlight === "BAD") return "orange";
+    if (highlight === "GOOD") return "lightgreen";
+    if (highlight === "EXCELLENT") return "green";
     return isStatic ? "transparent" : "#2563eb";
   }
 

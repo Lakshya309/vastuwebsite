@@ -53,7 +53,7 @@ export const ZoneBarChart: React.FC<ZoneBarChartProps> = ({ data, chartType, tit
           <Tooltip 
             contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cccccc' }}
             itemStyle={{ color: '#000000' }}
-            formatter={(value: number) => [value.toFixed(2), yAxisLabel]} 
+            formatter={(value: any) => [Number(value).toFixed(2), yAxisLabel]} 
           />
           <Legend />
           <Bar dataKey={dataKey} fill={barColor} name={yAxisLabel} />

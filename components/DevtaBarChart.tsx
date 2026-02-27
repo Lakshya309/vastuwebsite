@@ -50,7 +50,7 @@ export const DevtaBarChart: React.FC<DevtaBarChartProps> = ({ data, title, color
           <Tooltip 
             contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cccccc' }}
             itemStyle={{ color: '#000000' }}
-            formatter={(value: number) => [`${value.toFixed(2)}%`, 'Area Percentage']} 
+            formatter={(value: any) => [`${Number(value).toFixed(2)}%`, 'Area Percentage']} 
           />
           <Bar dataKey="percentage" fill={color} name="Area %">
             {data.map((entry, index) => (
