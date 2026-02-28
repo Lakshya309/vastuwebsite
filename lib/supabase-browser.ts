@@ -14,8 +14,20 @@ export function createSupabaseBrowserClient() {
         return 'http://localhost:3001/supabase-proxy'
     }
 
+    // Match the server's expected cookie name (derived from the actual URL)
+    let cookieName = 'sb-auth-token'
+    try {
+        const urlObj = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!)
+        cookieName = `sb-${urlObj.hostname.split('.')[0]}-auth-token`
+    } catch (e) { }
+
     return createBrowserClient(
         getProxyUrl(),
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+            cookieOptions: {
+                name: cookieName
+            }
+        }
     )
 }
