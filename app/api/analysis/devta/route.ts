@@ -75,17 +75,19 @@ export async function GET(request: NextRequest) {
         );
     }
 
+    const MICROSERVICE_URL = process.env.MICROSERVICE_URL || "http://72.61.224.232:8001";
+
     // Call the Python service directly with retrieved parameters
     let response;
     try {
-      response = await fetch("http://127.0.0.1:5000/health");
+      response = await fetch(`${MICROSERVICE_URL}/health`);
       if (!response.ok) throw new Error("Health check failed");
     } catch (e) {
       console.error("Python service health check failed", e);
       return NextResponse.json({ error: "Python Service Unreachable" }, { status: 500 });
     }
 
-    response = await fetch("http://127.0.0.1:5000/analyze", {
+    response = await fetch(`${MICROSERVICE_URL}/analyze`, {
       method: "POST", // The Python service still expects a POST with body
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

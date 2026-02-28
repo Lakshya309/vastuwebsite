@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 
 export async function GET() {
+  const MICROSERVICE_URL = process.env.MICROSERVICE_URL || "http://72.61.224.232:8001";
   try {
     // Forward the health check request to the Python microservice
-    const response = await fetch("http://127.0.0.1:5000/health", {
+    const response = await fetch(`${MICROSERVICE_URL}/health`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
