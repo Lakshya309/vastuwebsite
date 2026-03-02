@@ -90,22 +90,20 @@ export default function NewProjectPage() {
               <button
                 type="button"
                 onClick={() => setPlotType("upload")}
-                className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
-                  plotType === "upload"
+                className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${plotType === "upload"
                     ? "bg-white text-indigo-600 shadow-sm"
                     : "text-gray-500 hover:text-gray-700"
-                }`}
+                  }`}
               >
                 Upload Map
               </button>
               <button
                 type="button"
                 onClick={() => setPlotType("manual")}
-                className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
-                  plotType === "manual"
+                className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${plotType === "manual"
                     ? "bg-white text-indigo-600 shadow-sm"
                     : "text-gray-500 hover:text-gray-700"
-                }`}
+                  }`}
               >
                 Manual Plot
               </button>
@@ -117,18 +115,18 @@ export default function NewProjectPage() {
                   type="number"
                   step="any"
                   className="w-full p-3 border rounded-lg"
-                  placeholder="Width (ft)"
-                  value={plotWidth}
-                  onChange={(e) => setPlotWidth(e.target.value)}
+                  placeholder="Length (ft)"
+                  value={plotHeight}
+                  onChange={(e) => setPlotHeight(e.target.value)}
                   required
                 />
                 <input
                   type="number"
                   step="any"
                   className="w-full p-3 border rounded-lg"
-                  placeholder="Height (ft)"
-                  value={plotHeight}
-                  onChange={(e) => setPlotHeight(e.target.value)}
+                  placeholder="Breadth (ft)"
+                  value={plotWidth}
+                  onChange={(e) => setPlotWidth(e.target.value)}
                   required
                 />
               </div>

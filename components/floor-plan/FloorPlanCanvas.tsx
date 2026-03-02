@@ -109,32 +109,32 @@ const getAngleFromPoint = (center: Point, p: Point) => {
 const getZoneFromAngleClient = (angle: number, north_base_rotation: number, zones_names: string[]) => {
   const num_zones = zones_names.length;
   if (num_zones === 0) {
-      return null;
+    return null;
   }
 
   let absolute_start_angle_for_first_zone_in_list = 0.0;
   if (zones_names === ZONE_NAMES_16) {
-      absolute_start_angle_for_first_zone_in_list = 11.25;
+    absolute_start_angle_for_first_zone_in_list = 11.25;
   } else if (zones_names === ZONE_NAMES_8) {
-      absolute_start_angle_for_first_zone_in_list = 22.5;
+    absolute_start_angle_for_first_zone_in_list = 22.5;
   }
-  
+
   const step = 360 / num_zones;
 
   const angle_in_unrotated_mandala = (angle - north_base_rotation + 360) % 360;
-  
-  for (let i = 0; i < num_zones; i++) {
-      const base_start_angle = absolute_start_angle_for_first_zone_in_list + i * step;
-      const base_end_angle = absolute_start_angle_for_first_zone_in_list + (i + 1) * step;
 
-      if (base_end_angle >= 360 && base_start_angle < 360) {
-          if ((base_start_angle <= angle_in_unrotated_mandala && angle_in_unrotated_mandala < 360) ||
-              (0 <= angle_in_unrotated_mandala && angle_in_unrotated_mandala < (base_end_angle % 360))) {
-              return zones_names[i];
-          }
-      } else if (base_start_angle <= angle_in_unrotated_mandala && angle_in_unrotated_mandala < base_end_angle) {
-          return zones_names[i];
+  for (let i = 0; i < num_zones; i++) {
+    const base_start_angle = absolute_start_angle_for_first_zone_in_list + i * step;
+    const base_end_angle = absolute_start_angle_for_first_zone_in_list + (i + 1) * step;
+
+    if (base_end_angle >= 360 && base_start_angle < 360) {
+      if ((base_start_angle <= angle_in_unrotated_mandala && angle_in_unrotated_mandala < 360) ||
+        (0 <= angle_in_unrotated_mandala && angle_in_unrotated_mandala < (base_end_angle % 360))) {
+        return zones_names[i];
       }
+    } else if (base_start_angle <= angle_in_unrotated_mandala && angle_in_unrotated_mandala < base_end_angle) {
+      return zones_names[i];
+    }
   }
   return null;
 };
@@ -219,7 +219,7 @@ const drawCanvasContent = (
       ctx.lineTo(p2.x, p2.y);
       ctx.lineWidth = wall.thickness || 5;
       ctx.strokeStyle = wall.color || "#000";
-      
+
       // Highlight selected wall
       if (selectedWall && selectedWall.id === wall.id) {
         ctx.shadowBlur = 10;
@@ -227,7 +227,7 @@ const drawCanvasContent = (
       } else {
         ctx.shadowBlur = 0;
       }
-      
+
       ctx.stroke();
       ctx.shadowBlur = 0;
 
@@ -309,7 +309,7 @@ const drawCanvasContent = (
     shaktiChakraImg.onload = () => {
       ctx.save();
       ctx.translate(centroid.x, centroid.y);
-      ctx.rotate((northDirection * Math.PI) / 180);
+      ctx.rotate(-(northDirection * Math.PI) / 180);
       const imageSize = Math.min(width, height) * (shaktiChakraSize || 0.8);
       ctx.drawImage(shaktiChakraImg, -imageSize / 2, -imageSize / 2, imageSize, imageSize);
       ctx.restore();
@@ -356,7 +356,7 @@ const drawCanvasContent = (
     ctx.textAlign = "center";
     ctx.fillText(region.name, center.x, center.y);
   });
-  
+
   zone8Regions.forEach((region) => {
     if (!region.polygon || region.polygon.length < 3) return;
     const pts = region.polygon.map(toPx);
@@ -403,7 +403,7 @@ const drawCanvasContent = (
   // Draw North Indicator in first two tabs
   if ((activeView === "setup" || activeView === "grids") && boundary.length > 0) {
     ctx.save();
-    
+
     // Determine centroid: use plotCentroid if available, else calculate from boundary
     let targetCentroid = plotCentroid;
     if (!targetCentroid && boundary.length > 0) {
@@ -413,8 +413,8 @@ const drawCanvasContent = (
     if (targetCentroid) {
       const centroidPx = toPx(targetCentroid);
       ctx.translate(centroidPx.x, centroidPx.y);
-      ctx.rotate((northDirection * Math.PI) / 180);
-      
+      ctx.rotate(-(northDirection * Math.PI) / 180);
+
       // Draw arrow
       ctx.beginPath();
       ctx.moveTo(0, -30);
@@ -583,7 +583,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     const newZoomClamped = Math.max(1, Math.min(newZoom, 10));
 
     const mouseBeforeZoom = getTransformedPoint(e.clientX, e.clientY);
-    
+
     const newOffsetX = mouseX - mouseBeforeZoom.x * newZoomClamped;
     const newOffsetY = mouseY - mouseBeforeZoom.y * newZoomClamped;
 
@@ -598,7 +598,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
       setPanStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
     }
   };
-  
+
   const getSnappedPoint = (point: Point): Point => {
     let snappedPoint = { ...point };
     const tolerance = 15 / zoom; // Snapping tolerance in pixels
@@ -608,7 +608,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
       for (let i = 0; i < boundary.length; i++) {
         const p1 = boundary[i];
         const p2 = boundary[(i + 1) % boundary.length];
-        
+
         // Find nearest point on segment p1-p2
         const L2 = (p2.x - p1.x) * (p2.x - p1.x) + (p2.y - p1.y) * (p2.y - p1.y);
         if (L2 === 0) continue;
@@ -678,7 +678,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     }
     setHoveredDevta(foundRegion);
   };
-  
+
   const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (isStatic) return;
     setIsPanning(false);
@@ -689,7 +689,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
 
     const point = getTransformedPoint(e.clientX, e.clientY);
     const normalizedPoint = { x: point.x / width, y: point.y / height };
-    
+
     if (!isStatic) {
       if (drawingMode === "boundary" && onDrawBoundary) {
         onDrawBoundary(normalizedPoint);
@@ -746,7 +746,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
         }
       }
     }
-    
+
     let regionClicked = false;
     const allRegions = [...devtaRegions, ...zone16Regions, ...zone8Regions];
     for (const region of allRegions) {
@@ -786,7 +786,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
           wallClicked = true;
           break;
         }
-        
+
       }
       if (!wallClicked) {
         setReferenceWallIndex(null);
@@ -820,7 +820,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
         onClick={handleClick}
         tabIndex={0}
       />
-      <div 
+      <div
         className="absolute top-0 left-0 w-full h-full pointer-events-none"
       >
         {placedObjects.map((obj) => (
