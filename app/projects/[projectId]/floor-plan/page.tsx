@@ -139,7 +139,7 @@ export default function FloorPlanPage() {
 
   // 3. Analysis Hooks & Debouncing
   const [drawingMode, setDrawingMode] = useState<
-    "boundary" | "objects" | "select" | "wall" | null
+    "boundary" | "objects" | "select" | "wall" | "measure" | null
   >(null);
   const {
     devtaRegions,
@@ -163,16 +163,17 @@ export default function FloorPlanPage() {
       const width = project.plot_width;
       const height = project.plot_height;
       const aspect = width / height;
+      const adjustedAspect = aspect * (600 / 800); // Counteract the 800x600 canvas coordinate squish
 
       // Define a rectangle centered in the normalized [0, 1] space
       // Let's make it occupy about 80% of the canvas
       let normWidth, normHeight;
-      if (aspect > 1) {
+      if (adjustedAspect > 1) {
         normWidth = 0.8;
-        normHeight = 0.8 / aspect;
+        normHeight = 0.8 / adjustedAspect;
       } else {
         normHeight = 0.8;
-        normWidth = 0.8 * aspect;
+        normWidth = 0.8 * adjustedAspect;
       }
 
       const xOff = (1 - normWidth) / 2;
@@ -185,10 +186,40 @@ export default function FloorPlanPage() {
         { x: xOff, y: yOff + normHeight },
       ];
       setBoundary(rectBoundary);
-      
-      // Calculate scale (pixels per unit). 
-      // This is tricky because the canvas size isn't fixed yet.
-      // But we can store the pixels-to-feet ratio once we have it.
+
+      // Automatically calculate and set scale for manual plots
+      // Use the top edge (index 0 to 1) as the reference wall (width).
+      const canvasWidth = 800; // Fixed canvas internal width based on FloorPlanCanvas logic
+      const pixelWidth = normWidth * canvasWidth;
+
+      if (pixelWidth > 0 && width > 0) {
+        // Assume input dimensions are in feet by default for manual plots 
+        const UNIT_CONVERSIONS = {
+          feet: 0.3048,   // 1 foot = 0.3048 meters
+          meters: 1,      // 1 meter = 1 meter
+          inches: 0.0254, // 1 inch = 0.0254 meters
+        };
+        const realLengthInMeters = width * UNIT_CONVERSIONS["feet"];
+        const calculatedScale = realLengthInMeters / pixelWidth;
+
+        setScale(calculatedScale);
+        setReferenceWallIndex(0);
+        setReferenceWallLength(width);
+        setReferenceWallUnit("feet");
+
+        // Populate wall lengths array
+        const canvasHeight = 600;
+        const newWallLengths = rectBoundary.map((_, i) => {
+          const point1 = rectBoundary[i];
+          const point2 = rectBoundary[(i + 1) % rectBoundary.length];
+          const lengthInPixels = Math.sqrt(
+            Math.pow((point2.x - point1.x) * canvasWidth, 2) +
+            Math.pow((point2.y - point1.y) * canvasHeight, 2)
+          );
+          return lengthInPixels * calculatedScale;
+        });
+        setWallLengths(newWallLengths);
+      }
     }
   }, [project, boundary.length]);
 
@@ -297,7 +328,7 @@ export default function FloorPlanPage() {
             x: p.x + dx,
             y: p.y + dy,
           }));
-          
+
           const newObj = {
             ...obj,
             centroid: newCentroid,
@@ -446,17 +477,33 @@ export default function FloorPlanPage() {
   };
 
   const objectSvgMap: { [key: string]: string } = {
-    Stove: "/objects/stove.svg",
-    Toilet: "/objects/toilet.svg",
-    Bed: "/objects/bed.svg",
-    Wardrobe: "/objects/wardrobe.svg",
-    Sofa: "/objects/sofa.svg",
-    Pooja: "/objects/pooja.png", // Changed from .svg to .png
-    Stairs: "/objects/stairs.svg",
-    Dining: "/objects/dining.svg",
-    OverheadTank: "/objects/overheadtank.png", // New object
-    UndergroundTank: "/objects/undergroundtank.png", // New object
+    "Stove": "/objects/stove.svg",
+    "Toilet": "/objects/toilet.svg",
+    "Bed": "/objects/bed.svg",
+    "Wardrobe": "/objects/wardrobe.svg",
+    "Sofa": "/objects/sofa.svg",
+    "Pooja": "/objects/pooja.png",
+    "Staircase": "/objects/stairs.svg",
+    "Dining Room": "/objects/dining.svg",
+    "Overhead Tank": "/objects/overheadtank.png",
+    "Underground Tank": "/objects/undergroundtank.png",
+    "Kitchen": "/objects/stove.svg",
   };
+
+  // We can use a Proxy to fallback to the generic icon
+  const proxiedObjectSvgMap = new Proxy(objectSvgMap, {
+    get: function (target, prop, receiver) {
+      if (typeof prop === 'string') {
+        // Try exact match
+        if (target[prop]) return target[prop];
+
+        // Try title casing for the lookup if it's uppercase
+        const titleCase = prop.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+        if (target[titleCase]) return target[titleCase];
+      }
+      return "/objects/generic.svg";
+    }
+  });
 
   return (
     <div className="h-screen bg-gray-100 flex flex-col overflow-hidden">
@@ -495,7 +542,7 @@ export default function FloorPlanPage() {
               onResizeObject={handleResizeObject}
               onRotateObject={handleRotateObject}
               onDeleteObject={handleDeleteObject}
-              objectSvgMap={objectSvgMap}
+              objectSvgMap={proxiedObjectSvgMap}
               devtaRegions={showGrid.devta45 ? devtaRegions : []}
               zone16Regions={showGrid.zone16 ? zones16 : []}
               zone8Regions={showGrid.zone8 ? zones8 : []}
@@ -576,7 +623,7 @@ export default function FloorPlanPage() {
           selectedFile={selectedFile}
           handleImageUpload={handleImageUpload}
           handleStartDrawingBoundary={handleStartDrawingBoundary}
-  handleFinishDrawingBoundary={handleFinishDrawingBoundary}
+          handleFinishDrawingBoundary={handleFinishDrawingBoundary}
           handleReupload={handleReupload}
           handleResetBoundary={handleResetBoundary}
           handleUndoLastPoint={handleUndoLastPoint}

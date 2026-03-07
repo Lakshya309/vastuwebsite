@@ -61,8 +61,8 @@ export const DraggableObject: React.FC<DraggableObjectProps> = ({
     dragState.current.mode = target.classList.contains("resize-handle")
       ? "resize"
       : target.classList.contains("rotate-handle")
-      ? "rotate"
-      : "drag";
+        ? "rotate"
+        : "drag";
 
     const canvasWidth = dimensions.width;
     const canvasHeight = dimensions.height;
@@ -119,12 +119,12 @@ export const DraggableObject: React.FC<DraggableObjectProps> = ({
     window.removeEventListener("mousemove", onMouseMove);
     window.removeEventListener("mouseup", onMouseUp);
   };
-  
+
   const screenX = object.boundary_normalized[0].x * dimensions.width * zoom + offset.x;
   const screenY = object.boundary_normalized[0].y * dimensions.height * zoom + offset.y;
   const screenWidth = (object.boundary_normalized[1].x - object.boundary_normalized[0].x) * dimensions.width * zoom;
   const screenHeight = (object.boundary_normalized[3].y - object.boundary_normalized[0].y) * dimensions.height * zoom;
-  
+
   const getHighlightColor = () => {
     if (highlight === "CRITICAL") return "red";
     if (highlight === "BAD") return "orange";
@@ -150,11 +150,31 @@ export const DraggableObject: React.FC<DraggableObjectProps> = ({
       }}
     >
       <img
-        src={objectSvgMap[object.object_type]}
+        src={objectSvgMap[object.object_type] || "/objects/generic.svg"}
         alt={object.object_type}
         draggable={false}
         style={{ width: "100%", height: "100%" }}
       />
+
+      {object.grade && (
+        <div
+          style={{
+            position: "absolute",
+            top: -12,
+            left: -12,
+            backgroundColor: object.grade === "A" ? "green" : object.grade === "B" ? "orange" : "red",
+            color: "white",
+            fontWeight: "bold",
+            fontSize: "12px",
+            padding: "2px 6px",
+            borderRadius: "4px",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+            zIndex: 10,
+          }}
+        >
+          {object.grade}
+        </div>
+      )}
 
       {!isStatic && (
         <>

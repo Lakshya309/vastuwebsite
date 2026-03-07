@@ -14,6 +14,19 @@ export interface PlacedObject {
   centroid: Point;
   rotation?: number; // Optional rotation property
   highlight?: "CRITICAL" | "BAD" | "GOOD" | "EXCELLENT" | null;
+  grade?: string;
+  message?: string;
+}
+
+export interface AnalyzedObjectResult {
+  object_id: string;
+  object_type: string;
+  devta_region: string | null;
+  zone16_direction: string | null;
+  score_impact: number;
+  grade: string | null;
+  verdict: "EXCELLENT" | "GOOD" | "BAD" | "CRITICAL";
+  message: string;
 }
 
 export interface DevtaRegion {

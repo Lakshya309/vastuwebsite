@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
     // 1. Fetch project_id, boundary_normalized, and north_direction from the analyses table using analysisId
     const { data: analysisData, error: analysisError } = await supabaseAdmin
       .from("analyses")
-      .select("project_id, status, boundary_normalized, north_direction") 
+      .select("project_id, status, boundary_normalized, north_direction")
       .eq("id", analysisId)
       .single();
 
@@ -69,13 +69,13 @@ export async function GET(request: NextRequest) {
     // as they are directly from the analyses table.
 
     if (!boundary_normalized || north_direction === null) {
-        return NextResponse.json(
-            { message: "Missing required analysis parameters (boundary or north direction)." },
-            { status: 400 }
-        );
+      return NextResponse.json(
+        { message: "Missing required analysis parameters (boundary or north direction)." },
+        { status: 400 }
+      );
     }
 
-    const MICROSERVICE_URL = process.env.MICROSERVICE_URL || "http://72.61.224.232:8001";
+    const MICROSERVICE_URL = process.env.MICROSERVICE_URL;
 
     // Call the Python service directly with retrieved parameters
     let response;
@@ -97,22 +97,22 @@ export async function GET(request: NextRequest) {
     });
 
     if (!response.ok) {
-        const errorData = await response.text(); // Get text for better error logging
-        console.error("Python Service Error:", errorData);
-        return NextResponse.json({ error: "Python Service Unreachable or error during analysis" }, { status: 500 });
+      const errorData = await response.text(); // Get text for better error logging
+      console.error("Python Service Error:", errorData);
+      return NextResponse.json({ error: "Python Service Unreachable or error during analysis" }, { status: 500 });
     }
 
     const data = await response.json();
 
     // After successful analysis from Python service, update the status in the analyses table
     const { error: updateError } = await supabaseAdmin
-        .from("analyses")
-        .update({ status: "reviewed" })
-        .eq("id", analysisId);
+      .from("analyses")
+      .update({ status: "reviewed" })
+      .eq("id", analysisId);
 
     if (updateError) {
-        console.error("Supabase analysis status update error:", updateError);
-        // Optionally, handle this error more gracefully, but for now, we proceed to return the analysis data
+      console.error("Supabase analysis status update error:", updateError);
+      // Optionally, handle this error more gracefully, but for now, we proceed to return the analysis data
     }
 
     return NextResponse.json(data);

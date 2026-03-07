@@ -60,8 +60,8 @@ interface ControlPanelProps {
   zone16Regions: any[];
   zone8Regions: any[];
 
-  drawingMode?: "boundary" | "objects" | "select" | "wall" | null;
-  setDrawingMode: (mode: "boundary" | "objects" | "select" | "wall" | null) => void;
+  drawingMode?: "boundary" | "objects" | "select" | "wall" | "measure" | null;
+  setDrawingMode: (mode: "boundary" | "objects" | "select" | "wall" | "measure" | null) => void;
   boundary?: any;
   setBoundary?: any;
   analysisMode?: any;
@@ -164,38 +164,35 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
 
   return (
     <div className="bg-white h-full border-l border-gray-200 flex flex-col w-96 shadow-xl">      <div className="flex border-b text-xs font-semibold uppercase tracking-wide text-gray-500">
-        <button
-          onClick={() => props.setActiveView("setup")}
-          className={`flex-1 py-4 hover:bg-gray-50 ${
-            props.activeView === "setup"
-              ? "border-b-2 border-blue-600 text-blue-600"
-              : ""
+      <button
+        onClick={() => props.setActiveView("setup")}
+        className={`flex-1 py-4 hover:bg-gray-50 ${props.activeView === "setup"
+            ? "border-b-2 border-blue-600 text-blue-600"
+            : ""
           }`}
-        >
-          Setup
-        </button>
-        <button
-          onClick={() => props.setActiveView("grids")}
-          className={`flex-1 py-4 hover:bg-gray-50 ${
-            props.activeView === "grids"
-              ? "border-b-2 border-blue-600 text-blue-600"
-              : ""
+      >
+        Setup
+      </button>
+      <button
+        onClick={() => props.setActiveView("grids")}
+        className={`flex-1 py-4 hover:bg-gray-50 ${props.activeView === "grids"
+            ? "border-b-2 border-blue-600 text-blue-600"
+            : ""
           }`}
-        >
-          Grids
-        </button>
-        <button
-          onClick={() => props.setActiveView("objects")}
-          className={`flex-1 py-4 hover:bg-gray-50 ${
-            props.activeView === "objects"
-              ? "border-b-2 border-blue-600 text-blue-600"
-              : ""
+      >
+        Grids
+      </button>
+      <button
+        onClick={() => props.setActiveView("objects")}
+        className={`flex-1 py-4 hover:bg-gray-50 ${props.activeView === "objects"
+            ? "border-b-2 border-blue-600 text-blue-600"
+            : ""
           }`}
-        >
-          Objects
-        </button>
+      >
+        Objects
+      </button>
 
-      </div>
+    </div>
 
       <div className="p-6 overflow-y-auto flex-1">
         {props.activeView === "setup" && (
@@ -270,11 +267,10 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
               </p>
               <button
                 onClick={() => props.setDrawingMode(props.drawingMode === "wall" ? null : "wall")}
-                className={`w-full mb-2 py-2 rounded font-medium ${
-                  props.drawingMode === "wall"
+                className={`w-full mb-2 py-2 rounded font-medium ${props.drawingMode === "wall"
                     ? "bg-orange-600 hover:bg-orange-700 text-white"
                     : "bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300"
-                }`}
+                  }`}
               >
                 {props.drawingMode === "wall"
                   ? "Stop Drawing Wall"
@@ -285,7 +281,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                 <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-lg space-y-3">
                   <div className="flex justify-between items-center">
                     <h4 className="font-bold text-orange-800">Edit Wall</h4>
-                    <button 
+                    <button
                       onClick={() => props.onDeleteWall && props.onDeleteWall(props.selectedWall!.id)}
                       className="text-red-600 hover:text-red-800 text-xs font-semibold"
                     >
@@ -294,10 +290,10 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">Color</label>
-                    <input 
-                      type="color" 
+                    <input
+                      type="color"
                       value={props.selectedWall.color}
-                      onChange={(e) => props.onUpdateWall && props.onUpdateWall({...props.selectedWall!, color: e.target.value})}
+                      onChange={(e) => props.onUpdateWall && props.onUpdateWall({ ...props.selectedWall!, color: e.target.value })}
                       className="w-full h-8 cursor-pointer rounded"
                     />
                   </div>
@@ -306,7 +302,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                       <span className="font-medium">Length:</span> {props.selectedWall.length.toFixed(2)} {props.referenceWallUnit}
                     </div>
                   )}
-                  <button 
+                  <button
                     onClick={() => props.onSelectWall && props.onSelectWall(null)}
                     className="w-full py-1 text-xs text-orange-700 hover:underline"
                   >
@@ -570,27 +566,47 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                 </div>
               )}
             </div>
-                        <div className="border-t pt-4 space-y-3">
-                            <h3 className="text-lg font-bold text-gray-800">Analysis Status</h3>
-                            <div className="flex items-center justify-between">
-                                <span className="text-sm text-gray-600">
-                                    Status: {props.analysisStale ?
-                                        <span className="font-bold text-orange-500">Stale</span> :
-                                        <span className="font-bold text-green-500">Live</span>
-                                    }
-                                </span>
-                            </div>
-                        </div>
-                        <div className="border-t pt-6 mt-4">
-                            <button
-                                onClick={() =>
-                                    props.handleSaveObjects && props.handleSaveObjects()
-                                }
-                                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold shadow-md"
-                            >
-                                View Detailed Report →
-                            </button>
-                        </div>
+            <div className="border-t pt-4 space-y-3">
+              <h3 className="text-lg font-bold text-gray-800">Analysis Status</h3>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">
+                  Status: {props.analysisStale ?
+                    <span className="font-bold text-orange-500">Stale</span> :
+                    <span className="font-bold text-green-500">Live</span>
+                  }
+                </span>
+              </div>
+            </div>
+
+            <div className="border-t pt-4 space-y-3">
+              <h3 className="text-lg font-bold text-gray-800">Measuring Tools</h3>
+              <button
+                onClick={() => props.setDrawingMode(props.drawingMode === "measure" ? null : "measure")}
+                className={`w-full py-2 rounded font-medium ${props.drawingMode === "measure"
+                    ? "bg-purple-600 hover:bg-purple-700 text-white"
+                    : "bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300"
+                  }`}
+              >
+                {props.drawingMode === "measure" ? "Stop Measuring" : "Measure Distance"}
+              </button>
+              {props.drawingMode === "measure" && (
+                <p className="text-xs text-purple-600 font-medium">
+                  Click two points on the canvas to measure the distance between them.
+                  {!props.scale && " (Warning: Scale not calculated in Setup tab so measurement will not be shown in real units)."}
+                </p>
+              )}
+            </div>
+
+            <div className="border-t pt-6 mt-4">
+              <button
+                onClick={() =>
+                  props.handleSaveObjects && props.handleSaveObjects()
+                }
+                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold shadow-md"
+              >
+                View Detailed Report →
+              </button>
+            </div>
           </div>
         )}
 
