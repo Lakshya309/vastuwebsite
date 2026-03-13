@@ -200,6 +200,7 @@ const drawCanvasContent = (
   measureStart?: Point | null,
   measureEnd?: Point | null,
   measureCurrent?: Point | null,
+  hoverPoint?: Point | null,
   isStatic?: boolean
 ) => {
   const toPx = (p: Point) => ({ x: p.x * width, y: p.y * height });
@@ -292,6 +293,88 @@ const drawCanvasContent = (
       ctx.fillStyle = "blue";
       ctx.font = "bold 12px Arial";
       ctx.fillText(`${realLength.toFixed(2)}`, midX, midY - 10);
+    }
+  }
+
+  // Draw ruler/grid and distance guides when in wall drawing mode
+  if (drawingMode === "wall" && !isStatic && boundary.length > 0) {
+    const activePoint = currentDrawingWall ? currentDrawingWall.end : hoverPoint;
+    
+    // 1. Draw Grid
+    const minX = Math.min(...boundary.map(p => p.x));
+    const maxX = Math.max(...boundary.map(p => p.x));
+    const minY = Math.min(...boundary.map(p => p.y));
+    const maxY = Math.max(...boundary.map(p => p.y));
+    
+    // Default 10 physical units, or relative if no scale
+    const gridSpacingReal = 10; 
+    const fallbackGridSpacingNorm = 0.05; // 5% of plot roughly
+    const gridSpacingNorm = realScale ? gridSpacingReal / (realScale * Math.hypot(width, height)) : fallbackGridSpacingNorm;
+
+    ctx.save();
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.1)";
+    ctx.lineWidth = 1 / zoom; 
+    ctx.beginPath();
+    
+    const startX = Math.floor(minX / gridSpacingNorm) * gridSpacingNorm;
+    for (let x = startX; x <= maxX; x += gridSpacingNorm) {
+      ctx.moveTo(x * width, minY * height);
+      ctx.lineTo(x * width, maxY * height);
+    }
+    const startY = Math.floor(minY / gridSpacingNorm) * gridSpacingNorm;
+    for (let y = startY; y <= maxY; y += gridSpacingNorm) {
+      ctx.moveTo(minX * width, y * height);
+      ctx.lineTo(maxX * width, y * height);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    // 2. Draw Distance Guides to vertices and center
+    if (activePoint) {
+      const activePx = toPx(activePoint);
+      const pointsToMeasure = [...boundary];
+      if (plotCentroid) pointsToMeasure.push(plotCentroid);
+      
+      // Sort to find 3 closest points
+      const closestPoints = pointsToMeasure
+        .map(p => ({
+            pt: p,
+            dist: Math.hypot(p.x - activePoint.x, p.y - activePoint.y),
+            px: toPx(p)
+        }))
+        .sort((a, b) => a.dist - b.dist)
+        .slice(0, 3);
+        
+      closestPoints.forEach(({ pt, dist, px }) => {
+        ctx.beginPath();
+        ctx.moveTo(activePx.x, activePx.y);
+        ctx.lineTo(px.x, px.y);
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = "rgba(255, 165, 0, 0.8)"; // Orange dashed
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.setLineDash([]);
+        
+        // Draw real distance text
+        if (realScale) {
+          const pixelLength = Math.hypot(px.x - activePx.x, px.y - activePx.y);
+          const realLength = pixelLength * realScale;
+          const midX = (activePx.x + px.x) / 2;
+          const midY = (activePx.y + px.y) / 2;
+          
+          ctx.save();
+          const text = realLength.toFixed(2);
+          const metrics = ctx.measureText(text);
+          ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+          ctx.fillRect(midX - metrics.width / 2 - 2, midY - 10, metrics.width + 4, 16);
+          ctx.fillStyle = "orange";
+          ctx.font = "bold 11px Arial";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(text, midX, midY - 2);
+          ctx.restore();
+        }
+      });
     }
   }
 
@@ -646,6 +729,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
   const [measureStart, setMeasureStart] = useState<Point | null>(null);
   const [measureEnd, setMeasureEnd] = useState<Point | null>(null);
   const [measureCurrent, setMeasureCurrent] = useState<Point | null>(null);
+  const [hoverPoint, setHoverPoint] = useState<Point | null>(null);
   const [draggingVertexIndex, setDraggingVertexIndex] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -728,6 +812,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
       measureStart,
       measureEnd,
       measureCurrent,
+      hoverPoint,
       isStatic
     );
     ctx.restore();
@@ -736,7 +821,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     zone16Regions, zone8Regions, marmaData, shaktiChakra, shaktiChakraSize, shaktiChakraType,
     plotCentroid, drawingObjectBoundary, drawingMode, hoveredDevta, innerPolygon,
     middlePolygon, northDirection, wallLengths, referenceWallIndex,
-    walls, currentDrawingWall, selectedWall, scale, measureStart, measureEnd, measureCurrent
+    walls, currentDrawingWall, selectedWall, scale, measureStart, measureEnd, measureCurrent, hoverPoint
   ]);
 
   useEffect(() => {
@@ -851,6 +936,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
 
     const point = getTransformedPoint(e.clientX, e.clientY);
     const normalizedPoint = { x: point.x / width, y: point.y / height };
+    setHoverPoint(normalizedPoint);
 
     if (draggingVertexIndex !== null && onMoveBoundaryVertex) {
       // Allow dragging out of bounds safely with Math.max/min if desired, but here we just pass pure normalized
@@ -896,6 +982,10 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     if (isStatic) return;
     setIsPanning(false);
     setDraggingVertexIndex(null);
+  };
+
+  const handleMouseLeave = () => {
+    setHoverPoint(null);
   };
 
   const handleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -1045,6 +1135,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
         onMouseDown={!isStatic ? handleMouseDown : undefined}
         onMouseMove={!isStatic ? handleMouseMove : undefined}
         onMouseUp={!isStatic ? handleMouseUp : undefined}
+        onMouseLeave={handleMouseLeave}
         onClick={handleClick}
         tabIndex={0}
       />
