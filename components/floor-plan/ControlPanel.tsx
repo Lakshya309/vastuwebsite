@@ -32,6 +32,9 @@ interface ControlPanelProps {
     }>
   >;
 
+  gridType: "81" | "64";
+  onGridTypeChange: (type: "81" | "64") => void;
+
   liveNorthDirection: number;
   setLiveNorthDirection: (deg: number) => void;
 
@@ -71,6 +74,8 @@ interface ControlPanelProps {
   handleAddObject: (objectType: string) => void;
   shaktiChakraSize: number;
   setShaktiChakraSize: (size: number) => void;
+  shaktiChakraType?: "complete" | "zones";
+  setShaktiChakraType?: (type: "complete" | "zones") => void;
 
   // New props for scaling
   scale: number | null;
@@ -152,23 +157,15 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
     }
   };
 
-  // Recalculate scale whenever relevant props change
-  React.useEffect(() => {
-    handleCalculateScale();
-  }, [
-    props.referenceWallIndex,
-    props.referenceWallLength,
-    props.referenceWallUnit,
-    props.boundary,
-  ]);
+  // Scale is now calculated explicitly via a button click.
 
   return (
     <div className="bg-white h-full border-l border-gray-200 flex flex-col w-96 shadow-xl">      <div className="flex border-b text-xs font-semibold uppercase tracking-wide text-gray-500">
       <button
         onClick={() => props.setActiveView("setup")}
         className={`flex-1 py-4 hover:bg-gray-50 ${props.activeView === "setup"
-            ? "border-b-2 border-blue-600 text-blue-600"
-            : ""
+          ? "border-b-2 border-blue-600 text-blue-600"
+          : ""
           }`}
       >
         Setup
@@ -176,8 +173,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
       <button
         onClick={() => props.setActiveView("grids")}
         className={`flex-1 py-4 hover:bg-gray-50 ${props.activeView === "grids"
-            ? "border-b-2 border-blue-600 text-blue-600"
-            : ""
+          ? "border-b-2 border-blue-600 text-blue-600"
+          : ""
           }`}
       >
         Grids
@@ -185,8 +182,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
       <button
         onClick={() => props.setActiveView("objects")}
         className={`flex-1 py-4 hover:bg-gray-50 ${props.activeView === "objects"
-            ? "border-b-2 border-blue-600 text-blue-600"
-            : ""
+          ? "border-b-2 border-blue-600 text-blue-600"
+          : ""
           }`}
       >
         Objects
@@ -268,8 +265,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
               <button
                 onClick={() => props.setDrawingMode(props.drawingMode === "wall" ? null : "wall")}
                 className={`w-full mb-2 py-2 rounded font-medium ${props.drawingMode === "wall"
-                    ? "bg-orange-600 hover:bg-orange-700 text-white"
-                    : "bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300"
+                  ? "bg-orange-600 hover:bg-orange-700 text-white"
+                  : "bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300"
                   }`}
               >
                 {props.drawingMode === "wall"
@@ -414,6 +411,12 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                         placeholder="e.g., Red, Blue, White"
                       />
                     </div>
+                    <button
+                      onClick={handleCalculateScale}
+                      className="w-full py-2 mt-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium shadow-sm transition-colors"
+                    >
+                      Set Scale
+                    </button>
                     {props.scale && (
                       <p className="text-sm text-gray-600 mt-2">
                         Calculated Scale: 1px ={" "}
@@ -442,6 +445,18 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
         {props.activeView === "grids" && (
           <div className="space-y-6">
             <h3 className="text-lg font-bold text-gray-800">Energy Grids</h3>
+
+            <div className="border border-gray-200 p-3 rounded-lg bg-gray-50 mb-3">
+              <label className="block text-sm font-semibold text-gray-700 mb-1">Grid System Geometry</label>
+              <select
+                value={props.gridType}
+                onChange={(e) => props.onGridTypeChange(e.target.value as "81" | "64")}
+                className="w-full p-2 border rounded-md text-sm bg-white"
+              >
+                <option value="81">81-Pada (Paramasayika - Default)</option>
+                <option value="64">64-Pada (Manduka - Temple Grid)</option>
+              </select>
+            </div>
 
             <div className="space-y-3">
               <label className="flex items-center p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
@@ -552,17 +567,46 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                 </div>
               </label>
               {props.showGrid.shaktiChakra && (
-                <div className="pl-8 pt-2">
-                  <label className="block text-sm font-medium text-gray-700">Size</label>
-                  <input
-                    type="range"
-                    min="0.1"
-                    max="2"
-                    step="0.1"
-                    value={props.shaktiChakraSize}
-                    onChange={(e) => props.setShaktiChakraSize(parseFloat(e.target.value))}
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                  />
+                <div className="pl-8 pt-2 space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                    <div className="flex gap-4 cursor-pointer">
+                      <label className="flex items-center text-sm text-gray-600 cursor-pointer">
+                        <input
+                          type="radio"
+                          className="mr-2"
+                          name="shaktiChakraType"
+                          value="complete"
+                          checked={props.shaktiChakraType === "complete" || !props.shaktiChakraType}
+                          onChange={() => props.setShaktiChakraType?.("complete")}
+                        />
+                        Complete
+                      </label>
+                      <label className="flex items-center text-sm text-gray-600 cursor-pointer">
+                        <input
+                          type="radio"
+                          className="mr-2"
+                          name="shaktiChakraType"
+                          value="zones"
+                          checked={props.shaktiChakraType === "zones"}
+                          onChange={() => props.setShaktiChakraType?.("zones")}
+                        />
+                        Zones Only
+                      </label>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Size</label>
+                    <input
+                      type="range"
+                      min="0.1"
+                      max="2"
+                      step="0.1"
+                      value={props.shaktiChakraSize}
+                      onChange={(e) => props.setShaktiChakraSize(parseFloat(e.target.value))}
+                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                    />
+                  </div>
                 </div>
               )}
             </div>
@@ -583,8 +627,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
               <button
                 onClick={() => props.setDrawingMode(props.drawingMode === "measure" ? null : "measure")}
                 className={`w-full py-2 rounded font-medium ${props.drawingMode === "measure"
-                    ? "bg-purple-600 hover:bg-purple-700 text-white"
-                    : "bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300"
+                  ? "bg-purple-600 hover:bg-purple-700 text-white"
+                  : "bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300"
                   }`}
               >
                 {props.drawingMode === "measure" ? "Stop Measuring" : "Measure Distance"}

@@ -36,6 +36,7 @@ export async function GET(request: NextRequest) {
     const userRole = profile.role;
 
     const analysisId = request.nextUrl.searchParams.get("analysisId");
+    const gridType = request.nextUrl.searchParams.get("gridType") || "81";
 
     if (!analysisId) {
       return NextResponse.json(
@@ -93,6 +94,7 @@ export async function GET(request: NextRequest) {
       body: JSON.stringify({
         boundary_normalized,
         north_direction,
+        grid_type: gridType,
       }),
     });
 

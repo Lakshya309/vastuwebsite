@@ -54,6 +54,7 @@ export default function FloorPlanPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [analysisStale, setAnalysisStale] = useState(false);
   const [shaktiChakraSize, setShaktiChakraSize] = useState(0.8);
+  const [shaktiChakraType, setShaktiChakraType] = useState<"complete" | "zones">("complete");
   const [scale, setScale] = useState<number | null>(null);
   const [wallLengths, setWallLengths] = useState<number[]>([]);
   const [referenceWallIndex, setReferenceWallIndex] = useState<number | null>(null);
@@ -64,6 +65,8 @@ export default function FloorPlanPage() {
   const [highlightedZones, setHighlightedZones] = useState<string[]>([]);
   const [walls, setWalls] = useState<Wall[]>([]);
   const [selectedWall, setSelectedWall] = useState<Wall | null>(null);
+  const [plotAngle, setPlotAngle] = useState<number>(90);
+  const [gridType, setGridType] = useState<"81" | "64">("81");
 
   const handleAddWall = (wall: Wall) => {
     // Calculate real-world length if scale is available
@@ -157,16 +160,30 @@ export default function FloorPlanPage() {
   const debouncedBoundary = useDebounce(boundary, 500);
   const debouncedNorthDirection = useDebounce(liveNorthDirection, 500);
 
-  // Initialize rectangular boundary for manual plots
+  // Initialize parallelogram boundary for manual plots
   useEffect(() => {
     if (project?.plot_width && project?.plot_height && boundary.length === 0) {
-      const width = project.plot_width;
-      const height = project.plot_height;
-      const aspect = width / height;
-      const adjustedAspect = aspect * (600 / 800); // Counteract the 800x600 canvas coordinate squish
+      const w = project.plot_width;
+      const h = project.plot_height;
 
-      // Define a rectangle centered in the normalized [0, 1] space
-      // Let's make it occupy about 80% of the canvas
+      const a = (plotAngle * Math.PI) / 180;
+
+      const shiftTop = Math.max(0, h * Math.cos(a));
+      const shiftBottom = Math.max(0, -h * Math.cos(a));
+
+      const pt0 = { x: shiftTop, y: 0 };
+      const pt1 = { x: shiftTop + w, y: 0 };
+      const pt2 = { x: shiftBottom + w, y: h * Math.sin(a) };
+      const pt3 = { x: shiftBottom, y: h * Math.sin(a) };
+
+      const bboxW = w + Math.abs(h * Math.cos(a));
+      const bboxH = h * Math.sin(a);
+
+      const canvasAspect = 800 / 600;
+      // Prevent division by zero if angle is 0
+      const shapeAspect = bboxH === 0 ? 1 : bboxW / bboxH;
+      const adjustedAspect = shapeAspect / canvasAspect;
+
       let normWidth, normHeight;
       if (adjustedAspect > 1) {
         normWidth = 0.8;
@@ -176,35 +193,31 @@ export default function FloorPlanPage() {
         normWidth = 0.8 * adjustedAspect;
       }
 
+      const scaleToNorm = bboxW === 0 ? 1 : normWidth / bboxW;
       const xOff = (1 - normWidth) / 2;
       const yOff = (1 - normHeight) / 2;
 
       const rectBoundary: Point[] = [
-        { x: xOff, y: yOff },
-        { x: xOff + normWidth, y: yOff },
-        { x: xOff + normWidth, y: yOff + normHeight },
-        { x: xOff, y: yOff + normHeight },
+        { x: xOff + pt0.x * scaleToNorm, y: yOff + pt0.y * scaleToNorm },
+        { x: xOff + pt1.x * scaleToNorm, y: yOff + pt1.y * scaleToNorm },
+        { x: xOff + pt2.x * scaleToNorm, y: yOff + pt2.y * scaleToNorm },
+        { x: xOff + pt3.x * scaleToNorm, y: yOff + pt3.y * scaleToNorm },
       ];
       setBoundary(rectBoundary);
 
       // Automatically calculate and set scale for manual plots
       // Use the top edge (index 0 to 1) as the reference wall (width).
       const canvasWidth = 800; // Fixed canvas internal width based on FloorPlanCanvas logic
-      const pixelWidth = normWidth * canvasWidth;
+      const pixelWidthTopEdge = w * scaleToNorm * canvasWidth;
 
-      if (pixelWidth > 0 && width > 0) {
+      if (pixelWidthTopEdge > 0 && w > 0) {
         // Assume input dimensions are in feet by default for manual plots 
-        const UNIT_CONVERSIONS = {
-          feet: 0.3048,   // 1 foot = 0.3048 meters
-          meters: 1,      // 1 meter = 1 meter
-          inches: 0.0254, // 1 inch = 0.0254 meters
-        };
-        const realLengthInMeters = width * UNIT_CONVERSIONS["feet"];
-        const calculatedScale = realLengthInMeters / pixelWidth;
+        const realLengthInMeters = w * 0.3048; // 1 foot = 0.3048 meters
+        const calculatedScale = realLengthInMeters / pixelWidthTopEdge;
 
         setScale(calculatedScale);
         setReferenceWallIndex(0);
-        setReferenceWallLength(width);
+        setReferenceWallLength(w);
         setReferenceWallUnit("feet");
 
         // Populate wall lengths array
@@ -221,7 +234,7 @@ export default function FloorPlanPage() {
         setWallLengths(newWallLengths);
       }
     }
-  }, [project, boundary.length]);
+  }, [project, boundary.length, plotAngle]);
 
   useEffect(() => {
     if (currentAnalysisId) {
@@ -240,7 +253,7 @@ export default function FloorPlanPage() {
 
           if (status !== "pending") {
             clearInterval(pollStatus);
-            fetchDetailedAnalysisResults(currentAnalysisId, analysisType);
+            fetchDetailedAnalysisResults(currentAnalysisId, analysisType, gridType);
           }
         } catch (error) {
           // Handle network errors
@@ -284,6 +297,31 @@ export default function FloorPlanPage() {
 
   const handleUndoLastPoint = () => {
     setBoundary((prev) => prev.slice(0, -1));
+  };
+
+  const handleMoveBoundaryVertex = (index: number, newPoint: Point) => {
+    setBoundary(prev => {
+      const updated = [...prev];
+      updated[index] = newPoint;
+
+      // Also update wall lengths immediately using the new points
+      if (scale) {
+        const canvasWidth = 800;
+        const canvasHeight = 600;
+        const newWallLengths = updated.map((_, i) => {
+          const p1 = updated[i];
+          const p2 = updated[(i + 1) % updated.length];
+          const lengthInPixels = Math.sqrt(
+            Math.pow((p2.x - p1.x) * canvasWidth, 2) +
+            Math.pow((p2.y - p1.y) * canvasHeight, 2)
+          );
+          return lengthInPixels * scale;
+        });
+        setWallLengths(newWallLengths);
+      }
+
+      return updated;
+    });
   };
 
   const handleDrawBoundary = (point: Point) => {
@@ -433,7 +471,7 @@ export default function FloorPlanPage() {
       if (boundary.length > 0) {
         const newId = await createAnalysisRequest(projectId, "devta", boundary, liveNorthDirection, undefined, undefined);
         if (newId) {
-          fetchDetailedAnalysisResults(newId, "devta");
+          fetchDetailedAnalysisResults(newId, "devta", gridType);
           setAnalysisStale(false);
         } else {
           alert("Failed to initiate analysis. Please try again.");
@@ -549,6 +587,7 @@ export default function FloorPlanPage() {
               marmaData={showGrid.marma ? marmaData : null}
               shaktiChakra={showGrid.shaktiChakra}
               shaktiChakraSize={shaktiChakraSize}
+              shaktiChakraType={shaktiChakraType}
               plotCentroid={plotCentroid}
               onDevtaClick={handleDevtaClick}
               onZoneClick={handleZoneClick}
@@ -573,7 +612,57 @@ export default function FloorPlanPage() {
               onAddWall={handleAddWall}
               onSelectWall={setSelectedWall}
               selectedWall={selectedWall}
+              onMoveBoundaryVertex={handleMoveBoundaryVertex}
             />
+
+            {/* Floating Manual Dimensions Editor */}
+            {project?.plot_width && project?.plot_height && boundary.length === 4 && activeView === "setup" && (
+              <div className="absolute bottom-4 left-4 bg-white p-4 rounded shadow-lg border border-gray-200 z-10 flex flex-col gap-2">
+                <h3 className="text-sm font-semibold text-gray-700">Plot Dimensions (ft) & Angle</h3>
+                <div className="flex gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-500">Width</label>
+                    <input
+                      type="number"
+                      value={project.plot_width || ""}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0;
+                        setProject({ ...project, plot_width: val });
+                        // Re-trigger the useEffect that auto-draws the rectangle boundary
+                        setBoundary([]);
+                      }}
+                      className="w-20 p-1 border rounded text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500">Length</label>
+                    <input
+                      type="number"
+                      value={project.plot_height || ""}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0;
+                        setProject({ ...project, plot_height: val });
+                        setBoundary([]);
+                      }}
+                      className="w-20 p-1 border rounded text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500">Angle (°)</label>
+                    <input
+                      type="number"
+                      value={plotAngle}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 90;
+                        setPlotAngle(val);
+                        setBoundary([]);
+                      }}
+                      className="w-20 p-1 border rounded text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Overlay Status Indicators */}
             <div className="absolute top-4 left-4 flex flex-col gap-2">
@@ -618,6 +707,13 @@ export default function FloorPlanPage() {
           setActiveView={setActiveView}
           showGrid={showGrid}
           setShowGrid={setShowGrid}
+          gridType={gridType}
+          onGridTypeChange={(val) => {
+            setGridType(val);
+            if (currentAnalysisId) {
+              fetchDetailedAnalysisResults(currentAnalysisId, "devta", val);
+            }
+          }}
           liveNorthDirection={liveNorthDirection}
           setLiveNorthDirection={setLiveNorthDirection}
           selectedFile={selectedFile}
@@ -644,6 +740,8 @@ export default function FloorPlanPage() {
           analysisStale={analysisStale}
           shaktiChakraSize={shaktiChakraSize}
           setShaktiChakraSize={setShaktiChakraSize}
+          shaktiChakraType={shaktiChakraType}
+          setShaktiChakraType={setShaktiChakraType}
           scale={scale}
           setScale={setScale}
           wallLengths={wallLengths}
