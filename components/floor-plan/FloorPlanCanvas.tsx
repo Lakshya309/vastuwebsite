@@ -834,28 +834,50 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
 
   const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
     if (isStatic) return;
-    e.preventDefault();
     if (!canvasRef.current) return;
 
     const rect = canvasRef.current.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
-    const zoomFactor = 1.1;
-    const newZoom = e.deltaY < 0 ? zoom * zoomFactor : zoom / zoomFactor;
-    const newZoomClamped = Math.max(1, Math.min(newZoom, 10));
+    // Detect if this is likely a trackpad vs a standard mouse wheel
+    // Trackpads usually emit small deltaY values, or include deltaX.
+    const isTrackpad = Math.abs(e.deltaX) > 0 || Math.abs(e.deltaY) < 40;
 
-    const mouseBeforeZoom = getTransformedPoint(e.clientX, e.clientY);
+    if (e.ctrlKey || !isTrackpad) {
+      // ZOOM
+      e.preventDefault();
+      // Sensitivity factor
+      const zoomSensitivity = 0.002;
+      const zoomMultiplier = Math.exp(-e.deltaY * zoomSensitivity);
+      const newZoomClamped = Math.max(0.2, Math.min(zoom * zoomMultiplier, 20));
 
-    const newOffsetX = mouseX - mouseBeforeZoom.x * newZoomClamped;
-    const newOffsetY = mouseY - mouseBeforeZoom.y * newZoomClamped;
+      const mouseBeforeZoom = getTransformedPoint(e.clientX, e.clientY);
 
-    setZoom(newZoomClamped);
-    setOffset({ x: newOffsetX, y: newOffsetY });
+      const newOffsetX = mouseX - mouseBeforeZoom.x * newZoomClamped;
+      const newOffsetY = mouseY - mouseBeforeZoom.y * newZoomClamped;
+
+      setZoom(newZoomClamped);
+      setOffset({ x: newOffsetX, y: newOffsetY });
+    } else {
+      // PAN (for trackpad two-finger swipe)
+      e.preventDefault();
+      setOffset(prev => ({
+        x: prev.x - e.deltaX,
+        y: prev.y - e.deltaY
+      }));
+    }
   };
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (isStatic) return;
+
+    if (e.button === 1) { // Middle mouse button
+      e.preventDefault(); // Prevent Windows autoscroll cursor
+      setIsPanning(true);
+      setPanStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
+      return;
+    }
 
     if (e.button === 0 && (!drawingMode || drawingMode === "boundary" || drawingMode === "objects" || drawingMode === "select")) {
       // Check if clicking on a vertex hook
@@ -878,11 +900,6 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
         setDraggingVertexIndex(foundVertex);
         return; // Handle dragging
       }
-    }
-
-    if (e.button === 1) { // Middle mouse button
-      setIsPanning(true);
-      setPanStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
     }
   };
 
