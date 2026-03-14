@@ -12,9 +12,6 @@ interface ControlPanelProps {
   error: string | null;
   loading: boolean;
 
-  activeView: "setup" | "grids" | "objects";
-  setActiveView: (view: "setup" | "grids" | "objects") => void;
-
   showGrid: {
     devta45: boolean;
     zone16: boolean;
@@ -57,6 +54,12 @@ interface ControlPanelProps {
   handleSaveObjects?: () => void;
   selectedObject?: PlacedObject | null;
   handleDeleteObject?: (id: string) => void;
+
+  plotWidth?: number | null;
+  plotHeight?: number | null;
+  setProject?: any;
+  plotAngle?: number;
+  setPlotAngle?: any;
 
   placedObjects: PlacedObject[];
   devtaRegions: DevtaRegion[];
@@ -160,39 +163,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
   // Scale is now calculated explicitly via a button click.
 
   return (
-    <div className="bg-white h-full border-l border-gray-200 flex flex-col w-96 shadow-xl">      <div className="flex border-b text-xs font-semibold uppercase tracking-wide text-gray-500">
-      <button
-        onClick={() => props.setActiveView("setup")}
-        className={`flex-1 py-4 hover:bg-gray-50 ${props.activeView === "setup"
-          ? "border-b-2 border-blue-600 text-blue-600"
-          : ""
-          }`}
-      >
-        Setup
-      </button>
-      <button
-        onClick={() => props.setActiveView("grids")}
-        className={`flex-1 py-4 hover:bg-gray-50 ${props.activeView === "grids"
-          ? "border-b-2 border-blue-600 text-blue-600"
-          : ""
-          }`}
-      >
-        Grids
-      </button>
-      <button
-        onClick={() => props.setActiveView("objects")}
-        className={`flex-1 py-4 hover:bg-gray-50 ${props.activeView === "objects"
-          ? "border-b-2 border-blue-600 text-blue-600"
-          : ""
-          }`}
-      >
-        Objects
-      </button>
-
-    </div>
-
+    <div className="bg-white h-full border-l border-gray-200 flex flex-col w-96 shadow-xl">
       <div className="p-6 overflow-y-auto flex-1">
-        {props.activeView === "setup" && (
           <div className="space-y-6">
             <div>
               <h3 className="text-lg font-bold text-gray-800 mb-2">
@@ -253,6 +225,53 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                   Reset Boundary
                 </button>
               </div>
+
+              {props.plotWidth && props.plotHeight && (props.boundary?.length || 0) === 4 && (
+                <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg space-y-3">
+                  <h4 className="font-bold text-gray-800 text-sm">Plot Dimensions (ft) & Angle</h4>
+                  <div className="flex gap-4">
+                    <div>
+                      <label className="block text-xs text-gray-500">Width</label>
+                      <input
+                        type="number"
+                        value={props.plotWidth || ""}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          props.setProject && props.setProject((prev: any) => ({ ...prev, plot_width: val }));
+                          props.setBoundary && props.setBoundary([]);
+                        }}
+                        className="w-20 p-1 border rounded text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500">Length</label>
+                      <input
+                        type="number"
+                        value={props.plotHeight || ""}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          props.setProject && props.setProject((prev: any) => ({ ...prev, plot_height: val }));
+                          props.setBoundary && props.setBoundary([]);
+                        }}
+                        className="w-20 p-1 border rounded text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500">Angle (°)</label>
+                      <input
+                        type="number"
+                        value={props.plotAngle || 90}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 90;
+                          props.setPlotAngle && props.setPlotAngle(val);
+                          props.setBoundary && props.setBoundary([]);
+                        }}
+                        className="w-20 p-1 border rounded text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="border-t pt-4">
@@ -428,7 +447,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
               </div>
             )}
 
-            <div className="border-t pt-6 mt-4">
+            <div className="border-t pt-6 mt-4 mb-4">
               <button
                 onClick={() =>
                   props.handleSaveChanges && props.handleSaveChanges()
@@ -436,14 +455,10 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                 disabled={props.boundary.length < 3}
                 className="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold shadow-md disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
-                Save & Next →
+                Save Boundary & Analyze
               </button>
             </div>
-          </div>
-        )}
-
-        {props.activeView === "grids" && (
-          <div className="space-y-6">
+            
             <h3 className="text-lg font-bold text-gray-800">Energy Grids</h3>
 
             <div className="border border-gray-200 p-3 rounded-lg bg-gray-50 mb-3">
@@ -467,6 +482,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                     props.setShowGrid((p) => ({
                       ...p,
                       devta45: e.target.checked,
+                      zone16: e.target.checked ? false : p.zone16,
+                      zone8: e.target.checked ? false : p.zone8,
                     }))
                   }
                   className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
@@ -489,6 +506,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                     props.setShowGrid((p) => ({
                       ...p,
                       zone16: e.target.checked,
+                      devta45: e.target.checked ? false : p.devta45,
+                      zone8: e.target.checked ? false : p.zone8,
                     }))
                   }
                   className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
@@ -511,6 +530,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                     props.setShowGrid((p) => ({
                       ...p,
                       zone8: e.target.checked,
+                      devta45: e.target.checked ? false : p.devta45,
+                      zone16: e.target.checked ? false : p.zone16,
                     }))
                   }
                   className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
@@ -641,21 +662,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
               )}
             </div>
 
-            <div className="border-t pt-6 mt-4">
-              <button
-                onClick={() =>
-                  props.handleSaveObjects && props.handleSaveObjects()
-                }
-                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold shadow-md"
-              >
-                View Detailed Report →
-              </button>
-            </div>
-          </div>
-        )}
-
-        {props.activeView === "grids" && (
-          <div className="space-y-6">
             <div className="border-t pt-4">
               <h3 className="text-lg font-bold text-gray-800 mb-2">
                 Highlight Problem Zones
@@ -667,6 +673,12 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                   props.setSelectedProblem(problem);
                   if (problem && problemZoneMapping[problem]) {
                     props.setHighlightedZones(problemZoneMapping[problem]);
+                    props.setShowGrid((p) => ({
+                      ...p,
+                      zone16: true,
+                      devta45: false,
+                      zone8: false,
+                    }));
                   } else {
                     props.setHighlightedZones([]);
                   }
@@ -681,26 +693,22 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                 ))}
               </select>
             </div>
-          </div>
-        )}
-
-        {props.activeView === "objects" && (
-          <div className="space-y-6">
-            <ObjectPalette onAddObject={props.handleAddObject} />
             <div className="border-t pt-6 mt-4">
+              <h3 className="text-lg font-bold text-gray-800 border-b pb-2 mb-4">Objects</h3>
+              <ObjectPalette onAddObject={props.handleAddObject} />
+            </div>
+            
+            <div className="border-t pt-6 mt-4 text-center">
               <button
                 onClick={() =>
                   props.handleSaveObjects && props.handleSaveObjects()
                 }
                 className="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold shadow-md"
               >
-                Save & Next →
+                Save & View Detailed Report →
               </button>
             </div>
           </div>
-        )}
-
-
       </div>
     </div>
   );

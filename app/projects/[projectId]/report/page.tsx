@@ -652,7 +652,7 @@ export default function ReportPage() {
                           <span
                             className="px-2 inline-flex text-xs leading-5 font-bold rounded-full text-white"
                             style={{
-                              backgroundColor: obj.grade === "A" ? "green" : obj.grade === "B" ? "orange" : "red",
+                              backgroundColor: obj.grade === "B" ? "green" : obj.grade === "C" ? "orange" : "red",
                             }}
                           >
                             {obj.grade}

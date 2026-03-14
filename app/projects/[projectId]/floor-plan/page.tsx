@@ -35,9 +35,6 @@ export default function FloorPlanPage() {
   } = useFloorPlanData(projectId, refreshKey);
 
   // 2. UI State
-  const [activeView, setActiveView] = useState<
-    "setup" | "grids" | "objects"
-  >("setup");
   const [showGrid, setShowGrid] = useState({
     devta45: true,
     zone16: false,
@@ -479,7 +476,7 @@ export default function FloorPlanPage() {
       }
 
 
-      setActiveView("grids"); // Move to the next phase
+      // Phase change handled via scrolling down
     } catch (error) {
       console.error(error);
       // You might want to show an error message to the user
@@ -606,7 +603,6 @@ export default function FloorPlanPage() {
               wallColors={wallColors}
               plotWidth={project?.plot_width}
               plotHeight={project?.plot_height}
-              activeView={activeView}
               highlightedZones={highlightedZones}
               walls={walls}
               onAddWall={handleAddWall}
@@ -614,55 +610,6 @@ export default function FloorPlanPage() {
               selectedWall={selectedWall}
               onMoveBoundaryVertex={handleMoveBoundaryVertex}
             />
-
-            {/* Floating Manual Dimensions Editor */}
-            {project?.plot_width && project?.plot_height && boundary.length === 4 && activeView === "setup" && (
-              <div className="absolute bottom-4 left-4 bg-white p-4 rounded shadow-lg border border-gray-200 z-10 flex flex-col gap-2">
-                <h3 className="text-sm font-semibold text-gray-700">Plot Dimensions (ft) & Angle</h3>
-                <div className="flex gap-4">
-                  <div>
-                    <label className="block text-xs text-gray-500">Width</label>
-                    <input
-                      type="number"
-                      value={project.plot_width || ""}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value) || 0;
-                        setProject({ ...project, plot_width: val });
-                        // Re-trigger the useEffect that auto-draws the rectangle boundary
-                        setBoundary([]);
-                      }}
-                      className="w-20 p-1 border rounded text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500">Length</label>
-                    <input
-                      type="number"
-                      value={project.plot_height || ""}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value) || 0;
-                        setProject({ ...project, plot_height: val });
-                        setBoundary([]);
-                      }}
-                      className="w-20 p-1 border rounded text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500">Angle (°)</label>
-                    <input
-                      type="number"
-                      value={plotAngle}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value) || 90;
-                        setPlotAngle(val);
-                        setBoundary([]);
-                      }}
-                      className="w-20 p-1 border rounded text-sm"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* Overlay Status Indicators */}
             <div className="absolute top-4 left-4 flex flex-col gap-2">
@@ -703,8 +650,6 @@ export default function FloorPlanPage() {
           projectId={projectId}
           error={error || analysisError}
           loading={loading}
-          activeView={activeView}
-          setActiveView={setActiveView}
           showGrid={showGrid}
           setShowGrid={setShowGrid}
           gridType={gridType}
@@ -714,6 +659,11 @@ export default function FloorPlanPage() {
               fetchDetailedAnalysisResults(currentAnalysisId, "devta", val);
             }
           }}
+          plotWidth={project?.plot_width}
+          plotHeight={project?.plot_height}
+          setProject={setProject}
+          plotAngle={plotAngle}
+          setPlotAngle={setPlotAngle}
           liveNorthDirection={liveNorthDirection}
           setLiveNorthDirection={setLiveNorthDirection}
           selectedFile={selectedFile}

@@ -51,7 +51,6 @@ interface FloorPlanCanvasProps {
   plotHeight?: number | null;
   isStatic?: boolean;
   highlightedZones?: string[];
-  activeView?: "setup" | "grids" | "objects";
   onObjectClick?: (object: PlacedObject) => void;
   walls?: Wall[];
   onAddWall?: (wall: Wall) => void;
@@ -190,7 +189,6 @@ const drawCanvasContent = (
   referenceWallIndex: number | null,
   wallColors: (string | null)[],
   highlightedZones: string[] | undefined,
-  activeView?: "setup" | "grids" | "objects",
   plotWidth?: number | null,
   plotHeight?: number | null,
   walls?: Wall[],
@@ -643,8 +641,8 @@ const drawCanvasContent = (
     ctx.stroke();
   }
 
-  // Draw North Indicator in first two tabs
-  if ((activeView === "setup" || activeView === "grids") && boundary.length > 0) {
+  // Draw North Indicator
+  if (boundary.length > 0) {
     ctx.save();
 
     // Determine centroid: use plotCentroid if available, else calculate from boundary
@@ -716,7 +714,6 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
   plotHeight,
   isStatic = false,
   highlightedZones,
-  activeView,
   onObjectClick,
   walls = [],
   onAddWall,
@@ -802,7 +799,6 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
       referenceWallIndex,
       wallColors,
       highlightedZones,
-      activeView,
       plotWidth,
       plotHeight,
       walls,
