@@ -74,7 +74,7 @@ export default function FloorPlanPage() {
         Math.pow((wall.end.x - wall.start.x) * canvasWidth, 2) +
         Math.pow((wall.end.y - wall.start.y) * canvasHeight, 2)
       );
-      wall.length = pixelLength * scale;
+      wall.length = pixelLength * (scale / unitFactor);
     }
     setWalls((prev) => [...prev, wall]);
   };
@@ -156,82 +156,116 @@ export default function FloorPlanPage() {
 
   const debouncedBoundary = useDebounce(boundary, 500);
   const debouncedNorthDirection = useDebounce(liveNorthDirection, 500);
+  const isManualUpdate = useRef(false);
 
-  // Initialize parallelogram boundary for manual plots
+  // Unit conversion factor (base is meters)
+  const UNIT_CONVERSIONS = {
+    feet: 0.3048,
+    meters: 1,
+    inches: 0.0254,
+  };
+  const unitFactor = UNIT_CONVERSIONS[referenceWallUnit];
+
+  // Initialize or Update parallelogram boundary for manual plots
   useEffect(() => {
-    if (project?.plot_width && project?.plot_height && boundary.length === 0) {
-      const w = project.plot_width;
-      const h = project.plot_height;
-
-      const a = (plotAngle * Math.PI) / 180;
-
-      const shiftTop = Math.max(0, h * Math.cos(a));
-      const shiftBottom = Math.max(0, -h * Math.cos(a));
-
-      const pt0 = { x: shiftTop, y: 0 };
-      const pt1 = { x: shiftTop + w, y: 0 };
-      const pt2 = { x: shiftBottom + w, y: h * Math.sin(a) };
-      const pt3 = { x: shiftBottom, y: h * Math.sin(a) };
-
-      const bboxW = w + Math.abs(h * Math.cos(a));
-      const bboxH = h * Math.sin(a);
-
-      const canvasAspect = 800 / 600;
-      // Prevent division by zero if angle is 0
-      const shapeAspect = bboxH === 0 ? 1 : bboxW / bboxH;
-      const adjustedAspect = shapeAspect / canvasAspect;
-
-      let normWidth, normHeight;
-      if (adjustedAspect > 1) {
-        normWidth = 0.8;
-        normHeight = 0.8 / adjustedAspect;
-      } else {
-        normHeight = 0.8;
-        normWidth = 0.8 * adjustedAspect;
+    if (project?.plot_width && project?.plot_height) {
+      if (boundary.length > 4) return;
+      if (isManualUpdate.current) {
+        isManualUpdate.current = false;
+        return;
       }
 
-      const scaleToNorm = bboxW === 0 ? 1 : normWidth / bboxW;
-      const xOff = (1 - normWidth) / 2;
-      const yOff = (1 - normHeight) / 2;
+      const w = project.plot_width;
+      const h = project.plot_height;
+      const a = (plotAngle * Math.PI) / 180;
 
-      const rectBoundary: Point[] = [
-        { x: xOff + pt0.x * scaleToNorm, y: yOff + pt0.y * scaleToNorm },
-        { x: xOff + pt1.x * scaleToNorm, y: yOff + pt1.y * scaleToNorm },
-        { x: xOff + pt2.x * scaleToNorm, y: yOff + pt2.y * scaleToNorm },
-        { x: xOff + pt3.x * scaleToNorm, y: yOff + pt3.y * scaleToNorm },
-      ];
-      setBoundary(rectBoundary);
+      // 1. Determine Scale (Fixed for manual plots after first creation)
+      let currentScale = scale;
+      if (!currentScale) {
+        // Initialization: Calculate a scale that fits the initial dimensions nicely
+        const initialBboxW = w + Math.abs(h * Math.cos(a));
+        const initialBboxH = h * Math.sin(a);
+        const canvasAspect = 800 / 600;
+        const shapeAspect = initialBboxH === 0 ? 1 : initialBboxW / initialBboxH;
+        const adjustedAspect = shapeAspect / canvasAspect;
 
-      // Automatically calculate and set scale for manual plots
-      // Use the top edge (index 0 to 1) as the reference wall (width).
-      const canvasWidth = 800; // Fixed canvas internal width based on FloorPlanCanvas logic
-      const pixelWidthTopEdge = w * scaleToNorm * canvasWidth;
+        let normWidth;
+        if (adjustedAspect > 1) {
+          normWidth = 0.8;
+        } else {
+          normWidth = 0.8 * adjustedAspect;
+        }
 
-      if (pixelWidthTopEdge > 0 && w > 0) {
-        // Assume input dimensions are in feet by default for manual plots 
-        const realLengthInMeters = w * 0.3048; // 1 foot = 0.3048 meters
-        const calculatedScale = realLengthInMeters / pixelWidthTopEdge;
-
-        setScale(calculatedScale);
+        const pixelWidth = normWidth * 800; // normalized to absolute pixels in reference 800x600 space
+        currentScale = (w * unitFactor) / pixelWidth; // meters per pixel
+        setScale(currentScale);
         setReferenceWallIndex(0);
         setReferenceWallLength(w);
-        setReferenceWallUnit("feet");
+      }
 
-        // Populate wall lengths array
-        const canvasHeight = 600;
-        const newWallLengths = rectBoundary.map((_, i) => {
-          const point1 = rectBoundary[i];
-          const point2 = rectBoundary[(i + 1) % rectBoundary.length];
-          const lengthInPixels = Math.sqrt(
-            Math.pow((point2.x - point1.x) * canvasWidth, 2) +
-            Math.pow((point2.y - point1.y) * canvasHeight, 2)
-          );
-          return lengthInPixels * calculatedScale;
-        });
+      // 2. Calculate Geometry based on STICKY Scale
+      // Positions are derived from absolute dimensions / scale
+      const pxW = (w * unitFactor) / currentScale;
+      const pxH = (h * unitFactor) / currentScale;
+
+      const shiftTop = Math.max(0, pxH * Math.cos(a));
+      const shiftBottom = Math.max(0, -pxH * Math.cos(a));
+
+      const pt0 = { x: shiftTop, y: 0 };
+      const pt1 = { x: shiftTop + pxW, y: 0 };
+      const pt2 = { x: shiftBottom + pxW, y: pxH * Math.sin(a) };
+      const pt3 = { x: shiftBottom, y: pxH * Math.sin(a) };
+
+      const totalPxW = pxW + Math.abs(pxH * Math.cos(a));
+      const totalPxH = pxH * Math.sin(a);
+
+      // Centering and normalizing
+      const xOff = (800 - totalPxW) / 2;
+      const yOff = (600 - totalPxH) / 2;
+
+      const rectBoundary: Point[] = [
+        { x: (xOff + pt0.x) / 800, y: (yOff + pt0.y) / 600 },
+        { x: (xOff + pt1.x) / 800, y: (yOff + pt1.y) / 600 },
+        { x: (xOff + pt2.x) / 800, y: (yOff + pt2.y) / 600 },
+        { x: (xOff + pt3.x) / 800, y: (yOff + pt3.y) / 600 },
+      ];
+
+      const isSame = boundary.length === 4 && boundary.every((p, i) =>
+        Math.abs(p.x - rectBoundary[i].x) < 0.0001 &&
+        Math.abs(p.y - rectBoundary[i].y) < 0.0001
+      );
+
+      if (!isSame) {
+        setBoundary(rectBoundary);
+        // Wall lengths label update will be handled by the specialized synchronization effect
+      }
+    }
+  }, [project?.plot_width, project?.plot_height, plotAngle, referenceWallUnit]);
+
+  // Synchronize wall lengths whenever scale, boundary, or unit changes
+  useEffect(() => {
+    if (scale && boundary.length >= 2) {
+      const canvasWidth = 800;
+      const canvasHeight = 600;
+      const newWallLengths = boundary.map((_, i) => {
+        const p1 = boundary[i];
+        const p2 = boundary[(i + 1) % boundary.length];
+        const lengthInPixels = Math.sqrt(
+          Math.pow((p2.x - p1.x) * canvasWidth, 2) +
+          Math.pow((p2.y - p1.y) * canvasHeight, 2)
+        );
+        return (lengthInPixels * scale) / unitFactor;
+      });
+
+      // Only update if values actually changed to avoid infinite loops
+      const isSame = wallLengths.length === newWallLengths.length &&
+        wallLengths.every((l, i) => Math.abs(l - newWallLengths[i]) < 0.001);
+
+      if (!isSame) {
         setWallLengths(newWallLengths);
       }
     }
-  }, [project, boundary.length, plotAngle]);
+  }, [scale, boundary, unitFactor]);
 
   useEffect(() => {
     if (currentAnalysisId) {
@@ -301,7 +335,6 @@ export default function FloorPlanPage() {
       const updated = [...prev];
       updated[index] = newPoint;
 
-      // Also update wall lengths immediately using the new points
       if (scale) {
         const canvasWidth = 800;
         const canvasHeight = 600;
@@ -312,9 +345,20 @@ export default function FloorPlanPage() {
             Math.pow((p2.x - p1.x) * canvasWidth, 2) +
             Math.pow((p2.y - p1.y) * canvasHeight, 2)
           );
-          return lengthInPixels * scale;
+          return (lengthInPixels * scale) / unitFactor;
         });
         setWallLengths(newWallLengths);
+
+        // SYNC dimension boxes if it's a 4-point boundary
+        if (updated.length === 4) {
+          isManualUpdate.current = true;
+          // Sync Width (seg 0) and Height (seg 1)
+          setProject((p: any) => ({
+            ...p,
+            plot_width: newWallLengths[0],
+            plot_height: newWallLengths[1]
+          }));
+        }
       }
 
       return updated;
@@ -596,7 +640,7 @@ export default function FloorPlanPage() {
               setDrawingObjectBoundary={setDrawingObjectBoundary}
               selectedObjectType={selectedObjectType}
               northDirection={liveNorthDirection}
-              scale={scale}
+              scale={scale ? scale / unitFactor : null}
               wallLengths={wallLengths}
               setReferenceWallIndex={setReferenceWallIndex}
               referenceWallIndex={referenceWallIndex}
