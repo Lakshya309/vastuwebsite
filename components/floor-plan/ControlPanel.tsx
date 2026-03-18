@@ -236,7 +236,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
             </div>
 
             {(props.plotWidth || props.plotHeight) && (
-              <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg space-y-3">
+              <div id="tutorial-dimensions" className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg space-y-3">
                 <h4 className="font-bold text-gray-800 text-sm">Plot Dimensions ({props.referenceWallUnit}) & Angle</h4>
                 <div className="flex gap-4">
                   <div>
@@ -334,7 +334,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
             )}
           </div>
 
-          <div className="border-t pt-4">
+          <div id="tutorial-north" className="border-t pt-4">
             <h3 className="text-lg font-bold text-gray-800 mb-2">
               3. Set True North
             </h3>
@@ -465,7 +465,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
             </button>
           </div>
 
-          <h3 className="text-lg font-bold text-gray-800">Energy Grids</h3>
+          <h3 id="tutorial-layers" className="text-lg font-bold text-gray-800">Energy Grids</h3>
 
           <div className="border border-gray-200 p-3 rounded-lg bg-gray-50 mb-3">
             <label className="block text-sm font-semibold text-gray-700 mb-1">Grid System Geometry</label>
@@ -704,7 +704,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
             <ObjectPalette onAddObject={props.handleAddObject} />
           </div>
 
-          <div className="border-t pt-6 mt-4 text-center">
+          <div id="tutorial-analyze" className="border-t pt-6 mt-4 text-center">
             <button
               onClick={() =>
                 props.handleSaveObjects && props.handleSaveObjects()

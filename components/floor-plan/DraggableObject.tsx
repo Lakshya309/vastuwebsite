@@ -153,7 +153,11 @@ export const DraggableObject: React.FC<DraggableObjectProps> = ({
         src={objectSvgMap[object.object_type] || "/objects/generic.svg"}
         alt={object.object_type}
         draggable={false}
-        style={{ width: "100%", height: "100%" }}
+        onError={(e) => {
+          console.error(`Failed to load icon for ${object.object_type}: ${e.currentTarget.src}`);
+          e.currentTarget.src = "/objects/generic.svg";
+        }}
+        style={{ width: "100%", height: "100%", objectFit: "contain" }}
       />
 
       {object.grade && (

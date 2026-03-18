@@ -1,7 +1,7 @@
 // components/floor-plan/ObjectPalette.tsx
 "use client";
 
-import React from "react";
+import { OBJECT_ICONS } from "@/lib/objectIcons";
 
 interface ObjectPaletteItemProps {
   objectType: string;
@@ -17,10 +17,10 @@ const ObjectPaletteItem: React.FC<ObjectPaletteItemProps> = ({
   return (
     <div
       onClick={() => onAddObject(objectType)}
-      className={`flex flex-col items-center justify-center p-2 m-1 border rounded-lg cursor-pointer`}
+      className={`flex flex-col items-center justify-center p-2 m-1 border rounded-lg cursor-pointer hover:bg-gray-100`}
     >
       <img src={icon} alt={objectType} className="w-8 h-8" />
-      <span className="text-xs">{objectType}</span>
+      <span className="text-xs text-center">{objectType}</span>
     </div>
   );
 };
@@ -43,68 +43,19 @@ export const ObjectPalette: React.FC<ObjectPaletteProps> = ({
   ];
 
   const objects = allObjects.map(obj => {
-    // Check if there is an explicit icon for the object type
-    // We already have some predefined ones and we can map them back
     const typeLabel = obj.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-
-    // Explicit mappings for icons we know exist
-    const explicitIcons: Record<string, string> = {
-      "Stove": "/objects/stove.svg",
-      "Toilet": "/objects/toilet.svg",
-      "Bed": "/objects/bed.svg",
-      "Wardrobe": "/objects/wardrobe.svg",
-      "Sofa": "/objects/sofa.svg",
-      "Pooja": "/objects/pooja.png",
-      "Staircase": "/objects/stairs.svg",
-      "Dining Room": "/objects/dining.svg",
-      "Overhead Tank": "/objects/overheadtank.png",
-      "Underground Tank": "/objects/undergroundtank.png",
-      "Kitchen": "/objects/stove.svg", // Re-using stove for kitchen
-      "Septic Tank": "/objects/septictank.svg",
-      "Family Lounge": "/objects/familylounge.svg",
-      "Study Table": "/objects/studytable.svg",
-      "Store Room": "/objects/storeroom.svg",
-      "Servent Room": "/objects/serventroom.svg",
-      "Guest Room": "/objects/guestroom.svg",
-      "Bar": "/objects/bar.svg",
-      "Music System": "/objects/musicsystem.svg",
-      "Parking": "/objects/parking.svg",
-      "Main Gate": "/objects/maingate.svg",
-      "Swimming Pool": "/objects/swimmingpool.svg",
-      "Well": "/objects/well.svg",
-      "Tv": "/objects/tv.svg",
-      "Tubes": "/objects/tubes.svg",
-      "Dustbin": "/objects/dustbin.svg",
-      "Safe": "/objects/safe.svg",
-      "Heater": "/objects/heater.svg",
-      "Washing Machine": "/objects/washingmachine.svg",
-      "Ac": "/objects/ac.svg",
-      "Inverter": "/objects/inverter.svg",
-      "Pots": "/objects/pots.svg",
-      "Sick Person Bed": "/objects/sickpersonbed.svg",
-      "Aquarium": "/objects/aquarium.svg",
-      "Iron Almira": "/objects/ironalmira.svg",
-      "Gym": "/objects/gym.svg",
-      "Meditation": "/objects/meditation.svg",
-      "Pets": "/objects/pets.svg",
-      "Swing": "/objects/swing.svg",
-      "Plants": "/objects/plants.svg",
-      "Shoerack": "/objects/shoerack.svg",
-      "Material": "/objects/material.svg",
-      "Finish": "/objects/finish.svg",
-    };
 
     return {
       type: obj,
       label: typeLabel,
-      icon: explicitIcons[typeLabel] || "/objects/generic.svg"
+      icon: OBJECT_ICONS[typeLabel] || "/objects/generic.svg"
     };
   });
 
   return (
     <div className="p-4 border-t">
       <h3 className="text-lg font-semibold mb-2">Objects</h3>
-      <div className="grid grid-cols-3 gap-2 max-h-96 overflow-y-auto pr-2">
+      <div id="tutorial-objects" className="grid grid-cols-3 gap-2 max-h-96 overflow-y-auto pr-2">
         {objects.map((obj) => (
           <ObjectPaletteItem
             key={obj.type}

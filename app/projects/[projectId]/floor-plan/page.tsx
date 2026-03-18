@@ -11,6 +11,8 @@ import { FloorPlanCanvas } from "@/components/floor-plan/FloorPlanCanvas";
 import { ControlPanel } from "@/components/floor-plan/ControlPanel";
 import { DevtaInfoCard } from "@/components/floor-plan/DevtaInfoCard";
 import { PlacedObject, DevtaRegion, Point, Wall } from "@/lib/floorPlanInterfaces";
+import { OBJECT_ICONS } from "@/lib/objectIcons";
+import { TutorialOverlay, TutorialStep } from "@/components/floor-plan/TutorialOverlay";
 
 export default function FloorPlanPage() {
   const params = useParams();
@@ -64,6 +66,60 @@ export default function FloorPlanPage() {
   const [selectedWall, setSelectedWall] = useState<Wall | null>(null);
   const [plotAngle, setPlotAngle] = useState<number>(90);
   const [gridType, setGridType] = useState<"81" | "64">("81");
+
+  // Tutorial State
+  const [showTutorial, setShowTutorial] = useState(false);
+
+  useEffect(() => {
+    const hasCompletedTutorial = localStorage.getItem("vastu_tutorial_completed");
+    if (!hasCompletedTutorial) {
+      setShowTutorial(true);
+    }
+  }, []);
+
+  const tutorialSteps: TutorialStep[] = [
+    {
+      targetId: "viewport",
+      title: "Welcome to Vastu Studio",
+      content: "Let's take a quick tour to help you design your perfect Vastu-compliant floor plan.",
+      position: "center"
+    },
+    {
+      targetId: "tutorial-dimensions",
+      title: "Set Your Plot Size",
+      content: "Start by entering your plot's Width and Length. This ensures all your measurements are accurate.",
+      position: "left"
+    },
+    {
+      targetId: "tutorial-north",
+      title: "Align with Truth North",
+      content: "Use this slider to align your plan with geographic North. Vastu is all about directions!",
+      position: "left"
+    },
+    {
+      targetId: "tutorial-objects",
+      title: "Place Your Rooms",
+      content: "Drag or click items from the Palette to place them on the canvas. Toilets, Kitchens, and Beds have specific zones!",
+      position: "left"
+    },
+    {
+      targetId: "tutorial-layers",
+      title: "Analyze Energy Grids",
+      content: "Toggle between 45 Devtas or 16 Zones to see how energy flows through your plan.",
+      position: "left"
+    },
+    {
+      targetId: "tutorial-analyze",
+      title: "Get Your Report",
+      content: "Once you're happy with the placement, click here to generate a detailed Vastu compliance report.",
+      position: "left"
+    }
+  ];
+
+  const handleTutorialComplete = () => {
+    localStorage.setItem("vastu_tutorial_completed", "true");
+    setShowTutorial(false);
+  };
 
   const handleAddWall = (wall: Wall) => {
     // Calculate real-world length if scale is available
@@ -555,29 +611,15 @@ export default function FloorPlanPage() {
     }
   };
 
-  const objectSvgMap: { [key: string]: string } = {
-    "Stove": "/objects/stove.svg",
-    "Toilet": "/objects/toilet.svg",
-    "Bed": "/objects/bed.svg",
-    "Wardrobe": "/objects/wardrobe.svg",
-    "Sofa": "/objects/sofa.svg",
-    "Pooja": "/objects/pooja.png",
-    "Staircase": "/objects/stairs.svg",
-    "Dining Room": "/objects/dining.svg",
-    "Overhead Tank": "/objects/overheadtank.png",
-    "Underground Tank": "/objects/undergroundtank.png",
-    "Kitchen": "/objects/stove.svg",
-  };
-
-  // We can use a Proxy to fallback to the generic icon
-  const proxiedObjectSvgMap = new Proxy(objectSvgMap, {
+  const proxiedObjectSvgMap = new Proxy(OBJECT_ICONS, {
     get: function (target, prop, receiver) {
       if (typeof prop === 'string') {
+        const type = prop as string;
         // Try exact match
-        if (target[prop]) return target[prop];
+        if (target[type]) return target[type];
 
-        // Try title casing for the lookup if it's uppercase
-        const titleCase = prop.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+        // Try title casing for the lookup
+        const titleCase = type.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
         if (target[titleCase]) return target[titleCase];
       }
       return "/objects/generic.svg";
