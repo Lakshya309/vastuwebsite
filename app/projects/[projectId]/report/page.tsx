@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { OBJECT_ICONS } from "../../../../lib/objectIcons";
 
 import { useProjectStore } from "../../../../lib/store/projectStore";
 
@@ -567,19 +568,7 @@ export default function ReportPage() {
                       highlight: analysis ? analysis.verdict : null,
                     }
                   })}
-                  objectSvgMap={new Proxy({
-                    "Stove": "/objects/stove.svg",
-                    "Toilet": "/objects/toilet.svg",
-                    "Bed": "/objects/bed.svg",
-                    "Wardrobe": "/objects/wardrobe.svg",
-                    "Sofa": "/objects/sofa.svg",
-                    "Pooja": "/objects/pooja.png",
-                    "Staircase": "/objects/stairs.svg",
-                    "Dining Room": "/objects/dining.svg",
-                    "Overhead Tank": "/objects/overheadtank.png",
-                    "Underground Tank": "/objects/undergroundtank.png",
-                    "Kitchen": "/objects/stove.svg",
-                  }, {
+                  objectSvgMap={new Proxy(OBJECT_ICONS, {
                     get: (target: Record<string, string>, prop: string | symbol) => {
                       if (typeof prop === 'string') {
                         if (target[prop]) return target[prop];

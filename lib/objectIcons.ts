@@ -44,6 +44,39 @@ export const OBJECT_ICONS: Record<string, string> = {
     "Shoerack": "/objects/shoerack.svg",
     "Material": "/objects/material.svg",
     "Finish": "/objects/finish.svg",
+    
+    // New additions from vastu_rules.json
+    "Master Bedroom": "/objects/bed.svg",
+    "Children Bedroom": "/objects/bed.svg",
+    "Lift": "/objects/lift.svg",
+    "Cupbaord": "/objects/wardrobe.svg", // matching JSON typo
+    "Dressing Table": "/objects/dressingtable.svg",
+    "Footwear Rank": "/objects/shoerack.svg",
+    "Fridge": "/objects/fridge.svg",
+    "Locker": "/objects/safe.svg",
+    "Generator": "/objects/generator.svg",
+    "Borewell": "/objects/well.svg",
+    "Waste Material": "/objects/dustbin.svg",
+    "Water Element": "/objects/waterelement.svg",
+    "Air Element": "/objects/airelement.svg",
+    "Fire Element": "/objects/fireelement.svg",
+    "Earth Element": "/objects/earthelement.svg",
+    "Sky Element": "/objects/skyelement.svg",
+    "Boss Sitting": "/objects/bosssitting.svg",
+    "Staff Sitting": "/objects/staffsitting.svg",
+    "Computer": "/objects/computer.svg",
+    "Important Paper": "/objects/documents.svg",
+    "Sofa Set": "/objects/sofa.svg",
+    "Microwave": "/objects/microwave.svg",
+    "Water Tap": "/objects/watertap.svg",
+    "Mirror": "/objects/mirror.svg",
+    "Raw Material": "/objects/material.svg",
+    "Finish Goods": "/objects/finish.svg",
+    "Lift For Goods": "/objects/lift.svg",
+    "Main Entry": "/objects/maingate.svg",
+    "Inveter": "/objects/inverter.svg", // matching JSON typo
+    "Water Heater": "/objects/heater.svg",
+    "Air Conditioner": "/objects/ac.svg",
 };
 
 export const getObjectIcon = (type: string): string => {
