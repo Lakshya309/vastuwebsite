@@ -656,20 +656,91 @@ const drawCanvasContent = (
       ctx.translate(centroidPx.x, centroidPx.y);
       ctx.rotate((-northDirection * Math.PI) / 180);
 
-      // Draw arrow
+      const size = 35; // Length of half needle
+      const width = 10; // Half width of needle
+
+      ctx.save();
+      // Subtle glow/shadow
+      ctx.shadowColor = "rgba(0, 0, 0, 0.4)";
+      ctx.shadowBlur = 8;
+      ctx.shadowOffsetX = 2;
+      ctx.shadowOffsetY = 2;
+
+      // Draw outer shape for shadow
       ctx.beginPath();
-      ctx.moveTo(0, -30);
-      ctx.lineTo(-15, 15);
-      ctx.lineTo(15, 15);
+      ctx.moveTo(0, -size);
+      ctx.lineTo(width, 0);
+      ctx.lineTo(0, size);
+      ctx.lineTo(-width, 0);
       ctx.closePath();
-      ctx.fillStyle = "red";
+      ctx.fillStyle = "white"; // Hidden by layers above, just for shadow
+      ctx.fill();
+      ctx.restore();
+
+      // North pointer left side (Light Red)
+      ctx.beginPath();
+      ctx.moveTo(0, -size);
+      ctx.lineTo(0, 0);
+      ctx.lineTo(-width, 0);
+      ctx.closePath();
+      ctx.fillStyle = "#FF5252";
       ctx.fill();
 
-      // Draw 'N'
-      ctx.fillStyle = "black";
-      ctx.font = "bold 18px sans-serif";
+      // North pointer right side (Dark Red)
+      ctx.beginPath();
+      ctx.moveTo(0, -size);
+      ctx.lineTo(width, 0);
+      ctx.lineTo(0, 0);
+      ctx.closePath();
+      ctx.fillStyle = "#D32F2F";
+      ctx.fill();
+
+      // South pointer left side (Light Gray)
+      ctx.beginPath();
+      ctx.moveTo(0, size);
+      ctx.lineTo(0, 0);
+      ctx.lineTo(-width, 0);
+      ctx.closePath();
+      ctx.fillStyle = "#F5F5F5";
+      ctx.fill();
+
+      // South pointer right side (Dark Gray)
+      ctx.beginPath();
+      ctx.moveTo(0, size);
+      ctx.lineTo(width, 0);
+      ctx.lineTo(0, 0);
+      ctx.closePath();
+      ctx.fillStyle = "#BDBDBD";
+      ctx.fill();
+
+      // Center rivet
+      ctx.beginPath();
+      ctx.arc(0, 0, 3, 0, Math.PI * 2);
+      ctx.fillStyle = "#212121";
+      ctx.fill();
+
+      // Draw 'N' above the needle, keeping it upright relative to canvas to make it always readable
+      ctx.save();
+      ctx.translate(0, -size - 18);
+      // Un-rotate the text so it's always 'upright' for readability
+      ctx.rotate((northDirection * Math.PI) / 180); 
+      
+      // Draw a subtle white backdrop circle for the N letter to ensure high contrast against any background
+      ctx.beginPath();
+      ctx.arc(0, 0, 12, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
+      ctx.shadowColor = "rgba(0,0,0,0.2)";
+      ctx.shadowBlur = 4;
+      ctx.shadowOffsetY = 1;
+      ctx.fill();
+
+      ctx.fillStyle = "#D32F2F"; // Red 'N'
+      ctx.font = "bold 14px 'Inter', sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText("N", 0, -35);
+      ctx.textBaseline = "middle";
+      ctx.shadowColor = "transparent"; // remove text shadow
+      ctx.fillText("N", 0, 1);
+      ctx.restore();
     }
     ctx.restore();
   }

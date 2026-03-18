@@ -38,6 +38,8 @@ export const devtaColors: { [key: string]: string } = {
     "Bhujaga": "rgba(85, 107, 47, 0.4)",
     "Aditi": "rgba(240, 230, 140, 0.4)",
     "Diti": "rgba(230, 230, 250, 0.4)",
+    "Aapvatsa": "rgba(255, 250, 205, 0.4)",
+    "Aap": "rgba(175, 238, 238, 0.4)",
     "Apavatsa": "rgba(255, 250, 205, 0.4)",
     "Apah": "rgba(175, 238, 238, 0.4)",
     "Savitra": "rgba(244, 164, 96, 0.4)",
