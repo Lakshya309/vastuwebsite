@@ -210,6 +210,8 @@ export default function FloorPlanPage() {
   } = useFloorPlanAnalysis();
   const { marmaData, isLoading: isMarmaAnalyzing, error: marmaError } = useMarmaAnalysis(currentAnalysisId);
 
+  const isManualMode = !!(project?.plot_width && project?.plot_height);
+
   const debouncedBoundary = useDebounce(boundary, 500);
   const debouncedNorthDirection = useDebounce(liveNorthDirection, 500);
   const isManualUpdate = useRef(false);
@@ -235,25 +237,25 @@ export default function FloorPlanPage() {
       const h = project.plot_height;
       const a = (plotAngle * Math.PI) / 180;
 
-      // 1. Determine Scale (Fixed for manual plots after first creation)
-      let currentScale = scale;
-      if (!currentScale) {
-        // Initialization: Calculate a scale that fits the initial dimensions nicely
-        const initialBboxW = w + Math.abs(h * Math.cos(a));
-        const initialBboxH = h * Math.sin(a);
-        const canvasAspect = 800 / 600;
-        const shapeAspect = initialBboxH === 0 ? 1 : initialBboxW / initialBboxH;
-        const adjustedAspect = shapeAspect / canvasAspect;
+      // 1. Determine/Update Scale for manual plots
+      const initialBboxW = w + Math.abs(h * Math.cos(a));
+      const initialBboxH = h * Math.sin(a);
+      const canvasAspect = 800 / 600;
+      const shapeAspect = initialBboxH === 0 ? 1 : initialBboxW / initialBboxH;
+      const adjustedAspect = shapeAspect / canvasAspect;
 
-        let normWidth;
-        if (adjustedAspect > 1) {
-          normWidth = 0.8;
-        } else {
-          normWidth = 0.8 * adjustedAspect;
-        }
+      let normWidth;
+      if (adjustedAspect > 1) {
+        normWidth = 0.8;
+      } else {
+        normWidth = 0.8 * adjustedAspect;
+      }
 
-        const pixelWidth = normWidth * 800; // normalized to absolute pixels in reference 800x600 space
-        currentScale = (w * unitFactor) / pixelWidth; // meters per pixel
+      const pixelWidth = normWidth * 800; // normalized to absolute pixels in reference 800x600 space
+      const currentScale = (w * unitFactor) / pixelWidth; // meters per pixel
+      
+      // Always update scale in manual mode to reflect box values
+      if (scale !== currentScale) {
         setScale(currentScale);
         setReferenceWallIndex(0);
         setReferenceWallLength(w);
@@ -771,6 +773,8 @@ export default function FloorPlanPage() {
           boundary={boundary}
           handleSaveChanges={handleSaveChanges}
           handleSaveObjects={handleSaveObjects}
+          // Manual mode support
+          isManualMode={isManualMode}
           // New analysis props
           isAnalyzing={isAnalyzing}
           analysisStale={analysisStale}

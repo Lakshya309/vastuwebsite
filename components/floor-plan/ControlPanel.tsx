@@ -97,6 +97,9 @@ interface ControlPanelProps {
   setSelectedProblem: (problem: string | null) => void;
   setHighlightedZones: (zones: string[]) => void;
 
+  // Manual mode support
+  isManualMode?: boolean;
+
   // Wall props
   walls?: Wall[];
   onAddWall?: (wall: Wall) => void;
@@ -155,7 +158,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
       });
       props.setWallLengths(newWallLengths);
 
-      // Sync plot dimension boxes in the UI
+      // NO LONGER SYNCING dimension boxes in the UI for upload mode as per request
+      /*
       if (props.boundary.length === 4) {
         props.setProject && props.setProject((prev: any) => ({
           ...prev,
@@ -163,6 +167,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
           plot_height: newWallLengths[1]
         }));
       }
+      */
     } else {
       props.setScale(null);
       props.setWallLengths([]);
@@ -175,25 +180,27 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
     <div className="bg-white h-full border-l border-gray-200 flex flex-col w-96 shadow-xl">
       <div className="p-6 overflow-y-auto flex-1">
         <div className="space-y-6">
-          <div>
-            <h3 className="text-lg font-bold text-gray-800 mb-2">
-              1. Upload Floor Plan
-            </h3>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={props.handleImageUpload}
-              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
-            />
-            {props.selectedFile && (
-              <button
-                onClick={props.handleReupload}
-                className="w-full mt-2 py-2 bg-gray-100 hover:bg-gray-200 rounded text-gray-700 font-medium border border-gray-300"
-              >
-                Re-upload
-              </button>
-            )}
-          </div>
+          {!props.isManualMode && (
+            <div>
+              <h3 className="text-lg font-bold text-gray-800 mb-2">
+                1. Upload Floor Plan
+              </h3>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={props.handleImageUpload}
+                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+              />
+              {props.selectedFile && (
+                <button
+                  onClick={props.handleReupload}
+                  className="w-full mt-2 py-2 bg-gray-100 hover:bg-gray-200 rounded text-gray-700 font-medium border border-gray-300"
+                >
+                  Re-upload
+                </button>
+              )}
+            </div>
+          )}
 
           <div className="border-t pt-4">
             <h3 className="text-lg font-bold text-gray-800 mb-2">
@@ -235,7 +242,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
               </button>
             </div>
 
-            {(props.plotWidth || props.plotHeight) && (
+            {props.isManualMode && (props.plotWidth || props.plotHeight) && (
               <div id="tutorial-dimensions" className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg space-y-3">
                 <h4 className="font-bold text-gray-800 text-sm">Plot Dimensions ({props.referenceWallUnit}) & Angle</h4>
                 <div className="flex gap-4">
