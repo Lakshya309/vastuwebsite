@@ -654,19 +654,9 @@ const drawCanvasContent = (
     if (targetCentroid) {
       const centroidPx = toPx(targetCentroid);
       ctx.translate(centroidPx.x, centroidPx.y);
-      ctx.rotate((-northDirection * Math.PI) / 180);
+      ctx.rotate(-(northDirection * Math.PI) / 180);
 
-      const size = 35; // Length of half needle
-      const width = 10; // Half width of needle
-
-      ctx.save();
-      // Subtle glow/shadow
-      ctx.shadowColor = "rgba(0, 0, 0, 0.4)";
-      ctx.shadowBlur = 8;
-      ctx.shadowOffsetX = 2;
-      ctx.shadowOffsetY = 2;
-
-      // Draw outer shape for shadow
+      // Draw arrow
       ctx.beginPath();
       ctx.moveTo(0, -size);
       ctx.lineTo(width, 0);
@@ -909,33 +899,17 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
-    // Detect if this is likely a trackpad vs a standard mouse wheel
-    // Trackpads usually emit small deltaY values, or include deltaX.
-    const isTrackpad = Math.abs(e.deltaX) > 0 || Math.abs(e.deltaY) < 40;
+    const zoomFactor = 1.1;
+    const newZoom = e.deltaY < 0 ? zoom * zoomFactor : zoom / zoomFactor;
+    const newZoomClamped = Math.max(1, Math.min(newZoom, 10));
 
-    if (e.ctrlKey || !isTrackpad) {
-      // ZOOM
-      e.preventDefault();
-      // Sensitivity factor
-      const zoomSensitivity = 0.002;
-      const zoomMultiplier = Math.exp(-e.deltaY * zoomSensitivity);
-      const newZoomClamped = Math.max(0.2, Math.min(zoom * zoomMultiplier, 20));
+    const mouseBeforeZoom = getTransformedPoint(e.clientX, e.clientY);
 
-      const mouseBeforeZoom = getTransformedPoint(e.clientX, e.clientY);
+    const newOffsetX = mouseX - mouseBeforeZoom.x * newZoomClamped;
+    const newOffsetY = mouseY - mouseBeforeZoom.y * newZoomClamped;
 
-      const newOffsetX = mouseX - mouseBeforeZoom.x * newZoomClamped;
-      const newOffsetY = mouseY - mouseBeforeZoom.y * newZoomClamped;
-
-      setZoom(newZoomClamped);
-      setOffset({ x: newOffsetX, y: newOffsetY });
-    } else {
-      // PAN (for trackpad two-finger swipe)
-      e.preventDefault();
-      setOffset(prev => ({
-        x: prev.x - e.deltaX,
-        y: prev.y - e.deltaY
-      }));
-    }
+    setZoom(newZoomClamped);
+    setOffset({ x: newOffsetX, y: newOffsetY });
   };
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
