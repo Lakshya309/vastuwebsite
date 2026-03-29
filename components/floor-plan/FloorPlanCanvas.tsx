@@ -656,30 +656,32 @@ const drawCanvasContent = (
       ctx.translate(centroidPx.x, centroidPx.y);
       ctx.rotate(-(northDirection * Math.PI) / 180);
 
+      const compassSize = 40;
+      const compassWidth = 10;
+
       // Draw arrow
       ctx.beginPath();
-      ctx.moveTo(0, -size);
-      ctx.lineTo(width, 0);
-      ctx.lineTo(0, size);
-      ctx.lineTo(-width, 0);
+      ctx.moveTo(0, -compassSize);
+      ctx.lineTo(compassWidth, 0);
+      ctx.lineTo(0, compassSize);
+      ctx.lineTo(-compassWidth, 0);
       ctx.closePath();
       ctx.fillStyle = "white"; // Hidden by layers above, just for shadow
       ctx.fill();
-      ctx.restore();
 
       // North pointer left side (Light Red)
       ctx.beginPath();
-      ctx.moveTo(0, -size);
+      ctx.moveTo(0, -compassSize);
       ctx.lineTo(0, 0);
-      ctx.lineTo(-width, 0);
+      ctx.lineTo(-compassWidth, 0);
       ctx.closePath();
       ctx.fillStyle = "#FF5252";
       ctx.fill();
 
       // North pointer right side (Dark Red)
       ctx.beginPath();
-      ctx.moveTo(0, -size);
-      ctx.lineTo(width, 0);
+      ctx.moveTo(0, -compassSize);
+      ctx.lineTo(compassWidth, 0);
       ctx.lineTo(0, 0);
       ctx.closePath();
       ctx.fillStyle = "#D32F2F";
@@ -687,17 +689,17 @@ const drawCanvasContent = (
 
       // South pointer left side (Light Gray)
       ctx.beginPath();
-      ctx.moveTo(0, size);
+      ctx.moveTo(0, compassSize);
       ctx.lineTo(0, 0);
-      ctx.lineTo(-width, 0);
+      ctx.lineTo(-compassWidth, 0);
       ctx.closePath();
       ctx.fillStyle = "#F5F5F5";
       ctx.fill();
 
       // South pointer right side (Dark Gray)
       ctx.beginPath();
-      ctx.moveTo(0, size);
-      ctx.lineTo(width, 0);
+      ctx.moveTo(0, compassSize);
+      ctx.lineTo(compassWidth, 0);
       ctx.lineTo(0, 0);
       ctx.closePath();
       ctx.fillStyle = "#BDBDBD";
@@ -711,7 +713,7 @@ const drawCanvasContent = (
 
       // Draw 'N' above the needle, keeping it upright relative to canvas to make it always readable
       ctx.save();
-      ctx.translate(0, -size - 18);
+      ctx.translate(0, -compassSize - 18);
       // Un-rotate the text so it's always 'upright' for readability
       ctx.rotate((northDirection * Math.PI) / 180); 
       
@@ -899,17 +901,33 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
-    const zoomFactor = 1.1;
-    const newZoom = e.deltaY < 0 ? zoom * zoomFactor : zoom / zoomFactor;
-    const newZoomClamped = Math.max(1, Math.min(newZoom, 10));
+    // Detect if this is likely a trackpad vs a standard mouse wheel
+    // Trackpads usually emit small deltaY values, or include deltaX.
+    const isTrackpad = Math.abs(e.deltaX) > 0 || Math.abs(e.deltaY) < 40;
 
-    const mouseBeforeZoom = getTransformedPoint(e.clientX, e.clientY);
+    if (e.ctrlKey || !isTrackpad) {
+      // ZOOM
+      e.preventDefault();
+      // Sensitivity factor
+      const zoomSensitivity = 0.002;
+      const zoomMultiplier = Math.exp(-e.deltaY * zoomSensitivity);
+      const newZoomClamped = Math.max(0.2, Math.min(zoom * zoomMultiplier, 20));
 
-    const newOffsetX = mouseX - mouseBeforeZoom.x * newZoomClamped;
-    const newOffsetY = mouseY - mouseBeforeZoom.y * newZoomClamped;
+      const mouseBeforeZoom = getTransformedPoint(e.clientX, e.clientY);
 
-    setZoom(newZoomClamped);
-    setOffset({ x: newOffsetX, y: newOffsetY });
+      const newOffsetX = mouseX - mouseBeforeZoom.x * newZoomClamped;
+      const newOffsetY = mouseY - mouseBeforeZoom.y * newZoomClamped;
+
+      setZoom(newZoomClamped);
+      setOffset({ x: newOffsetX, y: newOffsetY });
+    } else {
+      // PAN (for trackpad two-finger swipe)
+      e.preventDefault();
+      setOffset(prev => ({
+        x: prev.x - e.deltaX,
+        y: prev.y - e.deltaY
+      }));
+    }
   };
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {

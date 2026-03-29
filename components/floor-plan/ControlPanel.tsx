@@ -182,12 +182,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
         <div className="space-y-6">
           {!props.isManualMode && (
             <div>
-              <h3 className="text-lg font-bold text-gray-800 mb-1">
+              <h3 className="text-lg font-bold text-gray-800 mb-2">
                 1. Upload Floor Plan
               </h3>
-              <p className="text-xs text-orange-600 mb-3 font-medium">
-                Max 5MB. You can only re-upload once.
-              </p>
               <input
                 type="file"
                 accept="image/*"
