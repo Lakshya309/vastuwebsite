@@ -1,7 +1,7 @@
 // components/floor-plan/ObjectPalette.tsx
 "use client";
 
-import React from "react";
+import { OBJECT_ICONS } from "@/lib/objectIcons";
 
 interface ObjectPaletteItemProps {
   objectType: string;
@@ -17,10 +17,10 @@ const ObjectPaletteItem: React.FC<ObjectPaletteItemProps> = ({
   return (
     <div
       onClick={() => onAddObject(objectType)}
-      className={`flex flex-col items-center justify-center p-2 m-1 border rounded-lg cursor-pointer`}
+      className={`flex flex-col items-center justify-center p-2 m-1 border rounded-lg cursor-pointer hover:bg-gray-100`}
     >
       <img src={icon} alt={objectType} className="w-8 h-8" />
-      <span className="text-xs">{objectType}</span>
+      <span className="text-xs text-center">{objectType}</span>
     </div>
   );
 };
@@ -32,23 +32,36 @@ interface ObjectPaletteProps {
 export const ObjectPalette: React.FC<ObjectPaletteProps> = ({
   onAddObject,
 }) => {
-  const objects = [
-    { type: "Stove", icon: "/objects/stove.svg" },
-    { type: "Toilet", icon: "/objects/toilet.svg" },
-    { type: "Bed", icon: "/objects/bed.svg" },
-    { type: "Wardrobe", icon: "/objects/wardrobe.svg" },
-    { type: "Sofa", icon: "/objects/sofa.svg" },
-    { type: "Pooja", icon: "/objects/pooja.png" },
-    { type: "Stairs", icon: "/objects/stairs.svg" },
-    { type: "Dining", icon: "/objects/dining.svg" },
-    { type: "OverheadTank", icon: "/objects/overheadtank.png" },
-    { type: "UndergroundTank", icon: "/objects/undergroundtank.png" },
+  const allObjects = [
+    "TOILET", "DINING ROOM", "SEPTIC TANK", "FAMILY LOUNGE", "STUDY TABLE",
+    "STORE ROOM", "SERVENT ROOM", "GUEST ROOM", "BAR", "STAIRCASE", "POOJA",
+    "KITCHEN", "MUSIC SYSTEM", "PARKING", "OVERHEAD TANK", "UNDERGROUND TANK",
+    "MAIN GATE", "SWIMMING POOL", "WELL", "TV", "TUBES", "DUSTBIN", "SAFE",
+    "HEATER", "WASHING MACHINE", "AC", "INVERTER", "POTS", "SICK PERSON BED",
+    "AQUARIUM", "IRON ALMIRA", "GYM", "MEDITATION", "PETS", "SWING", "PLANTS",
+    "SHOERACK", "MATERIAL", "FINISH",
+    "MASTER BEDROOM", "CHILDREN BEDROOM", "LIFT", "CUPBAORD", "DRESSING TABLE",
+    "FOOTWEAR RANK", "FRIDGE", "LOCKER", "GENERATOR", "BOREWELL", "WASTE MATERIAL",
+    "WATER ELEMENT", "AIR ELEMENT", "FIRE ELEMENT", "EARTH ELEMENT", "SKY ELEMENT",
+    "BOSS SITTING", "STAFF SITTING", "COMPUTER", "IMPORTANT PAPER", "SOFA SET",
+    "MICROWAVE", "WATER TAP", "MIRROR", "RAW MATERIAL", "FINISH GOODS", "LIFT FOR GOODS",
+    "MAIN ENTRY", "INVETER", "WATER HEATER", "AIR CONDITIONER"
   ];
+
+  const objects = allObjects.map(obj => {
+    const typeLabel = obj.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+
+    return {
+      type: obj,
+      label: typeLabel,
+      icon: OBJECT_ICONS[typeLabel] || "/objects/generic.svg"
+    };
+  });
 
   return (
     <div className="p-4 border-t">
       <h3 className="text-lg font-semibold mb-2">Objects</h3>
-      <div className="grid grid-cols-3 gap-2">
+      <div id="tutorial-objects" className="grid grid-cols-3 gap-2 max-h-96 overflow-y-auto pr-2">
         {objects.map((obj) => (
           <ObjectPaletteItem
             key={obj.type}

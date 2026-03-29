@@ -1,84 +1,78 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { NextURL } from 'next/dist/server/web/next-url';
 
 export async function middleware(request: NextRequest) {
-  const response = NextResponse.next()
+  let supabaseResponse = NextResponse.next({
+    request,
+  })
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value
+        getAll() {
+          return request.cookies.getAll()
         },
-        set(name: string, value: string, options: object) {
-          request.cookies.set({
-            name,
-            value,
-            ...options,
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
+          supabaseResponse = NextResponse.next({
+            request,
           })
-          response.cookies.set({
-            name,
-            value,
-            ...options,
-          })
-        },
-        remove(name: string, options: object) {
-          request.cookies.set({
-            name,
-            value: '',
-            ...options,
-          })
-          response.cookies.set({
-            name,
-            value: '',
-            ...options,
-          })
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options)
+          )
         },
       },
     }
   )
 
-  const { data: { session } } = await supabase.auth.getSession()
+  // IMPORTANT: Avoid writing any logic between createServerClient and
+  // supabase.auth.getUser(). A simple mistake could make it very hard to debug
+  // issues with users being randomly logged out.
 
-  const { data: { user } } = await supabase.auth.getUser();
+  // supabase.auth.getUser() is required instead of getSession() for security
+  // since it validates the token against the Supabase Auth server.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-  if (request.nextUrl.pathname.startsWith('/projects') || request.nextUrl.pathname.startsWith('/portal')) {
-    if (!user) {
-      const redirectUrl = request.nextUrl.clone();
-      redirectUrl.pathname = '/login';
-      redirectUrl.searchParams.set('redirectedFrom', request.nextUrl.pathname);
-      return NextResponse.redirect(redirectUrl);
-    }
+  const isProtectedRoute = request.nextUrl.pathname.startsWith('/projects') ||
+    request.nextUrl.pathname.startsWith('/portal')
+
+  if (isProtectedRoute && !user) {
+    // no user, potentially respond by redirecting the user to the login page
+    const url = request.nextUrl.clone()
+    url.pathname = '/login'
+    url.searchParams.set('redirectedFrom', request.nextUrl.pathname)
+    return NextResponse.redirect(url)
   }
 
-  // Admin route protection
+  // NOTE: Admin route role-checking moved to server components (`app/admin/layout.tsx` or page.tsx)
+  // because Prisma DB client with standard Postgres adapter cannot run in Edge Middleware.
   if (request.nextUrl.pathname.startsWith('/admin')) {
     if (!user) {
-      // If no user, redirect to login
-      const redirectUrl = request.nextUrl.clone();
-      redirectUrl.pathname = '/login';
-      redirectUrl.searchParams.set('redirectedFrom', request.nextUrl.pathname);
-      return NextResponse.redirect(redirectUrl);
-    }
-
-    // Fetch user profile to check role
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
-    if (profileError || !profile || profile.role !== 'admin') {
-      // If user is not admin, redirect to portal or a forbidden page
-      const redirectUrl = request.nextUrl.clone();
-      redirectUrl.pathname = '/portal'; // Or '/forbidden'
-      return NextResponse.redirect(redirectUrl);
+      const url = request.nextUrl.clone()
+      url.pathname = '/login'
+      url.searchParams.set('redirectedFrom', request.nextUrl.pathname)
+      return NextResponse.redirect(url)
     }
   }
 
-  return response
+  // IMPORTANT: You *must* return the supabaseResponse object as it is. If you're
+  // creating a new response object with NextResponse.next() make sure to:
+  // 1. Pass the request in it, like so:
+  //    const myNewResponse = NextResponse.next({ request })
+  // 2. Copy over the cookies, like so:
+  //    myNewResponse.cookies.setAll(supabaseResponse.cookies.getAll())
+  // 3. Change the myNewResponse object to fit your needs, but avoid changing
+  //    the cookies!
+  // 4. Finally:
+  //    return myNewResponse
+  // If this is not done, you may be causing the browser and server to go out
+  // of sync and terminate the user's session prematurely!
+
+  return supabaseResponse
 }
 
 export const config = {
@@ -90,10 +84,6 @@ export const config = {
      * - favicon.ico (favicon file)
      * Feel free to modify this pattern to include more paths.
      */
-    '/((?!_next/static|_next/image|favicon.ico).*)',
-    // Add /admin to the matcher to ensure it's processed by the middleware
-    '/admin/:path*',
-    '/projects/:path*',
-    '/portal/:path*',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

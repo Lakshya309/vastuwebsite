@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "../../../lib/supabase";
+import { prisma } from "../../../lib/db";
+import { r2Client, BUCKET_NAME } from "../../../lib/r2";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
 
 export async function POST(req: NextRequest) {
   const supabase = await createServerSupabaseClient();
@@ -27,6 +30,16 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+    
+    // Validate File Size (Max 5MB)
+    const MAX_FILE_SIZE_MB = 5;
+    if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+      return NextResponse.json(
+        { message: "File exceeds the 5MB limit. Please upload a smaller floor plan." },
+        { status: 400 }
+      );
+    }
+
     if (!projectId) {
       return NextResponse.json(
         { message: "Project ID is required" },
@@ -34,19 +47,34 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const fileBuffer = await file.arrayBuffer();
-    const fileName = `${uid}/${projectId}/${Date.now()}_${file.name}`;
+    // Validate Re-upload limits (Max 2 uploads per project)
+    const uploadCount = await prisma.map_plots.count({
+      where: { project_id: projectId }
+    });
 
-    // 1. Upload file to Supabase Storage
-    const { error: uploadError } = await supabase.storage
-      .from("floor-plans")
-      .upload(fileName, fileBuffer, {
-        contentType: file.type,
-        upsert: false,
-      });
+    if (uploadCount >= 2) {
+      return NextResponse.json(
+        { message: "Maximum upload limit reached. You can only re-upload once." },
+        { status: 403 }
+      );
+    }
 
-    if (uploadError) {
-      console.error("Supabase upload error:", uploadError);
+    const fileBuffer = Buffer.from(await file.arrayBuffer());
+    // Store in /map-plots folder directly in Cloudflare R2
+    const fileName = `map-plots/${uid}/${projectId}/${Date.now()}_${file.name}`;
+
+    // 1. Upload file to Cloudflare R2 Storage
+    try {
+      await r2Client.send(
+        new PutObjectCommand({
+          Bucket: BUCKET_NAME,
+          Key: fileName,
+          Body: fileBuffer,
+          ContentType: file.type,
+        })
+      );
+    } catch (uploadError: any) {
+      console.error("R2 upload error:", uploadError);
       return NextResponse.json(
         {
           message: "Failed to upload file to storage",
@@ -56,14 +84,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3. Deactivate all other map plots for this project
-    const { error: updateError } = await supabase
-      .from("map_plots")
-      .update({ is_active: false })
-      .eq("project_id", projectId);
-
-    if (updateError) {
-      console.error("Supabase DB update error:", updateError);
+    // 2. Deactivate all other map plots for this project
+    try {
+      await prisma.map_plots.updateMany({
+        where: { project_id: projectId },
+        data: { is_active: false },
+      });
+    } catch (updateError: any) {
+      console.error("Prisma DB update error (deactivate):", updateError);
       return NextResponse.json(
         {
           message: "Failed to deactivate old map plots",
@@ -73,19 +101,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Create a new map plot record
-    const { data: newMapPlot, error: insertError } = await supabase
-      .from("map_plots")
-      .insert({
-        project_id: projectId,
-        storage_path: fileName,
-        is_active: true,
-      })
-      .select()
-      .single();
-
-    if (insertError) {
-      console.error("Supabase DB insert error:", insertError);
+    // 3. Create a new map plot record
+    let newMapPlot;
+    try {
+      newMapPlot = await prisma.map_plots.create({
+        data: {
+          project_id: projectId,
+          storage_path: fileName,
+          is_active: true,
+        },
+      });
+    } catch (insertError: any) {
+      console.error("Prisma DB insert error:", insertError);
       return NextResponse.json(
         {
           message: "Failed to save new map plot to database",
@@ -95,16 +122,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 5. Update the project with the new active map plot
-    const { data: updatedProject, error: projectUpdateError } = await supabase
-      .from("projects")
-      .update({ active_map_plot_id: newMapPlot.id })
-      .eq("id", projectId)
-      .select()
-      .single();
-
-    if (projectUpdateError) {
-      console.error("Supabase DB project update error:", projectUpdateError);
+    // 4. Update the project with the new active map plot
+    let updatedProject;
+    try {
+      updatedProject = await prisma.projects.update({
+        where: { id: projectId },
+        data: { active_map_plot_id: newMapPlot.id },
+      });
+    } catch (projectUpdateError: any) {
+      console.error("Prisma DB project update error:", projectUpdateError);
       return NextResponse.json(
         {
           message: "Failed to update project with new active map plot",

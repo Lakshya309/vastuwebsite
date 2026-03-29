@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "../../../lib/supabase";
+import { prisma } from "../../../lib/db";
 
 export async function POST(req: NextRequest) {
   const supabase = await createServerSupabaseClient();
@@ -27,30 +28,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Insert into Supabase 'projects' table using the standard client
-    const { data, error } = await supabase
-      .from("projects")
-      .insert({ 
-        user_id: uid, 
-        name: name, 
-        creator_name: creator_name, 
+    const newProject = await prisma.projects.create({
+      data: {
+        user_id: uid,
+        name: name,
+        creator_name: creator_name,
         report_for: report_for,
-        plot_width: plot_width,
-        plot_height: plot_height
-      })
-      .select()
-      .single(); // .select().single() returns the inserted row
-
-    if (error) {
-      console.error("Supabase insert error:", error);
-      return NextResponse.json(
-        { message: "Failed to create project in database", error: error.message },
-        { status: 500 }
-      );
-    }
+        plot_width: plot_width ? parseFloat((plot_width as any).toString()) : null,
+        plot_height: plot_height ? parseFloat((plot_height as any).toString()) : null,
+      }
+    });
 
     return NextResponse.json(
-      { message: "Project created successfully", project: data },
+      { message: "Project created successfully", project: newProject },
       { status: 201 }
     );
   } catch (error: any) {
@@ -77,25 +67,17 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Fetch projects using the standard client. RLS policies will handle the filtering.
-    const { data, error } = await supabase
-      .from("projects")
-      .select("*")
-      .is('deleted_at', null)
-      .order("created_at", { ascending: false });
+    const projectsList = await prisma.projects.findMany({
+      where: {
+        user_id: user.id, // Explicitly enforce user isolation (RLS substitute)
+        deleted_at: null,
+      },
+      orderBy: {
+        created_at: 'desc',
+      }
+    });
 
-    if (error) {
-      console.error("Supabase select error:", error);
-      return NextResponse.json(
-        {
-          message: "Failed to fetch projects from database",
-          error: error.message,
-        },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ projects: data }, { status: 200 });
+    return NextResponse.json({ projects: projectsList }, { status: 200 });
   } catch (error: any) {
     console.error("Error fetching projects:", error);
     return NextResponse.json(

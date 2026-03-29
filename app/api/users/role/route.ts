@@ -1,5 +1,5 @@
 import { createServerSupabaseClient } from "../../../../lib/supabase";
-import { supabaseAdmin } from "../../../../lib/supabaseAdmin";
+import { prisma } from "../../../../lib/db";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
@@ -19,24 +19,16 @@ export async function POST(req: Request) {
     }
     const uid = user.id;
 
-    const { data, error } = await supabaseAdmin
-      .from("profiles")
-      .select("role")
-      .eq("id", uid);
+    const profile = await prisma.profiles.findUnique({
+      where: { id: uid },
+      select: { role: true }
+    });
 
-    if (error) {
-      console.error("Supabase select role error:", error);
-      return NextResponse.json(
-        { message: "Failed to fetch role", error: error.message },
-        { status: 500 }
-      );
-    }
-
-    if (!data || data.length === 0) {
+    if (!profile) {
       return NextResponse.json({ message: "Profile not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ role: data[0].role }, { status: 200 });
+    return NextResponse.json({ role: profile.role }, { status: 200 });
   } catch (error: any) {
     console.error("Error in /api/users/role:", error);
     return NextResponse.json(

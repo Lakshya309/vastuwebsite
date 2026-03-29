@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { OBJECT_ICONS } from "../../../../lib/objectIcons";
 
 import { useProjectStore } from "../../../../lib/store/projectStore";
 
@@ -25,8 +26,6 @@ import { ZoneBarChart } from "../../../../components/ZoneBarChart";
 import { DevtaBarChart } from "../../../../components/DevtaBarChart";
 import { FloorPlanCanvas } from "../../../../components/floor-plan/FloorPlanCanvas";
 
-import { solutionMapping } from "../../../../lib/solutionMapping";
-
 // --- INTERFACES ---
 
 interface Project {
@@ -47,6 +46,7 @@ interface AnalyzedObjectResult {
   devta_region: string | null;
   zone16_direction: string | null;
   score_impact: number;
+  grade?: string | null;
   verdict: "EXCELLENT" | "GOOD" | "BAD" | "CRITICAL";
   message: string;
 }
@@ -145,9 +145,10 @@ export default function ReportPage() {
 
   const handleObjectClick = (object: PlacedObject) => {
     const analysis = vastuAnalysisResult?.analyzed_objects.find(ao => ao.object_id === object.id);
-    if (analysis && analysis.verdict !== 'GOOD' && analysis.verdict !== 'EXCELLENT') {
-      const solutionText = solutionMapping[object.object_type]?.[analysis.zone16_direction || ""] || "No specific solution found.";
-      setSolution(solutionText);
+    if (analysis && analysis.message) {
+      setSolution(analysis.message);
+    } else {
+      setSolution("No specific solution found.");
     }
   };
 
@@ -437,22 +438,22 @@ export default function ReportPage() {
               <h2 className="text-2xl font-bold mb-4 text-gray-800">Overall Vastu Compliance</h2>
               <div className="relative w-48 h-48">
                 <ResponsiveContainer width="100%" height="100%">
-                                  <RadialBarChart
-                                    innerRadius="90%"
-                                    outerRadius="70%"
-                                    barSize={20}
-                                    data={[{ name: "Vastu Score", uv: vastuAnalysisResult.overall_percentage, fill: COLORS[vastuAnalysisResult.overall_verdict] }]}
-                                    startAngle={90}
-                                    endAngle={90 - (360 * vastuAnalysisResult.overall_percentage / 100)}
-                                  >
-                                    <RadialBar cornerRadius={10} background={{ fill: '#eeeeee' }} dataKey="uv" />
-                                    <Tooltip 
-                                      contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cccccc' }}
-                                      itemStyle={{ color: '#000000' }}
-                                      formatter={(value: number | undefined) => [`${(value ?? 0).toFixed(1)}%`, 'Score']} 
-                                    />
-                                  </RadialBarChart>
-                                </ResponsiveContainer>                <p
+                  <RadialBarChart
+                    innerRadius="90%"
+                    outerRadius="70%"
+                    barSize={20}
+                    data={[{ name: "Vastu Score", uv: vastuAnalysisResult.overall_percentage, fill: COLORS[vastuAnalysisResult.overall_verdict] }]}
+                    startAngle={90}
+                    endAngle={90 - (360 * vastuAnalysisResult.overall_percentage / 100)}
+                  >
+                    <RadialBar cornerRadius={10} background={{ fill: '#eeeeee' }} dataKey="uv" />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cccccc' }}
+                      itemStyle={{ color: '#000000' }}
+                      formatter={(value: number | undefined) => [`${(value ?? 0).toFixed(1)}%`, 'Score']}
+                    />
+                  </RadialBarChart>
+                </ResponsiveContainer>                <p
                   className="absolute inset-0 flex items-center justify-center text-5xl font-bold"
                   style={{ color: COLORS[vastuAnalysisResult.overall_verdict] }}
                 >
@@ -472,45 +473,45 @@ export default function ReportPage() {
             <div className="md:col-span-2 bg-white p-6 rounded-2xl shadow-lg flex flex-col items-center justify-center">
               <h2 className="text-2xl font-bold mb-4 text-gray-800">Object Status Distribution</h2>
               <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={Object.values(
+                <PieChart>
+                  <Pie
+                    data={Object.values(
+                      vastuAnalysisResult.analyzed_objects.reduce((acc, obj) => {
+                        acc[obj.verdict] = (acc[obj.verdict] || 0) + 1;
+                        return acc;
+                      }, {} as Record<string, number>)
+                    ).map((count, i) => ({
+                      name: Object.keys(
                         vastuAnalysisResult.analyzed_objects.reduce((acc, obj) => {
                           acc[obj.verdict] = (acc[obj.verdict] || 0) + 1;
                           return acc;
                         }, {} as Record<string, number>)
-                      ).map((count, i) => ({
-                        name: Object.keys(
-                          vastuAnalysisResult.analyzed_objects.reduce((acc, obj) => {
-                            acc[obj.verdict] = (acc[obj.verdict] || 0) + 1;
-                            return acc;
-                          }, {} as Record<string, number>)
-                        )[i],
-                        value: count,
-                      }))}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      outerRadius={100}
-                      dataKey="value"
-                      label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
-                    >
-                                          {Object.keys(
-                                            vastuAnalysisResult.analyzed_objects.reduce((acc, obj) => {
-                                              acc[obj.verdict] = (acc[obj.verdict] || 0) + 1;
-                                              return acc;
-                                            }, {} as Record<string, number>)
-                                          ).map((verdict, index) => (
-                                            <Cell key={`cell-${index}`} fill={COLORS[verdict as keyof typeof COLORS]} />
-                                          ))}
-                                        </Pie>
-                                        <Tooltip 
-                                          contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cccccc' }}
-                                          itemStyle={{ color: '#000000' }}
-                                        />
-                                        <Legend />
-                                      </PieChart>
-                                    </ResponsiveContainer>
+                      )[i],
+                      value: count,
+                    }))}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    outerRadius={100}
+                    dataKey="value"
+                    label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
+                  >
+                    {Object.keys(
+                      vastuAnalysisResult.analyzed_objects.reduce((acc, obj) => {
+                        acc[obj.verdict] = (acc[obj.verdict] || 0) + 1;
+                        return acc;
+                      }, {} as Record<string, number>)
+                    ).map((verdict, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[verdict as keyof typeof COLORS]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cccccc' }}
+                    itemStyle={{ color: '#000000' }}
+                  />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
             </div>
           )}
         </div>
@@ -536,21 +537,21 @@ export default function ReportPage() {
 
         <div className="grid grid-cols-1 gap-8 mb-8">
           {reportSections.devta32 && vastuAnalysisResult.devta_areas_32 && vastuAnalysisResult.devta_areas_32.length > 0 && (
-            <DevtaBarChart 
-              data={vastuAnalysisResult.devta_areas_32} 
+            <DevtaBarChart
+              data={vastuAnalysisResult.devta_areas_32}
               title="Outer 32 Devta Area Distribution (%)"
               color="#3b82f6"
             />
           )}
           {reportSections.devta45 && vastuAnalysisResult.devta_areas_45 && vastuAnalysisResult.devta_areas_45.length > 0 && (
-            <DevtaBarChart 
-              data={vastuAnalysisResult.devta_areas_45} 
+            <DevtaBarChart
+              data={vastuAnalysisResult.devta_areas_45}
               title="Complete 45 Devta Area Distribution (%)"
               color="#10b981"
             />
           )}
         </div>
-        
+
         {reportSections.floorPlan && vastuAnalysisResult.analyzed_objects.length > 0 && (
           <div className="mt-8 bg-white p-6 rounded-2xl shadow-lg page-break-before-detailed-report">
             <h2 className="text-2xl font-bold mb-4 text-gray-800 text-center">Floor Plan Overview</h2>
@@ -567,26 +568,24 @@ export default function ReportPage() {
                       highlight: analysis ? analysis.verdict : null,
                     }
                   })}
-                  objectSvgMap={{
-                    Stove: "/objects/stove.svg",
-                    Toilet: "/objects/toilet.svg",
-                    Bed: "/objects/bed.svg",
-                    Wardrobe: "/objects/wardrobe.svg",
-                    Sofa: "/objects/sofa.svg",
-                    Pooja: "/objects/pooja.png",
-                    Stairs: "/objects/stairs.svg",
-                    Dining: "/objects/dining.svg",
-                    OverheadTank: "/objects/overheadtank.png",
-                    UndergroundTank: "/objects/undergroundtank.png",
-                  }}
+                  objectSvgMap={new Proxy(OBJECT_ICONS, {
+                    get: (target: Record<string, string>, prop: string | symbol) => {
+                      if (typeof prop === 'string') {
+                        if (target[prop]) return target[prop];
+                        const titleCase = prop.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+                        if (target[titleCase]) return target[titleCase];
+                      }
+                      return "/objects/generic.svg";
+                    }
+                  })}
                   northDirection={project.north_direction || 0}
-                  onMoveObject={() => {}}
-                  onResizeObject={() => {}}
-                  onRotateObject={() => {}}
-                  onDeleteObject={() => {}}
+                  onMoveObject={() => { }}
+                  onResizeObject={() => { }}
+                  onRotateObject={() => { }}
+                  onDeleteObject={() => { }}
                   scale={null}
                   wallLengths={[]}
-                  setReferenceWallIndex={() => {}}
+                  setReferenceWallIndex={() => { }}
                   referenceWallIndex={null}
                   wallColors={[]}
                   zone16Regions={vastuAnalysisResult.zones16}
@@ -625,6 +624,7 @@ export default function ReportPage() {
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Zone</th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Devta</th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Grade</th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Verdict</th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Message</th>
                   </tr>
@@ -636,12 +636,24 @@ export default function ReportPage() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{obj.zone16_direction || "N/A"}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{obj.devta_region || "N/A"}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{obj.score_impact}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {obj.grade && (
+                          <span
+                            className="px-2 inline-flex text-xs leading-5 font-bold rounded-full text-white"
+                            style={{
+                              backgroundColor: obj.grade === "B" ? "green" : obj.grade === "C" ? "orange" : "red",
+                            }}
+                          >
+                            {obj.grade}
+                          </span>
+                        )}
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" style={{...getVerdictColor(obj.verdict), ...getVerdictTextColor(obj.verdict)}}>
+                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" style={{ ...getVerdictColor(obj.verdict), ...getVerdictTextColor(obj.verdict) }}>
                           {obj.verdict}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{obj.message}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500" style={{ whiteSpace: "normal" }}>{obj.message}</td>
                     </tr>
                   ))}
                 </tbody>

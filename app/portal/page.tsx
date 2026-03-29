@@ -4,6 +4,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { format } from 'date-fns';
+import { prisma } from '../../lib/db';
 
 async function getUserData(supabase: any) {
   const { data: { user } } = await supabase.auth.getUser();
@@ -11,46 +12,35 @@ async function getUserData(supabase: any) {
     redirect('/login');
   }
 
-  const profilePromise = supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single();
+  try {
+    const profilePromise = prisma.profiles.findUnique({
+      where: { id: user.id }
+    });
 
-  const projectsPromise = supabase
-    .from('projects')
-    .select('id, name, created_at')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false });
-    
-  const creditsPromise = supabase
-    .from('user_credits')
-    .select('credits')
-    .eq('user_id', user.id)
-    .single();
+    const projectsPromise = prisma.projects.findMany({
+      where: { user_id: user.id, deleted_at: null },
+      select: { id: true, name: true, created_at: true },
+      orderBy: { created_at: 'desc' }
+    });
+      
+    const creditsPromise = prisma.user_credits.findUnique({
+      where: { user_id: user.id },
+      select: { credits: true }
+    });
 
-  const [
-    { data: profile, error: profileError },
-    { data: projects, error: projectsError },
-    { data: creditsData, error: creditsError }
-  ] = await Promise.all([profilePromise, projectsPromise, creditsPromise]);
+    const [profile, projects, creditsData] = await Promise.all([profilePromise, projectsPromise, creditsPromise]);
 
-  if (profileError) {
-    console.error('Error fetching profile:', profileError);
-    // It's possible a profile/credits row hasn't been created yet
+    return { 
+      user, 
+      profile, 
+      projects: projects || [],
+      credits: creditsData?.credits ?? 0 
+    };
+  } catch (err) {
+    console.error('Error fetching portal data:', err);
+    return { user, profile: null, projects: [], credits: 0 };
   }
-  if (projectsError) {
-    console.error('Error fetching projects:', projectsError);
-  }
-
-  return { 
-    user, 
-    profile, 
-    projects: projects || [],
-    credits: creditsData?.credits ?? 0 
-  };
 }
-
 
 export default async function PortalPage() {
   const cookieStore = await cookies();
@@ -134,14 +124,14 @@ export default async function PortalPage() {
           </div>
           <div className="space-y-4">
             {projects.length > 0 ? (
-              projects.map((project: { id: string; name: string; created_at: string }) => (
+              projects.map((project: { id: string; name: string; created_at: Date | null }) => (
                 <Link key={project.id} href={`/projects/${project.id}/floor-plan`}>
                   <div className="block p-4 bg-gray-50 rounded-lg shadow-sm hover:bg-gray-100 hover:shadow-md transition-all">
                     <div className="flex justify-between items-center">
                         <div>
                             <h3 className="text-lg font-medium">{project.name}</h3>
                             <p className="text-sm text-gray-600">
-                                Created: {format(new Date(project.created_at), 'PPP')}
+                                Created: {project.created_at ? format(new Date(project.created_at), 'PPP') : 'Unknown'}
                             </p>
                         </div>
                         <span className="text-indigo-600 font-semibold">→</span>

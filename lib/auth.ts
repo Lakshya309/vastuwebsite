@@ -1,5 +1,5 @@
 import { createServerSupabaseClient } from './supabase';
-import { supabaseAdmin } from './supabaseAdmin';
+import { prisma } from './db';
 import { User } from '@supabase/supabase-js'; // Import the base User type
 
 // Define the structure for the profile data
@@ -7,8 +7,8 @@ interface UserProfileData {
   id: string;
   email: string | null;
   role: string;
-  valid_from: string | null;
-  valid_to: string | null;
+  valid_from: Date | null;
+  valid_to: Date | null;
   credits: number;
 }
 
@@ -31,38 +31,42 @@ export async function getUser(): Promise<UserWithProfileAndCredits | null> {
   // Initial return object which includes the base User properties
   let augmentedUser: UserWithProfileAndCredits = { ...user };
 
-  // Fetch user profile
-  const { data: profile, error: profileError } = await supabaseAdmin
-    .from('profiles')
-    .select('id, email, role, valid_from, valid_to')
-    .eq('id', user.id)
-    .single();
+  try {
+    // Fetch user profile
+    const profile = await prisma.profiles.findUnique({
+      where: { id: user.id },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        valid_from: true,
+        valid_to: true,
+      }
+    });
 
-  if (profileError) {
+    if (!profile) {
+      return augmentedUser;
+    }
+
+    try {
+      // Fetch user credits
+      const userCredits = await prisma.user_credits.findUnique({
+        where: { user_id: user.id },
+        select: { credits: true }
+      });
+
+      augmentedUser.profile = {
+        ...profile,
+        credits: userCredits?.credits ?? 0,
+      };
+
+    } catch (creditsError) {
+      console.error("Error fetching user credits in getUser:", creditsError);
+      augmentedUser.profile = { ...profile, credits: 0 };
+    }
+  } catch (profileError) {
     console.error("Error fetching user profile in getUser:", profileError);
-    // If profile fetch fails, return user without profile data
-    return augmentedUser;
   }
-
-  // Fetch user credits
-  const { data: userCredits, error: creditsError } = await supabaseAdmin
-    .from('user_credits')
-    .select('credits')
-    .eq('user_id', user.id)
-    .single();
-
-  if (creditsError) {
-    console.error("Error fetching user credits in getUser:", creditsError);
-    // If credits fetch fails, return user with profile but without credits in profile
-    augmentedUser.profile = { ...profile, credits: 0 }; // Default credits if fetch fails
-    return augmentedUser;
-  }
-
-  // If both profile and credits are fetched successfully
-  augmentedUser.profile = {
-    ...profile,
-    credits: userCredits ? userCredits.credits : 0,
-  };
 
   return augmentedUser;
 }

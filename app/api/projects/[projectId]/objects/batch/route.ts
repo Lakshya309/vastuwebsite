@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "../../../../../../lib/supabase";
-import { supabaseAdmin } from "../../../../../../lib/supabaseAdmin";
+import { prisma } from "../../../../../../lib/db";
 
 export async function POST(
   req: NextRequest,
@@ -24,14 +24,12 @@ export async function POST(
     const { projectId } = await context.params;
 
     // First, verify that the user has access to the project
-    const { data: project, error: projectError } = await supabaseAdmin
-      .from("projects")
-      .select("id")
-      .eq("id", projectId)
-      .eq("user_id", uid)
-      .single();
+    const project = await prisma.projects.findUnique({
+      where: { id: projectId },
+      select: { id: true, user_id: true }
+    });
 
-    if (projectError || !project) {
+    if (!project || project.user_id !== uid) {
       return NextResponse.json(
         {
           message:
@@ -45,13 +43,12 @@ export async function POST(
 
     // 1. Handle Deletions
     if (objectsToDelete && objectsToDelete.length > 0) {
-      const { error: deleteError } = await supabaseAdmin
-        .from("project_objects")
-        .delete()
-        .in("id", objectsToDelete);
-
-      if (deleteError) {
-        console.error("Supabase delete error:", deleteError);
+      try {
+        await prisma.project_objects.deleteMany({
+          where: { id: { in: objectsToDelete } }
+        });
+      } catch (deleteError: any) {
+        console.error("Prisma delete error:", deleteError);
         return NextResponse.json(
           { message: "Failed to delete objects.", error: deleteError.message },
           { status: 500 }
@@ -66,16 +63,16 @@ export async function POST(
         return {
           ...rest,
           project_id: projectId,
-          object_type: type, // Map 'type' from PlacedObject to 'object_type' in schema
+          object_type: type, 
         };
       });
 
-      const { error: insertError } = await supabaseAdmin
-        .from("project_objects")
-        .insert(objectsToInsert);
-
-      if (insertError) {
-        console.error("Supabase insert error:", insertError);
+      try {
+        await prisma.project_objects.createMany({
+          data: objectsToInsert
+        });
+      } catch (insertError: any) {
+        console.error("Prisma insert error:", insertError);
         return NextResponse.json(
           {
             message: "Failed to save new objects.",
@@ -87,13 +84,17 @@ export async function POST(
     }
 
     // 3. Fetch and return the current state of all objects for the project
-    const { data: finalObjects, error: fetchError } = await supabaseAdmin
-      .from("project_objects")
-      .select("*")
-      .eq("project_id", projectId);
+    try {
+      const finalObjects = await prisma.project_objects.findMany({
+        where: { project_id: projectId }
+      });
 
-    if (fetchError) {
-      console.error("Supabase fetch error:", fetchError);
+      return NextResponse.json(
+        { message: "Configuration saved successfully", objects: finalObjects },
+        { status: 200 }
+      );
+    } catch (fetchError: any) {
+      console.error("Prisma fetch error:", fetchError);
       return NextResponse.json(
         {
           message: "Objects saved, but failed to fetch updated list.",
@@ -102,11 +103,6 @@ export async function POST(
         { status: 500 }
       );
     }
-
-    return NextResponse.json(
-      { message: "Configuration saved successfully", objects: finalObjects },
-      { status: 200 }
-    );
   } catch (error: any) {
     console.error("Error processing batch objects:", error);
     return NextResponse.json(

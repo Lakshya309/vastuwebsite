@@ -30,14 +30,15 @@ interface FloorPlanCanvasProps {
   marmaData?: { marmaPoints: Point[]; vanshaLines: Point[][] } | null;
   shaktiChakra?: boolean;
   shaktiChakraSize?: number;
+  shaktiChakraType?: "complete" | "zones";
   plotCentroid?: Point | null;
   drawingObjectBoundary?: Point[];
-  drawingMode?: "boundary" | "objects" | "select" | "wall" | null;
+  drawingMode?: "boundary" | "objects" | "select" | "wall" | "measure" | null;
   onDevtaClick?: (devta: DevtaRegion) => void;
   onZoneClick?: (zone: DevtaRegion) => void;
   onPlaceObject?: (newObject: PlacedObject) => void;
   onCanvasClick?: (point: Point) => void;
-  setDrawingMode?: (mode: "boundary" | "objects" | "select" | "wall" | null) => void;
+  setDrawingMode?: (mode: "boundary" | "objects" | "select" | "wall" | "measure" | null) => void;
   setDrawingObjectBoundary?: (boundary: Point[]) => void;
   selectedObjectType?: string;
   northDirection: number;
@@ -50,12 +51,12 @@ interface FloorPlanCanvasProps {
   plotHeight?: number | null;
   isStatic?: boolean;
   highlightedZones?: string[];
-  activeView?: "setup" | "grids" | "objects";
   onObjectClick?: (object: PlacedObject) => void;
   walls?: Wall[];
   onAddWall?: (wall: Wall) => void;
   onSelectWall?: (wall: Wall | null) => void;
   selectedWall?: Wall | null;
+  onMoveBoundaryVertex?: (index: number, newPoint: Point) => void;
 }
 
 const ZONE_NAMES_16 = [
@@ -177,9 +178,10 @@ const drawCanvasContent = (
   marmaData: { marmaPoints: Point[]; vanshaLines: Point[][] } | null,
   shaktiChakra: boolean | undefined,
   shaktiChakraSize: number | undefined,
+  shaktiChakraType: "complete" | "zones" | undefined,
   plotCentroid: Point | null,
   drawingObjectBoundary: Point[],
-  drawingMode: "boundary" | "objects" | "select" | "wall" | null | undefined,
+  drawingMode: "boundary" | "objects" | "select" | "wall" | "measure" | null | undefined,
   hoveredDevta: DevtaRegion | null,
   northDirection: number,
   wallLengths: number[],
@@ -187,18 +189,38 @@ const drawCanvasContent = (
   referenceWallIndex: number | null,
   wallColors: (string | null)[],
   highlightedZones: string[] | undefined,
-  activeView?: "setup" | "grids" | "objects",
   plotWidth?: number | null,
   plotHeight?: number | null,
   walls?: Wall[],
   currentDrawingWall?: { start: Point; end: Point } | null,
   selectedWall?: Wall | null,
   realScale?: number | null,
+  measureStart?: Point | null,
+  measureEnd?: Point | null,
+  measureCurrent?: Point | null,
+  hoverPoint?: Point | null,
+  isStatic?: boolean
 ) => {
   const toPx = (p: Point) => ({ x: p.x * width, y: p.y * height });
 
   if (floorPlanImage && imageRef.current) {
-    ctx.drawImage(imageRef.current, 0, 0, width, height);
+    const imgAspect = imageRef.current.naturalWidth / imageRef.current.naturalHeight;
+    const canvasAspect = width / height;
+    let drawWidth, drawHeight, drawX, drawY;
+
+    if (imgAspect > canvasAspect) {
+      drawWidth = width;
+      drawHeight = width / imgAspect;
+      drawX = 0;
+      drawY = (height - drawHeight) / 2;
+    } else {
+      drawHeight = height;
+      drawWidth = height * imgAspect;
+      drawX = (width - drawWidth) / 2;
+      drawY = 0;
+    }
+
+    ctx.drawImage(imageRef.current, drawX, drawY, drawWidth, drawHeight);
     if (
       devtaRegions.length > 0 ||
       zone16Regions.length > 0 ||
@@ -272,6 +294,225 @@ const drawCanvasContent = (
     }
   }
 
+  // Draw ruler/grid and distance guides when in wall drawing mode
+  if (drawingMode === "wall" && !isStatic && boundary.length > 0) {
+    const activePoint = currentDrawingWall ? currentDrawingWall.end : hoverPoint;
+    
+    // 1. Draw Grid
+    const minX = Math.min(...boundary.map(p => p.x));
+    const maxX = Math.max(...boundary.map(p => p.x));
+    const minY = Math.min(...boundary.map(p => p.y));
+    const maxY = Math.max(...boundary.map(p => p.y));
+    
+    // Default 10 physical units, or relative if no scale
+    const gridSpacingReal = 10; 
+    const fallbackGridSpacingNorm = 0.05; // 5% of plot roughly
+    const gridSpacingNorm = realScale ? gridSpacingReal / (realScale * Math.hypot(width, height)) : fallbackGridSpacingNorm;
+
+    ctx.save();
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.1)";
+    ctx.lineWidth = 1 / zoom; 
+    ctx.beginPath();
+    
+    const startX = Math.floor(minX / gridSpacingNorm) * gridSpacingNorm;
+    for (let x = startX; x <= maxX; x += gridSpacingNorm) {
+      ctx.moveTo(x * width, minY * height);
+      ctx.lineTo(x * width, maxY * height);
+    }
+    const startY = Math.floor(minY / gridSpacingNorm) * gridSpacingNorm;
+    for (let y = startY; y <= maxY; y += gridSpacingNorm) {
+      ctx.moveTo(minX * width, y * height);
+      ctx.lineTo(maxX * width, y * height);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    // 2. Draw Distance Guides to vertices and center
+    if (activePoint) {
+      const activePx = toPx(activePoint);
+      const pointsToMeasure = [...boundary];
+      if (plotCentroid) pointsToMeasure.push(plotCentroid);
+      
+      // Sort to find 3 closest points
+      const closestPoints = pointsToMeasure
+        .map(p => ({
+            pt: p,
+            dist: Math.hypot(p.x - activePoint.x, p.y - activePoint.y),
+            px: toPx(p)
+        }))
+        .sort((a, b) => a.dist - b.dist)
+        .slice(0, 3);
+        
+      closestPoints.forEach(({ pt, dist, px }) => {
+        ctx.beginPath();
+        ctx.moveTo(activePx.x, activePx.y);
+        ctx.lineTo(px.x, px.y);
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = "rgba(255, 165, 0, 0.8)"; // Orange dashed
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.setLineDash([]);
+        
+        // Draw real distance text
+        if (realScale) {
+          const pixelLength = Math.hypot(px.x - activePx.x, px.y - activePx.y);
+          const realLength = pixelLength * realScale;
+          const midX = (activePx.x + px.x) / 2;
+          const midY = (activePx.y + px.y) / 2;
+          
+          ctx.save();
+          const text = realLength.toFixed(2);
+          const metrics = ctx.measureText(text);
+          ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+          ctx.fillRect(midX - metrics.width / 2 - 2, midY - 10, metrics.width + 4, 16);
+          ctx.fillStyle = "orange";
+          ctx.font = "bold 11px Arial";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(text, midX, midY - 2);
+          ctx.restore();
+        }
+      });
+    }
+  }
+
+  if (boundary.length > 0) {
+    const pxBoundary = boundary.map(toPx);
+    ctx.beginPath();
+    ctx.moveTo(pxBoundary[0].x, pxBoundary[0].y);
+    pxBoundary.slice(1).forEach((p) => ctx.lineTo(p.x, p.y));
+    ctx.closePath();
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = "#2563EB";
+    ctx.stroke();
+
+    // Draw Wall Lengths on Boundary
+    if (wallLengths && wallLengths.length === boundary.length) {
+      ctx.fillStyle = "black";
+      ctx.font = "bold 14px Arial";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      for (let i = 0; i < boundary.length; i++) {
+        const p1 = pxBoundary[i];
+        const p2 = pxBoundary[(i + 1) % boundary.length];
+
+        // Midpoint
+        const midX = (p1.x + p2.x) / 2;
+        const midY = (p1.y + p2.y) / 2;
+
+        // Angle for text align
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        let angle = Math.atan2(dy, dx);
+
+        // Calculate the normal vector pointing outwards
+        // Perpendicular vector: (-dy, dx) or (dy, -dx)
+        // To point "outside" usually depends on polygon winding order.
+        // Try (dy, -dx) which points "up/left" in clockwise coords
+        const segmentLength = Math.sqrt(dx * dx + dy * dy);
+        let nx = dy / segmentLength;
+        let ny = -dx / segmentLength;
+
+        // Offset distance
+        const offset = 20;
+        const offsetX = nx * offset;
+        const offsetY = ny * offset;
+
+        if (angle > Math.PI / 2 || angle < -Math.PI / 2) {
+          angle += Math.PI; // Keep text upright
+          // When we flip the text, we might also want to flip the normal so it stays on the same side
+          nx = -nx;
+          ny = -ny;
+        }
+
+        const length = wallLengths[i];
+        if (length) {
+          ctx.save();
+          // Translate to the offset midpoint
+          ctx.translate(midX + offsetX, midY + offsetY);
+          ctx.rotate(angle);
+
+          // Background for text
+          const text = length.toFixed(2);
+          const metrics = ctx.measureText(text);
+          ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+          ctx.fillRect(-metrics.width / 2 - 4, -10, metrics.width + 8, 20);
+
+          ctx.fillStyle = "black";
+          ctx.fillText(text, 0, 0);
+          ctx.restore();
+        }
+      }
+    }
+
+    // Draw Boundary Vertices (handles for dragging)
+    if (!isStatic && (drawingMode === "boundary" || drawingMode === "objects" || drawingMode === "select" || !drawingMode)) {
+      ctx.fillStyle = "white";
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "#2563EB";
+      pxBoundary.forEach((p, idx) => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      });
+    }
+  }
+
+  // Draw measurement line
+  if (drawingMode === "measure" && measureStart) {
+    const endPt = measureEnd || measureCurrent;
+    if (endPt) {
+      const p1 = toPx(measureStart);
+      const p2 = toPx(endPt);
+
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 5]);
+      ctx.strokeStyle = "rgba(128, 0, 128, 0.8)"; // Purple
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Draw end points
+      ctx.beginPath();
+      ctx.arc(p1.x, p1.y, 4, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(128, 0, 128, 0.8)";
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(p2.x, p2.y, 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Draw real measurement text if scale available
+      if (realScale) {
+        const canvasWidth = 800;
+        const canvasHeight = 600;
+        const pixelLength = Math.sqrt(
+          Math.pow((endPt.x - measureStart.x) * canvasWidth, 2) +
+          Math.pow((endPt.y - measureStart.y) * canvasHeight, 2)
+        );
+        const realLength = pixelLength * realScale;
+        const midX = (p1.x + p2.x) / 2;
+        const midY = (p1.y + p2.y) / 2;
+
+        ctx.save();
+        ctx.fillStyle = "white";
+        ctx.fillRect(midX - 25, midY - 20, 50, 16);
+        ctx.strokeStyle = "rgba(128, 0, 128, 0.8)";
+        ctx.strokeRect(midX - 25, midY - 20, 50, 16);
+
+        ctx.fillStyle = "purple";
+        ctx.font = "bold 12px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText(`${realLength.toFixed(2)}`, midX, midY - 8);
+        ctx.restore();
+      }
+    }
+  }
+
   // Draw Marma Data
   if (marmaData) {
     // Draw Vansha Lines
@@ -305,11 +546,11 @@ const drawCanvasContent = (
   if (shaktiChakra && plotCentroid) {
     const centroid = toPx(plotCentroid);
     const shaktiChakraImg = new Image();
-    shaktiChakraImg.src = "/shaktichakra.png";
+    shaktiChakraImg.src = shaktiChakraType === "zones" ? "/chakrazones.png" : "/shaktichakra.png";
     shaktiChakraImg.onload = () => {
       ctx.save();
       ctx.translate(centroid.x, centroid.y);
-      ctx.rotate(-(northDirection * Math.PI) / 180);
+      ctx.rotate((-northDirection * Math.PI) / 180);
       const imageSize = Math.min(width, height) * (shaktiChakraSize || 0.8);
       ctx.drawImage(shaktiChakraImg, -imageSize / 2, -imageSize / 2, imageSize, imageSize);
       ctx.restore();
@@ -400,8 +641,8 @@ const drawCanvasContent = (
     ctx.stroke();
   }
 
-  // Draw North Indicator in first two tabs
-  if ((activeView === "setup" || activeView === "grids") && boundary.length > 0) {
+  // Draw North Indicator
+  if (boundary.length > 0) {
     ctx.save();
 
     // Determine centroid: use plotCentroid if available, else calculate from boundary
@@ -417,18 +658,79 @@ const drawCanvasContent = (
 
       // Draw arrow
       ctx.beginPath();
-      ctx.moveTo(0, -30);
-      ctx.lineTo(-15, 15);
-      ctx.lineTo(15, 15);
+      ctx.moveTo(0, -size);
+      ctx.lineTo(width, 0);
+      ctx.lineTo(0, size);
+      ctx.lineTo(-width, 0);
       ctx.closePath();
-      ctx.fillStyle = "red";
+      ctx.fillStyle = "white"; // Hidden by layers above, just for shadow
+      ctx.fill();
+      ctx.restore();
+
+      // North pointer left side (Light Red)
+      ctx.beginPath();
+      ctx.moveTo(0, -size);
+      ctx.lineTo(0, 0);
+      ctx.lineTo(-width, 0);
+      ctx.closePath();
+      ctx.fillStyle = "#FF5252";
       ctx.fill();
 
-      // Draw 'N'
-      ctx.fillStyle = "black";
-      ctx.font = "bold 18px sans-serif";
+      // North pointer right side (Dark Red)
+      ctx.beginPath();
+      ctx.moveTo(0, -size);
+      ctx.lineTo(width, 0);
+      ctx.lineTo(0, 0);
+      ctx.closePath();
+      ctx.fillStyle = "#D32F2F";
+      ctx.fill();
+
+      // South pointer left side (Light Gray)
+      ctx.beginPath();
+      ctx.moveTo(0, size);
+      ctx.lineTo(0, 0);
+      ctx.lineTo(-width, 0);
+      ctx.closePath();
+      ctx.fillStyle = "#F5F5F5";
+      ctx.fill();
+
+      // South pointer right side (Dark Gray)
+      ctx.beginPath();
+      ctx.moveTo(0, size);
+      ctx.lineTo(width, 0);
+      ctx.lineTo(0, 0);
+      ctx.closePath();
+      ctx.fillStyle = "#BDBDBD";
+      ctx.fill();
+
+      // Center rivet
+      ctx.beginPath();
+      ctx.arc(0, 0, 3, 0, Math.PI * 2);
+      ctx.fillStyle = "#212121";
+      ctx.fill();
+
+      // Draw 'N' above the needle, keeping it upright relative to canvas to make it always readable
+      ctx.save();
+      ctx.translate(0, -size - 18);
+      // Un-rotate the text so it's always 'upright' for readability
+      ctx.rotate((northDirection * Math.PI) / 180); 
+      
+      // Draw a subtle white backdrop circle for the N letter to ensure high contrast against any background
+      ctx.beginPath();
+      ctx.arc(0, 0, 12, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
+      ctx.shadowColor = "rgba(0,0,0,0.2)";
+      ctx.shadowBlur = 4;
+      ctx.shadowOffsetY = 1;
+      ctx.fill();
+
+      ctx.fillStyle = "#D32F2F"; // Red 'N'
+      ctx.font = "bold 14px 'Inter', sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText("N", 0, -35);
+      ctx.textBaseline = "middle";
+      ctx.shadowColor = "transparent"; // remove text shadow
+      ctx.fillText("N", 0, 1);
+      ctx.restore();
     }
     ctx.restore();
   }
@@ -452,6 +754,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
   marmaData = null,
   shaktiChakra = false,
   shaktiChakraSize = 0.8,
+  shaktiChakraType = "complete",
   plotCentroid = null,
   drawingObjectBoundary = [],
   drawingMode,
@@ -472,15 +775,21 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
   plotHeight,
   isStatic = false,
   highlightedZones,
-  activeView,
   onObjectClick,
   walls = [],
   onAddWall,
   onSelectWall,
   selectedWall,
+  onMoveBoundaryVertex,
 }) => {
   const [hoveredDevta, setHoveredDevta] = useState<DevtaRegion | null>(null);
   const [currentDrawingWall, setCurrentDrawingWall] = useState<{ start: Point; end: Point } | null>(null);
+  const [measureStart, setMeasureStart] = useState<Point | null>(null);
+  const [measureEnd, setMeasureEnd] = useState<Point | null>(null);
+  const [measureCurrent, setMeasureCurrent] = useState<Point | null>(null);
+  const [hoverPoint, setHoverPoint] = useState<Point | null>(null);
+  const [draggingVertexIndex, setDraggingVertexIndex] = useState<number | null>(null);
+  const [imageLoadedTrigger, setImageLoadedTrigger] = useState(0); // Add this state
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -541,6 +850,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
       marmaData,
       shaktiChakra,
       shaktiChakraSize,
+      shaktiChakraType,
       plotCentroid,
       drawingObjectBoundary || [],
       drawingMode,
@@ -551,27 +861,38 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
       referenceWallIndex,
       wallColors,
       highlightedZones,
-      activeView,
       plotWidth,
       plotHeight,
       walls,
       currentDrawingWall,
       selectedWall,
-      scale
+      scale,
+      measureStart,
+      measureEnd,
+      measureCurrent,
+      hoverPoint,
+      isStatic
     );
     ctx.restore();
   }, [
     width, height, floorPlanImage, boundary, placedObjects, devtaRegions,
-    zone16Regions, zone8Regions, marmaData, shaktiChakra, shaktiChakraSize,
+    zone16Regions, zone8Regions, marmaData, shaktiChakra, shaktiChakraSize, shaktiChakraType,
     plotCentroid, drawingObjectBoundary, drawingMode, hoveredDevta, innerPolygon,
     middlePolygon, northDirection, wallLengths, referenceWallIndex,
-    wallColors, plotWidth, plotHeight, zoom, offset, isStatic, highlightedZones, activeView,
-    walls, currentDrawingWall, selectedWall, scale
+    walls, currentDrawingWall, selectedWall, scale, measureStart, measureEnd, measureCurrent, hoverPoint,
+    imageLoadedTrigger // Inject the trigger into the dependency array!
   ]);
+
+  useEffect(() => {
+    if (drawingMode !== "measure") {
+      setMeasureStart(null);
+      setMeasureEnd(null);
+      setMeasureCurrent(null);
+    }
+  }, [drawingMode]);
 
   const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
     if (isStatic) return;
-    e.preventDefault();
     if (!canvasRef.current) return;
 
     const rect = canvasRef.current.getBoundingClientRect();
@@ -593,9 +914,35 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (isStatic) return;
+
     if (e.button === 1) { // Middle mouse button
+      e.preventDefault(); // Prevent Windows autoscroll cursor
       setIsPanning(true);
       setPanStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
+      return;
+    }
+
+    if (e.button === 0 && (!drawingMode || drawingMode === "boundary" || drawingMode === "objects" || drawingMode === "select")) {
+      // Check if clicking on a vertex hook
+      const point = getTransformedPoint(e.clientX, e.clientY);
+      const normalizedPoint = { x: point.x / width, y: point.y / height };
+
+      const tolerance = 10 / (Math.min(width, height) * zoom); // screen pixels to normalized space
+
+      let foundVertex = -1;
+      for (let i = 0; i < boundary.length; i++) {
+        const p = boundary[i];
+        const dist = Math.sqrt(Math.pow(p.x - normalizedPoint.x, 2) + Math.pow(p.y - normalizedPoint.y, 2));
+        if (dist <= tolerance) {
+          foundVertex = i;
+          break;
+        }
+      }
+
+      if (foundVertex !== -1) {
+        setDraggingVertexIndex(foundVertex);
+        return; // Handle dragging
+      }
     }
   };
 
@@ -648,6 +995,18 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     }
 
     const point = getTransformedPoint(e.clientX, e.clientY);
+    const normalizedPoint = { x: point.x / width, y: point.y / height };
+    setHoverPoint(normalizedPoint);
+
+    if (draggingVertexIndex !== null && onMoveBoundaryVertex) {
+      // Allow dragging out of bounds safely with Math.max/min if desired, but here we just pass pure normalized
+      onMoveBoundaryVertex(draggingVertexIndex, normalizedPoint);
+      return;
+    }
+
+    if (drawingMode === "measure" && measureStart && !measureEnd) {
+      setMeasureCurrent({ x: point.x / width, y: point.y / height });
+    }
 
     if (drawingMode === "wall" && currentDrawingWall) {
       const snappedPoint = getSnappedPoint({ x: point.x / width, y: point.y / height });
@@ -682,6 +1041,11 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
   const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (isStatic) return;
     setIsPanning(false);
+    setDraggingVertexIndex(null);
+  };
+
+  const handleMouseLeave = () => {
+    setHoverPoint(null);
   };
 
   const handleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -691,6 +1055,20 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     const normalizedPoint = { x: point.x / width, y: point.y / height };
 
     if (!isStatic) {
+      if (drawingMode === "measure") {
+        if (!measureStart || (measureStart && measureEnd)) {
+          // start new measurement
+          setMeasureStart(normalizedPoint);
+          setMeasureEnd(null);
+          setMeasureCurrent(normalizedPoint);
+        } else if (measureStart && !measureEnd) {
+          // finish measurement
+          setMeasureEnd(normalizedPoint);
+          setMeasureCurrent(null);
+        }
+        return;
+      }
+
       if (drawingMode === "boundary" && onDrawBoundary) {
         onDrawBoundary(normalizedPoint);
         return;
@@ -806,6 +1184,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
           alt="Floor Plan Source"
           className="hidden"
           crossOrigin="anonymous"
+          onLoad={() => setImageLoadedTrigger(prev => prev + 1)}
         />
       )}
       <canvas
@@ -817,6 +1196,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
         onMouseDown={!isStatic ? handleMouseDown : undefined}
         onMouseMove={!isStatic ? handleMouseMove : undefined}
         onMouseUp={!isStatic ? handleMouseUp : undefined}
+        onMouseLeave={handleMouseLeave}
         onClick={handleClick}
         tabIndex={0}
       />

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "../../../../../lib/supabase";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { prisma } from "@/lib/db";
 
 export async function PUT(
   req: NextRequest,
@@ -23,43 +23,35 @@ export async function PUT(
     const uid = user.id;
     const { analysisId } = await params;
 
-    // 1. Check if the user is an astrologer
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from("profiles")
-      .select("role")
-      .eq("id", uid)
-      .single();
+    const profile = await prisma.profiles.findUnique({
+      where: { id: uid },
+      select: { role: true }
+    });
 
-    if (
-      profileError ||
-      (profile?.role !== "astrologer" && profile?.role !== "dev")
-    ) {
+    if (!profile || (profile.role !== "astrologer" && profile.role !== "dev")) {
       return NextResponse.json(
         { message: "Forbidden: You do not have permission to perform this action." },
         { status: 403 }
       );
     }
 
-    // 2. Update the analysis status
-    const { data, error } = await supabaseAdmin
-      .from("analyses")
-      .update({ status: "reviewed" })
-      .eq("id", analysisId)
-      .select()
-      .single();
+    try {
+      const data = await prisma.analyses.update({
+        where: { id: analysisId },
+        data: { status: "reviewed" }
+      });
 
-    if (error) {
-      console.error("Supabase analysis update error:", error);
+      return NextResponse.json(
+        { message: "Analysis approved successfully", analysis: data },
+        { status: 200 }
+      );
+    } catch (error: any) {
+      console.error("Prisma analysis update error:", error);
       return NextResponse.json(
         { message: "Failed to approve analysis", error: error.message },
         { status: 500 }
       );
     }
-
-    return NextResponse.json(
-      { message: "Analysis approved successfully", analysis: data },
-      { status: 200 }
-    );
   } catch (error: any) {
     console.error("Error approving analysis:", error);
     return NextResponse.json(

@@ -1,8 +1,7 @@
-// app/api/astrologer/activate-key/route.ts
 import { NextResponse } from 'next/server';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-
+import { prisma } from '@/lib/db';
 
 export async function POST(request: Request) {
   const cookieStore = await cookies();
@@ -38,33 +37,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Activation key is required' }, { status: 400 });
     }
 
-    // Use Supabase Admin to perform privileged operations
-    const supabaseAdmin = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-        {
-            cookies: {
-                get(name: string) {
-                    return cookieStore.get(name)?.value
-                },
-                set(name: string, value: string, options: CookieOptions) {
-                    cookieStore.set({ name, value, ...options })
-                },
-                remove(name: string, options: CookieOptions) {
-                    cookieStore.set({ name, value: '', ...options })
-                },
-            },
-        }
-    );
-
     // 3. Find the key in the database
-    const { data: keyData, error: keyError } = await supabaseAdmin
-      .from('astrologer_keys')
-      .select('*')
-      .eq('key', key)
-      .single();
+    const keyData = await prisma.astrologer_keys.findFirst({
+      where: { key: key }
+    });
 
-    if (keyError || !keyData) {
+    if (!keyData) {
       return NextResponse.json({ error: 'Invalid or expired key' }, { status: 404 });
     }
 
@@ -77,33 +55,31 @@ export async function POST(request: Request) {
     const validTo = new Date(now);
     validTo.setDate(validTo.getDate() + keyData.duration_days);
 
-    const { error: profileUpdateError } = await supabaseAdmin
-      .from('profiles')
-      .update({
-        role: 'astrologer',
-        valid_from: now.toISOString(),
-        valid_to: validTo.toISOString(),
-      })
-      .eq('id', user.id);
-
-    if (profileUpdateError) {
+    try {
+      await prisma.profiles.update({
+        where: { id: user.id },
+        data: {
+          role: 'astrologer',
+          valid_from: now,
+          valid_to: validTo,
+        }
+      });
+    } catch (profileUpdateError) {
       console.error('Failed to update profile:', profileUpdateError);
       return NextResponse.json({ error: 'Failed to activate astrologer role' }, { status: 500 });
     }
 
     // 5. Mark the key as claimed
-    const { error: keyUpdateError } = await supabaseAdmin
-      .from('astrologer_keys')
-      .update({
-        is_claimed: true,
-        claimed_by: user.id,
-        claimed_at: now.toISOString(),
-      })
-      .eq('id', keyData.id);
-
-    if (keyUpdateError) {
-      // This is not ideal, as the user profile is already updated.
-      // In a real production scenario, you'd use a transaction here.
+    try {
+      await prisma.astrologer_keys.update({
+        where: { id: keyData.id },
+        data: {
+          is_claimed: true,
+          claimed_by: user.id,
+          claimed_at: now,
+        }
+      });
+    } catch (keyUpdateError) {
       console.error('Failed to mark key as claimed:', keyUpdateError);
     }
 

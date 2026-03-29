@@ -3,17 +3,17 @@ import { Point, PlacedObject, DevtaRegion, MarmaPoint } from "@/lib/floorPlanInt
 
 // Define a new interface for the response from POST /api/analysis
 interface CreateAnalysisResponse {
-  analysisId: string;
-  status: "pending" | "reviewed" | "completed" | "failed"; // Or other relevant status
+    analysisId: string;
+    status: "pending" | "reviewed" | "completed" | "failed"; // Or other relevant status
 }
 
 // Define the interface for the detailed analysis results (e.g., devta analysis)
 interface DetailedAnalysisResponse {
-  devtas45: DevtaRegion[];
-  zones16: DevtaRegion[];
-  zones8: DevtaRegion[];
-  plot_centroid: Point;
-  // ... other analysis specific data
+    devtas45: DevtaRegion[];
+    zones16: DevtaRegion[];
+    zones8: DevtaRegion[];
+    plot_centroid: Point;
+    // ... other analysis specific data
 }
 
 export function useFloorPlanAnalysis() {
@@ -28,7 +28,7 @@ export function useFloorPlanAnalysis() {
     const createAnalysisRequest = useCallback(async (
         projectId: string,
         analysisType: "devta" | "marma" | "full-report",
-        boundary: Point[], 
+        boundary: Point[],
         northDirection: number,
         analysisDate?: string,
         analysisTime?: string
@@ -89,7 +89,8 @@ export function useFloorPlanAnalysis() {
     // A new function to fetch the results for an *approved* analysis
     const fetchDetailedAnalysisResults = useCallback(async (
         analysisId: string,
-        analysisType: "devta" | "marma" | "full-report"
+        analysisType: "devta" | "marma" | "full-report",
+        gridType: "81" | "64" = "81"
     ) => {
         setIsAnalyzing(true);
         setError(null);
@@ -98,13 +99,13 @@ export function useFloorPlanAnalysis() {
             let endpoint = "";
             switch (analysisType) {
                 case "devta":
-                    endpoint = `/api/analysis/devta?analysisId=${analysisId}`;
+                    endpoint = `/api/analysis/devta?analysisId=${analysisId}&gridType=${gridType}`;
                     break;
                 case "marma":
-                    endpoint = `/api/analysis/marma?analysisId=${analysisId}`;
+                    endpoint = `/api/analysis/marma?analysisId=${analysisId}&gridType=${gridType}`;
                     break;
                 case "full-report":
-                    endpoint = `/api/analysis/full-report?analysisId=${analysisId}`;
+                    endpoint = `/api/analysis/full-report?analysisId=${analysisId}&gridType=${gridType}`;
                     break;
                 default:
                     throw new Error("Invalid analysis type.");
@@ -120,7 +121,7 @@ export function useFloorPlanAnalysis() {
                 throw new Error(errorData.message || `Failed to fetch ${analysisType} analysis results.`);
             }
 
-            const data: DetailedAnalysisResponse = await response.json(); 
+            const data: DetailedAnalysisResponse = await response.json();
             // Assuming data structure is consistent enough for now.
             // Further refinement might be needed if each type returns vastly different shapes.
             setDevtaRegions(data.devtas45 || []);

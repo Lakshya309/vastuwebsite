@@ -11,6 +11,8 @@ import { FloorPlanCanvas } from "@/components/floor-plan/FloorPlanCanvas";
 import { ControlPanel } from "@/components/floor-plan/ControlPanel";
 import { DevtaInfoCard } from "@/components/floor-plan/DevtaInfoCard";
 import { PlacedObject, DevtaRegion, Point, Wall } from "@/lib/floorPlanInterfaces";
+import { OBJECT_ICONS } from "@/lib/objectIcons";
+import { TutorialOverlay, TutorialStep } from "@/components/floor-plan/TutorialOverlay";
 
 export default function FloorPlanPage() {
   const params = useParams();
@@ -35,9 +37,6 @@ export default function FloorPlanPage() {
   } = useFloorPlanData(projectId, refreshKey);
 
   // 2. UI State
-  const [activeView, setActiveView] = useState<
-    "setup" | "grids" | "objects"
-  >("setup");
   const [showGrid, setShowGrid] = useState({
     devta45: true,
     zone16: false,
@@ -54,6 +53,7 @@ export default function FloorPlanPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [analysisStale, setAnalysisStale] = useState(false);
   const [shaktiChakraSize, setShaktiChakraSize] = useState(0.8);
+  const [shaktiChakraType, setShaktiChakraType] = useState<"complete" | "zones">("complete");
   const [scale, setScale] = useState<number | null>(null);
   const [wallLengths, setWallLengths] = useState<number[]>([]);
   const [referenceWallIndex, setReferenceWallIndex] = useState<number | null>(null);
@@ -64,6 +64,62 @@ export default function FloorPlanPage() {
   const [highlightedZones, setHighlightedZones] = useState<string[]>([]);
   const [walls, setWalls] = useState<Wall[]>([]);
   const [selectedWall, setSelectedWall] = useState<Wall | null>(null);
+  const [plotAngle, setPlotAngle] = useState<number>(90);
+  const [gridType, setGridType] = useState<"81" | "64">("81");
+
+  // Tutorial State
+  const [showTutorial, setShowTutorial] = useState(false);
+
+  useEffect(() => {
+    const hasCompletedTutorial = localStorage.getItem("vastu_tutorial_completed");
+    if (!hasCompletedTutorial) {
+      setShowTutorial(true);
+    }
+  }, []);
+
+  const tutorialSteps: TutorialStep[] = [
+    {
+      targetId: "viewport",
+      title: "Welcome to Vastu Studio",
+      content: "Let's take a quick tour to help you design your perfect Vastu-compliant floor plan.",
+      position: "center"
+    },
+    {
+      targetId: "tutorial-dimensions",
+      title: "Set Your Plot Size",
+      content: "Start by entering your plot's Width and Length. This ensures all your measurements are accurate.",
+      position: "left"
+    },
+    {
+      targetId: "tutorial-north",
+      title: "Align with Truth North",
+      content: "Use this slider to align your plan with geographic North. Vastu is all about directions!",
+      position: "left"
+    },
+    {
+      targetId: "tutorial-objects",
+      title: "Place Your Rooms",
+      content: "Drag or click items from the Palette to place them on the canvas. Toilets, Kitchens, and Beds have specific zones!",
+      position: "left"
+    },
+    {
+      targetId: "tutorial-layers",
+      title: "Analyze Energy Grids",
+      content: "Toggle between 45 Devtas or 16 Zones to see how energy flows through your plan.",
+      position: "left"
+    },
+    {
+      targetId: "tutorial-analyze",
+      title: "Get Your Report",
+      content: "Once you're happy with the placement, click here to generate a detailed Vastu compliance report.",
+      position: "left"
+    }
+  ];
+
+  const handleTutorialComplete = () => {
+    localStorage.setItem("vastu_tutorial_completed", "true");
+    setShowTutorial(false);
+  };
 
   const handleAddWall = (wall: Wall) => {
     // Calculate real-world length if scale is available
@@ -74,7 +130,7 @@ export default function FloorPlanPage() {
         Math.pow((wall.end.x - wall.start.x) * canvasWidth, 2) +
         Math.pow((wall.end.y - wall.start.y) * canvasHeight, 2)
       );
-      wall.length = pixelLength * scale;
+      wall.length = pixelLength * (scale / unitFactor);
     }
     setWalls((prev) => [...prev, wall]);
   };
@@ -111,12 +167,14 @@ export default function FloorPlanPage() {
       }
 
       if (data.project) {
-        setProject(data.project);
-        setFloorPlanImage(data.project.floor_plan_path);
+        // Force a re-fetch of the project data to obtain the new presigned R2 URL
+        setFloorPlanImage(null);
+        setRefreshKey(prev => prev + 1);
+        setSelectedFile(null);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      // Handle upload error (e.g., show a notification)
+      alert(error.message || "An error occurred during upload.");
     }
   };
 
@@ -139,7 +197,7 @@ export default function FloorPlanPage() {
 
   // 3. Analysis Hooks & Debouncing
   const [drawingMode, setDrawingMode] = useState<
-    "boundary" | "objects" | "select" | "wall" | null
+    "boundary" | "objects" | "select" | "wall" | "measure" | null
   >(null);
   const {
     devtaRegions,
@@ -154,43 +212,120 @@ export default function FloorPlanPage() {
   } = useFloorPlanAnalysis();
   const { marmaData, isLoading: isMarmaAnalyzing, error: marmaError } = useMarmaAnalysis(currentAnalysisId);
 
+  const isManualMode = !!(project?.plot_width && project?.plot_height);
+
   const debouncedBoundary = useDebounce(boundary, 500);
   const debouncedNorthDirection = useDebounce(liveNorthDirection, 500);
+  const isManualUpdate = useRef(false);
 
-  // Initialize rectangular boundary for manual plots
+  // Unit conversion factor (base is meters)
+  const UNIT_CONVERSIONS = {
+    feet: 0.3048,
+    meters: 1,
+    inches: 0.0254,
+  };
+  const unitFactor = UNIT_CONVERSIONS[referenceWallUnit];
+
+  // Initialize or Update parallelogram boundary for manual plots
   useEffect(() => {
-    if (project?.plot_width && project?.plot_height && boundary.length === 0) {
-      const width = project.plot_width;
-      const height = project.plot_height;
-      const aspect = width / height;
-
-      // Define a rectangle centered in the normalized [0, 1] space
-      // Let's make it occupy about 80% of the canvas
-      let normWidth, normHeight;
-      if (aspect > 1) {
-        normWidth = 0.8;
-        normHeight = 0.8 / aspect;
-      } else {
-        normHeight = 0.8;
-        normWidth = 0.8 * aspect;
+    if (project?.plot_width && project?.plot_height) {
+      if (boundary.length > 4) return;
+      if (isManualUpdate.current) {
+        isManualUpdate.current = false;
+        return;
       }
 
-      const xOff = (1 - normWidth) / 2;
-      const yOff = (1 - normHeight) / 2;
+      const w = project.plot_width;
+      const h = project.plot_height;
+      const a = (plotAngle * Math.PI) / 180;
+
+      // 1. Determine/Update Scale for manual plots
+      const initialBboxW = w + Math.abs(h * Math.cos(a));
+      const initialBboxH = h * Math.sin(a);
+      const canvasAspect = 800 / 600;
+      const shapeAspect = initialBboxH === 0 ? 1 : initialBboxW / initialBboxH;
+      const adjustedAspect = shapeAspect / canvasAspect;
+
+      let normWidth;
+      if (adjustedAspect > 1) {
+        normWidth = 0.8;
+      } else {
+        normWidth = 0.8 * adjustedAspect;
+      }
+
+      const pixelWidth = normWidth * 800; // normalized to absolute pixels in reference 800x600 space
+      const currentScale = (w * unitFactor) / pixelWidth; // meters per pixel
+      
+      // Always update scale in manual mode to reflect box values
+      if (scale !== currentScale) {
+        setScale(currentScale);
+        setReferenceWallIndex(0);
+        setReferenceWallLength(w);
+      }
+
+      // 2. Calculate Geometry based on STICKY Scale
+      // Positions are derived from absolute dimensions / scale
+      const pxW = (w * unitFactor) / currentScale;
+      const pxH = (h * unitFactor) / currentScale;
+
+      const shiftTop = Math.max(0, pxH * Math.cos(a));
+      const shiftBottom = Math.max(0, -pxH * Math.cos(a));
+
+      const pt0 = { x: shiftTop, y: 0 };
+      const pt1 = { x: shiftTop + pxW, y: 0 };
+      const pt2 = { x: shiftBottom + pxW, y: pxH * Math.sin(a) };
+      const pt3 = { x: shiftBottom, y: pxH * Math.sin(a) };
+
+      const totalPxW = pxW + Math.abs(pxH * Math.cos(a));
+      const totalPxH = pxH * Math.sin(a);
+
+      // Centering and normalizing
+      const xOff = (800 - totalPxW) / 2;
+      const yOff = (600 - totalPxH) / 2;
 
       const rectBoundary: Point[] = [
-        { x: xOff, y: yOff },
-        { x: xOff + normWidth, y: yOff },
-        { x: xOff + normWidth, y: yOff + normHeight },
-        { x: xOff, y: yOff + normHeight },
+        { x: (xOff + pt0.x) / 800, y: (yOff + pt0.y) / 600 },
+        { x: (xOff + pt1.x) / 800, y: (yOff + pt1.y) / 600 },
+        { x: (xOff + pt2.x) / 800, y: (yOff + pt2.y) / 600 },
+        { x: (xOff + pt3.x) / 800, y: (yOff + pt3.y) / 600 },
       ];
-      setBoundary(rectBoundary);
-      
-      // Calculate scale (pixels per unit). 
-      // This is tricky because the canvas size isn't fixed yet.
-      // But we can store the pixels-to-feet ratio once we have it.
+
+      const isSame = boundary.length === 4 && boundary.every((p, i) =>
+        Math.abs(p.x - rectBoundary[i].x) < 0.0001 &&
+        Math.abs(p.y - rectBoundary[i].y) < 0.0001
+      );
+
+      if (!isSame) {
+        setBoundary(rectBoundary);
+        // Wall lengths label update will be handled by the specialized synchronization effect
+      }
     }
-  }, [project, boundary.length]);
+  }, [project?.plot_width, project?.plot_height, plotAngle, referenceWallUnit]);
+
+  // Synchronize wall lengths whenever scale, boundary, or unit changes
+  useEffect(() => {
+    if (scale && boundary.length >= 2) {
+      const canvasWidth = 800;
+      const canvasHeight = 600;
+      const newWallLengths = boundary.map((_, i) => {
+        const p1 = boundary[i];
+        const p2 = boundary[(i + 1) % boundary.length];
+        const lengthInPixels = Math.sqrt(
+          Math.pow((p2.x - p1.x) * canvasWidth, 2) +
+          Math.pow((p2.y - p1.y) * canvasHeight, 2)
+        );
+        return (lengthInPixels * scale) / unitFactor;
+      });
+
+      // Only update if values actually changed to avoid infinite loops
+      const isSame = wallLengths.length === newWallLengths.length &&
+        wallLengths.every((l, i) => Math.abs(l - newWallLengths[i]) < 0.001);
+
+      if (!isSame) {
+        setWallLengths(newWallLengths);
+      }
+    }
+  }, [scale, boundary, unitFactor]);
 
   useEffect(() => {
     if (currentAnalysisId) {
@@ -209,7 +344,7 @@ export default function FloorPlanPage() {
 
           if (status !== "pending") {
             clearInterval(pollStatus);
-            fetchDetailedAnalysisResults(currentAnalysisId, analysisType);
+            fetchDetailedAnalysisResults(currentAnalysisId, analysisType, gridType);
           }
         } catch (error) {
           // Handle network errors
@@ -255,6 +390,41 @@ export default function FloorPlanPage() {
     setBoundary((prev) => prev.slice(0, -1));
   };
 
+  const handleMoveBoundaryVertex = (index: number, newPoint: Point) => {
+    setBoundary(prev => {
+      const updated = [...prev];
+      updated[index] = newPoint;
+
+      if (scale) {
+        const canvasWidth = 800;
+        const canvasHeight = 600;
+        const newWallLengths = updated.map((_, i) => {
+          const p1 = updated[i];
+          const p2 = updated[(i + 1) % updated.length];
+          const lengthInPixels = Math.sqrt(
+            Math.pow((p2.x - p1.x) * canvasWidth, 2) +
+            Math.pow((p2.y - p1.y) * canvasHeight, 2)
+          );
+          return (lengthInPixels * scale) / unitFactor;
+        });
+        setWallLengths(newWallLengths);
+
+        // SYNC dimension boxes if it's a 4-point boundary
+        if (updated.length === 4) {
+          isManualUpdate.current = true;
+          // Sync Width (seg 0) and Height (seg 1)
+          setProject((p: any) => ({
+            ...p,
+            plot_width: newWallLengths[0],
+            plot_height: newWallLengths[1]
+          }));
+        }
+      }
+
+      return updated;
+    });
+  };
+
   const handleDrawBoundary = (point: Point) => {
     setBoundary((prev) => [...prev, point]);
   };
@@ -297,7 +467,7 @@ export default function FloorPlanPage() {
             x: p.x + dx,
             y: p.y + dy,
           }));
-          
+
           const newObj = {
             ...obj,
             centroid: newCentroid,
@@ -402,7 +572,7 @@ export default function FloorPlanPage() {
       if (boundary.length > 0) {
         const newId = await createAnalysisRequest(projectId, "devta", boundary, liveNorthDirection, undefined, undefined);
         if (newId) {
-          fetchDetailedAnalysisResults(newId, "devta");
+          fetchDetailedAnalysisResults(newId, "devta", gridType);
           setAnalysisStale(false);
         } else {
           alert("Failed to initiate analysis. Please try again.");
@@ -410,7 +580,7 @@ export default function FloorPlanPage() {
       }
 
 
-      setActiveView("grids"); // Move to the next phase
+      // Phase change handled via scrolling down
     } catch (error) {
       console.error(error);
       // You might want to show an error message to the user
@@ -445,18 +615,20 @@ export default function FloorPlanPage() {
     }
   };
 
-  const objectSvgMap: { [key: string]: string } = {
-    Stove: "/objects/stove.svg",
-    Toilet: "/objects/toilet.svg",
-    Bed: "/objects/bed.svg",
-    Wardrobe: "/objects/wardrobe.svg",
-    Sofa: "/objects/sofa.svg",
-    Pooja: "/objects/pooja.png", // Changed from .svg to .png
-    Stairs: "/objects/stairs.svg",
-    Dining: "/objects/dining.svg",
-    OverheadTank: "/objects/overheadtank.png", // New object
-    UndergroundTank: "/objects/undergroundtank.png", // New object
-  };
+  const proxiedObjectSvgMap = new Proxy(OBJECT_ICONS, {
+    get: function (target, prop, receiver) {
+      if (typeof prop === 'string') {
+        const type = prop as string;
+        // Try exact match
+        if (target[type]) return target[type];
+
+        // Try title casing for the lookup
+        const titleCase = type.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+        if (target[titleCase]) return target[titleCase];
+      }
+      return "/objects/generic.svg";
+    }
+  });
 
   return (
     <div className="h-screen bg-gray-100 flex flex-col overflow-hidden">
@@ -495,13 +667,14 @@ export default function FloorPlanPage() {
               onResizeObject={handleResizeObject}
               onRotateObject={handleRotateObject}
               onDeleteObject={handleDeleteObject}
-              objectSvgMap={objectSvgMap}
+              objectSvgMap={proxiedObjectSvgMap}
               devtaRegions={showGrid.devta45 ? devtaRegions : []}
               zone16Regions={showGrid.zone16 ? zones16 : []}
               zone8Regions={showGrid.zone8 ? zones8 : []}
               marmaData={showGrid.marma ? marmaData : null}
               shaktiChakra={showGrid.shaktiChakra}
               shaktiChakraSize={shaktiChakraSize}
+              shaktiChakraType={shaktiChakraType}
               plotCentroid={plotCentroid}
               onDevtaClick={handleDevtaClick}
               onZoneClick={handleZoneClick}
@@ -513,19 +686,19 @@ export default function FloorPlanPage() {
               setDrawingObjectBoundary={setDrawingObjectBoundary}
               selectedObjectType={selectedObjectType}
               northDirection={liveNorthDirection}
-              scale={scale}
+              scale={scale ? scale / unitFactor : null}
               wallLengths={wallLengths}
               setReferenceWallIndex={setReferenceWallIndex}
               referenceWallIndex={referenceWallIndex}
               wallColors={wallColors}
               plotWidth={project?.plot_width}
               plotHeight={project?.plot_height}
-              activeView={activeView}
               highlightedZones={highlightedZones}
               walls={walls}
               onAddWall={handleAddWall}
               onSelectWall={setSelectedWall}
               selectedWall={selectedWall}
+              onMoveBoundaryVertex={handleMoveBoundaryVertex}
             />
 
             {/* Overlay Status Indicators */}
@@ -567,16 +740,26 @@ export default function FloorPlanPage() {
           projectId={projectId}
           error={error || analysisError}
           loading={loading}
-          activeView={activeView}
-          setActiveView={setActiveView}
           showGrid={showGrid}
           setShowGrid={setShowGrid}
+          gridType={gridType}
+          onGridTypeChange={(val) => {
+            setGridType(val);
+            if (currentAnalysisId) {
+              fetchDetailedAnalysisResults(currentAnalysisId, "devta", val);
+            }
+          }}
+          plotWidth={project?.plot_width}
+          plotHeight={project?.plot_height}
+          setProject={setProject}
+          plotAngle={plotAngle}
+          setPlotAngle={setPlotAngle}
           liveNorthDirection={liveNorthDirection}
           setLiveNorthDirection={setLiveNorthDirection}
           selectedFile={selectedFile}
           handleImageUpload={handleImageUpload}
           handleStartDrawingBoundary={handleStartDrawingBoundary}
-  handleFinishDrawingBoundary={handleFinishDrawingBoundary}
+          handleFinishDrawingBoundary={handleFinishDrawingBoundary}
           handleReupload={handleReupload}
           handleResetBoundary={handleResetBoundary}
           handleUndoLastPoint={handleUndoLastPoint}
@@ -592,11 +775,15 @@ export default function FloorPlanPage() {
           boundary={boundary}
           handleSaveChanges={handleSaveChanges}
           handleSaveObjects={handleSaveObjects}
+          // Manual mode support
+          isManualMode={isManualMode}
           // New analysis props
           isAnalyzing={isAnalyzing}
           analysisStale={analysisStale}
           shaktiChakraSize={shaktiChakraSize}
           setShaktiChakraSize={setShaktiChakraSize}
+          shaktiChakraType={shaktiChakraType}
+          setShaktiChakraType={setShaktiChakraType}
           scale={scale}
           setScale={setScale}
           wallLengths={wallLengths}
