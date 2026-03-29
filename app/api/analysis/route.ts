@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "../../../lib/supabase";
-import { supabaseAdmin } from "../../../lib/supabaseAdmin";
+import { prisma } from "../../../lib/db";
 
 export async function POST(req: NextRequest) {
   const supabase = await createServerSupabaseClient();
@@ -19,15 +19,14 @@ export async function POST(req: NextRequest) {
     }
     const uid = user.id;
 
-    // Fetch user profile (existing logic)
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from("profiles")
-      .select("role, valid_from, valid_to")
-      .eq("id", uid)
-      .single();
+    // Fetch user profile
+    const profile = await prisma.profiles.findUnique({
+      where: { id: uid },
+      select: { role: true, valid_from: true, valid_to: true }
+    });
 
-    if (profileError || !profile) {
-      console.error("Supabase profile fetch error:", profileError);
+    if (!profile) {
+      console.error("Prisma profile fetch error: Profile not found for uid", uid);
       return NextResponse.json(
         { message: "Failed to fetch user profile." },
         { status: 500 }
@@ -48,9 +47,9 @@ export async function POST(req: NextRequest) {
         blocking_message = "Astrologer access expired or not yet valid.";
       }
     } else if (profile.role === "user") {
-        allowed_to_analyze = true; // Users can create analysis requests, credits deducted upon viewing report
+        allowed_to_analyze = true; 
     } else if (profile.role === "admin") {
-        allowed_to_analyze = true; // Admins have unlimited analysis
+        allowed_to_analyze = true; 
     } else {
       blocking_message = "Unsupported user role. Analysis blocked.";
     }
@@ -59,7 +58,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: blocking_message }, { status: 403 });
     }
 
-    // Extract new parameters and remove 'objects'
     const { projectId, analysisType, boundary_normalized, north_direction, analysisDate, analysisTime } = await req.json();
 
     if (
@@ -74,7 +72,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // --- Date and Time Validation Logic ---
     let analysisDateTime: Date | null = null;
     if (analysisDate) {
         try {
@@ -123,64 +120,53 @@ export async function POST(req: NextRequest) {
             );
         }
     }
-    // --- End Date and Time Validation Logic ---
 
-    // 1. Verify user owns the project or has permission (existing logic)
-    let projectQuery = supabaseAdmin
-      .from("projects")
-      .select("id")
-      .eq("id", projectId);
+    // 1. Verify user owns the project or has permission
+    const projectData = await prisma.projects.findUnique({
+      where: { id: projectId },
+      select: { user_id: true }
+    });
 
-    // If the user is neither an admin nor an active astrologer, restrict by user_id
-    if (profile.role !== "admin" && !(profile.role === "astrologer" && allowed_to_analyze)) {
-      projectQuery = projectQuery.eq("user_id", uid);
-    }
-
-    const { data: projectData, error: projectError } = await projectQuery.single();
-
-    if (projectError || !projectData) {
+    if (!projectData) {
       return NextResponse.json(
-        { message: "Project not found or you do not have permission." },
+        { message: "Project not found." },
         { status: 404 }
       );
     }
 
+    if (profile.role !== "admin" && !(profile.role === "astrologer" && allowed_to_analyze)) {
+      if (projectData.user_id !== uid) {
+        return NextResponse.json(
+          { message: "Project not found or you do not have permission." },
+          { status: 403 }
+        );
+      }
+    }
+
     // 2. Create a new analysis record
-    const { data: analysisData, error: analysisError } = await supabaseAdmin
-      .from("analyses")
-      // Currently, the 'analyses' table schema does not include columns for analysisType,
-      // boundary_normalized, north_direction, analysisDate, or analysisTime.
-      // These would need to be added to the 'analyses' table schema via a migration
-      // or stored in a generic jsonb 'metadata' column if available.
-      // For now, we only store project_id and status.
-      .insert({
+    try {
+      const analysisData = await prisma.analyses.create({
+        data: {
           project_id: projectId,
           status: "pending",
           analysis_type: analysisType,
-          boundary_normalized: boundary_normalized,
+          boundary_normalized: boundary_normalized as any,
           north_direction: north_direction,
           analysis_timestamp: analysisDate ? analysisDateTime?.toISOString() : null,
-      })
-      .select()
-      .single();
+        }
+      });
 
-    if (analysisError) {
-      console.error("Supabase analysis insert error:", analysisError);
+      return NextResponse.json(
+        { message: "Analysis created successfully", analysisId: analysisData.id },
+        { status: 201 }
+      );
+    } catch (analysisError: any) {
+      console.error("Prisma analysis insert error:", analysisError);
       return NextResponse.json(
         { message: "Failed to create analysis", error: analysisError.message },
         { status: 500 }
       );
     }
-
-    const analysisId = analysisData.id;
-
-    // Removed the analysis_items insertion logic as it's now handled by detailed analysis routes
-    // and project_objects.
-
-    return NextResponse.json(
-      { message: "Analysis created successfully", analysisId: analysisId },
-      { status: 201 }
-    );
   } catch (error: any) {
     console.error("Error creating analysis:", error);
     return NextResponse.json(

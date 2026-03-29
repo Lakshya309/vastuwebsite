@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "../../../../../../lib/supabase";
-import { supabaseAdmin } from "../../../../../../lib/supabaseAdmin";
+import { prisma } from "../../../../../../lib/db";
 
 export async function PUT(
   req: NextRequest,
@@ -24,14 +24,12 @@ export async function PUT(
     const { projectId, objectId } = await context.params;
 
     // First, verify that the user has access to the project
-    const { data: project, error: projectError } = await supabaseAdmin
-      .from("projects")
-      .select("id")
-      .eq("id", projectId)
-      .eq("user_id", uid)
-      .single();
+    const project = await prisma.projects.findFirst({
+      where: { id: projectId, user_id: uid },
+      select: { id: true },
+    });
 
-    if (projectError || !project) {
+    if (!project) {
       return NextResponse.json(
         {
           message:
@@ -43,27 +41,25 @@ export async function PUT(
 
     const { type, zone, ...restObjectData } = await req.json(); // Destructure to exclude 'zone' and extract 'type'
 
-    const { data, error } = await supabaseAdmin
-      .from("project_objects")
-      .update({ ...restObjectData, object_type: type }) // Update with mapped type
-      .eq("id", objectId)
-      .eq("project_id", projectId)
-      .select()
-      .single();
+    const updatedObject = await prisma.project_objects.updateMany({
+      where: { id: objectId, project_id: projectId },
+      data: { ...restObjectData, object_type: type },
+    });
 
-    if (error) {
-      console.error("Supabase update error:", error);
+    if (updatedObject.count === 0) {
       return NextResponse.json(
-        {
-          message: "Failed to update project object in database",
-          error: error.message,
-        },
-        { status: 500 }
+        { message: "Object not found" },
+        { status: 404 }
       );
     }
 
+    // Fetch the updated object
+    const finalObject = await prisma.project_objects.findUnique({
+      where: { id: objectId },
+    });
+
     return NextResponse.json(
-      { message: "Project object updated successfully", object: data },
+      { message: "Project object updated successfully", object: finalObject },
       { status: 200 }
     );
   } catch (error: any) {
@@ -96,14 +92,12 @@ export async function DELETE(
     const { projectId, objectId } = await context.params;
 
     // First, verify that the user has access to the project
-    const { data: project, error: projectError } = await supabaseAdmin
-      .from("projects")
-      .select("id")
-      .eq("id", projectId)
-      .eq("user_id", uid)
-      .single();
+    const project = await prisma.projects.findFirst({
+      where: { id: projectId, user_id: uid },
+      select: { id: true },
+    });
 
-    if (projectError || !project) {
+    if (!project) {
       return NextResponse.json(
         {
           message:
@@ -113,20 +107,14 @@ export async function DELETE(
       );
     }
 
-    const { error } = await supabaseAdmin
-      .from("project_objects")
-      .delete()
-      .eq("id", objectId)
-      .eq("project_id", projectId);
+    const deleteResult = await prisma.project_objects.deleteMany({
+      where: { id: objectId, project_id: projectId },
+    });
 
-    if (error) {
-      console.error("Supabase delete error:", error);
+    if (deleteResult.count === 0) {
       return NextResponse.json(
-        {
-          message: "Failed to delete project object from database",
-          error: error.message,
-        },
-        { status: 500 }
+        { message: "Object not found" },
+        { status: 404 }
       );
     }
 

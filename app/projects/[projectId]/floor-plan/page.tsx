@@ -111,12 +111,14 @@ export default function FloorPlanPage() {
       }
 
       if (data.project) {
-        setProject(data.project);
-        setFloorPlanImage(data.project.floor_plan_path);
+        // Force a re-fetch of the project data to obtain the new presigned R2 URL
+        setFloorPlanImage(null);
+        setRefreshKey(prev => prev + 1);
+        setSelectedFile(null);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      // Handle upload error (e.g., show a notification)
+      alert(error.message || "An error occurred during upload.");
     }
   };
 

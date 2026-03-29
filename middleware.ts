@@ -48,25 +48,13 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Admin route protection
+  // NOTE: Admin route role-checking moved to server components (`app/admin/layout.tsx` or page.tsx)
+  // because Prisma DB client with standard Postgres adapter cannot run in Edge Middleware.
   if (request.nextUrl.pathname.startsWith('/admin')) {
     if (!user) {
       const url = request.nextUrl.clone()
       url.pathname = '/login'
       url.searchParams.set('redirectedFrom', request.nextUrl.pathname)
-      return NextResponse.redirect(url)
-    }
-
-    // Fetch user profile to check role
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
-    if (profileError || !profile || profile.role !== 'admin') {
-      const url = request.nextUrl.clone()
-      url.pathname = '/portal' // Or forbidden
       return NextResponse.redirect(url)
     }
   }

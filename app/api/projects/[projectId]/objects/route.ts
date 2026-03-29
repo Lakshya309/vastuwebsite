@@ -1,31 +1,19 @@
 import { NextResponse } from 'next/server';
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { createServerSupabaseClient } from '../../../../../lib/supabase';
+import { prisma } from '../../../../../lib/db';
 
 export async function GET(
   request: Request,
   context: { params: Promise<{ projectId: string }> }
 ) {
-  const cookieStore = await cookies();
   const { projectId } = await context.params;
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          cookieStore.set({ name, value, ...options });
-        },
-        remove(name: string, options: CookieOptions) {
-          cookieStore.set({ name, value: '', ...options });
-        },
-      },
-    }
-  );
+  // Verify auth (optional if route is public, but keeping original logic)
+  const supabase = await createServerSupabaseClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   if (!projectId) {
     return NextResponse.json(
@@ -35,16 +23,11 @@ export async function GET(
   }
 
   try {
-    const { data, error } = await supabase
-      .from("project_objects")
-      .select("*")
-      .eq("project_id", projectId);
+    const objects = await prisma.project_objects.findMany({
+      where: { project_id: projectId },
+    });
 
-    if (error) {
-      throw error;
-    }
-
-    return NextResponse.json({ objects: data }, { status: 200 });
+    return NextResponse.json({ objects }, { status: 200 });
   } catch (err: any) {
     console.error("Server-side error:", err);
     return NextResponse.json(
@@ -58,26 +41,14 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ projectId: string }> }
 ) {
-  const cookieStore = await cookies();
   const { projectId } = await context.params;
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          cookieStore.set({ name, value, ...options });
-        },
-        remove(name: string, options: CookieOptions) {
-          cookieStore.set({ name, value: '', ...options });
-        },
-      },
-    }
-  );
+  // Verify auth
+  const supabase = await createServerSupabaseClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   if (!projectId) {
     return NextResponse.json(
@@ -98,14 +69,9 @@ export async function POST(
 
   try {
     // 1️⃣ Delete existing objects for the project
-    const { error: deleteError } = await supabase
-      .from("project_objects")
-      .delete()
-      .eq("project_id", projectId);
-
-    if (deleteError) {
-      throw deleteError;
-    }
+    await prisma.project_objects.deleteMany({
+      where: { project_id: projectId },
+    });
 
     // 2️⃣ Prepare new objects
     const objectsToInsert = objects.map((obj: any) => ({
@@ -123,19 +89,19 @@ export async function POST(
     }
 
     // 3️⃣ Insert new objects
-    const { data, error: insertError } = await supabase
-      .from("project_objects")
-      .insert(objectsToInsert)
-      .select();
+    await prisma.project_objects.createMany({
+      data: objectsToInsert,
+    });
 
-    if (insertError) {
-      throw insertError;
-    }
+    // Fetch them back to return full objects with IDs
+    const insertedObjects = await prisma.project_objects.findMany({
+      where: { project_id: projectId },
+    });
 
     return NextResponse.json(
       {
         message: "Objects saved successfully",
-        objects: data,
+        objects: insertedObjects,
       },
       { status: 200 },
     );

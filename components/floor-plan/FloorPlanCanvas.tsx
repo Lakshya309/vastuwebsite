@@ -728,6 +728,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
   const [measureCurrent, setMeasureCurrent] = useState<Point | null>(null);
   const [hoverPoint, setHoverPoint] = useState<Point | null>(null);
   const [draggingVertexIndex, setDraggingVertexIndex] = useState<number | null>(null);
+  const [imageLoadedTrigger, setImageLoadedTrigger] = useState(0); // Add this state
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -817,7 +818,8 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     zone16Regions, zone8Regions, marmaData, shaktiChakra, shaktiChakraSize, shaktiChakraType,
     plotCentroid, drawingObjectBoundary, drawingMode, hoveredDevta, innerPolygon,
     middlePolygon, northDirection, wallLengths, referenceWallIndex,
-    walls, currentDrawingWall, selectedWall, scale, measureStart, measureEnd, measureCurrent, hoverPoint
+    walls, currentDrawingWall, selectedWall, scale, measureStart, measureEnd, measureCurrent, hoverPoint,
+    imageLoadedTrigger // Inject the trigger into the dependency array!
   ]);
 
   useEffect(() => {
@@ -1137,6 +1139,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
           alt="Floor Plan Source"
           className="hidden"
           crossOrigin="anonymous"
+          onLoad={() => setImageLoadedTrigger(prev => prev + 1)}
         />
       )}
       <canvas

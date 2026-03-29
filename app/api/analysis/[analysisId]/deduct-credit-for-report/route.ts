@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { prisma } from "@/lib/db";
 
 export async function POST(
   req: NextRequest,
@@ -29,15 +29,13 @@ export async function POST(
       return NextResponse.json({ message: "Analysis ID is required." }, { status: 400 });
     }
 
-    // Fetch user profile to check role
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from("profiles")
-      .select("role, valid_from, valid_to")
-      .eq("id", uid)
-      .single();
+    const profile = await prisma.profiles.findUnique({
+      where: { id: uid },
+      select: { role: true, valid_from: true, valid_to: true }
+    });
 
-    if (profileError || !profile) {
-      console.error("Supabase profile fetch error:", profileError);
+    if (!profile) {
+      console.error("Prisma profile fetch error: Profile not found for uid", uid);
       return NextResponse.json(
         { message: "Failed to fetch user profile." },
         { status: 500 }
@@ -55,27 +53,23 @@ export async function POST(
       }
     }
 
-    // Admins and Astrologers with active subscriptions do not deduct credits for report view
     if (userRole === "admin" || isAstrologerSubscriptionActive) {
-      const { data: analysisData, error: analysisError } = await supabaseAdmin
-        .from("analyses")
-        .select("id, status")
-        .eq("id", analysisId)
-        .single();
+      const analysisData = await prisma.analyses.findUnique({
+        where: { id: analysisId },
+        select: { id: true, status: true }
+      });
 
-      if (analysisError || !analysisData) {
-        console.error(`[deduct-credit-for-report] Analysis not found for admin/active astrologer: ${analysisId}, Error: ${analysisError?.message}`);
+      if (!analysisData) {
         return NextResponse.json({ message: "Analysis not found." }, { status: 404 });
       }
       if (analysisData.status === "failed") {
         return NextResponse.json({ message: "Analysis has failed and cannot be viewed." }, { status: 403 });
       }
 
-      // Set report_paid to true for admin/astrologer implicitly
-      await supabaseAdmin
-        .from("analyses")
-        .update({ report_paid: true })
-        .eq("id", analysisId);
+      await prisma.analyses.update({
+        where: { id: analysisId },
+        data: { report_paid: true }
+      });
 
       return NextResponse.json(
         { message: `Report access granted (no credit deduction for ${userRole === "admin" ? "admin" : "active astrologer subscription"}).` },
@@ -83,17 +77,13 @@ export async function POST(
       );
     }
 
-    // Only 'user' role and astrologers with inactive subscriptions proceed with credit deduction
     if (userRole === "user" || (userRole === "astrologer" && !isAstrologerSubscriptionActive)) {
-      // Check if report is already paid
-      const { data: existingAnalysis, error: existingAnalysisError } = await supabaseAdmin
-        .from("analyses")
-        .select("id, status, report_paid, project_id")
-        .eq("id", analysisId)
-        .single();
+      const existingAnalysis = await prisma.analyses.findUnique({
+        where: { id: analysisId },
+        select: { id: true, status: true, report_paid: true, project_id: true }
+      });
 
-      if (existingAnalysisError || !existingAnalysis) {
-        console.error(`[deduct-credit-for-report] Analysis not found for user/inactive astrologer: ${analysisId}, Error: ${existingAnalysisError?.message}`);
+      if (!existingAnalysis) {
         return NextResponse.json({ message: "Analysis not found." }, { status: 404 });
       }
       if (existingAnalysis.status === "failed") {
@@ -103,16 +93,12 @@ export async function POST(
         return NextResponse.json({ message: "Report already paid for." }, { status: 200 });
       }
 
-      // Deduct credit for user
-      const { data: deductResult, error: deductError } = await supabaseAdmin.rpc(
-        "deduct_credit",
-        { p_user_id: uid }
-      );
-
-      if (deductError) {
-        console.error("Supabase deduct_credit error:", deductError);
+      try {
+        await prisma.$executeRaw`SELECT deduct_credit(${uid}::uuid)`;
+      } catch (deductError: any) {
+        console.error("Prisma deduct_credit error:", deductError);
         let errorMessage = "Failed to deduct credit due to an internal error.";
-        if (deductError.message.includes("insufficient credits")) {
+        if (deductError.message && deductError.message.includes("insufficient credits")) {
           errorMessage = "Insufficient credits to view report. Please upgrade or contact support.";
         }
         return NextResponse.json(
@@ -121,26 +107,19 @@ export async function POST(
         );
       }
 
-      // If credit deducted successfully, update report_paid status
-      const { error: updateError } = await supabaseAdmin
-        .from("analyses")
-        .update({ report_paid: true })
-        .eq("id", analysisId);
-
-      // If unlocking the report fails after we already deducted the credit, we must refund the user.
-      if (updateError) {
+      try {
+        await prisma.analyses.update({
+          where: { id: analysisId },
+          data: { report_paid: true }
+        });
+      } catch (updateError: any) {
         console.error(`[deduct-credit-for-report] Failed to unlock report ${analysisId} for user ${uid}. Initiating refund.`, updateError);
 
-        // Refund 1 credit using the existing admin adjustment RPC
-        const { error: refundError } = await supabaseAdmin.rpc("admin_adjust_user_credits", {
-          p_user_id: uid,
-          p_amount: 1
-        });
-
-        if (refundError) {
-          console.error(`[CRITICAL] Failed to refund credit for user ${uid} after report unlock error!`, refundError);
-        } else {
+        try {
+          await prisma.$executeRaw`SELECT admin_adjust_user_credits(${uid}::uuid, 1)`;
           console.log(`[deduct-credit-for-report] Successfully refunded 1 credit to user ${uid}.`);
+        } catch (refundError: any) {
+          console.error(`[CRITICAL] Failed to refund credit for user ${uid} after report unlock error!`, refundError);
         }
 
         return NextResponse.json(

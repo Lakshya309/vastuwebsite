@@ -22,7 +22,7 @@ export function useFloorPlanData(projectId: string, refreshKey: number) {
       try {
         setLoading(true);
         // Replace this URL with your actual API endpoint
-        const res = await fetch(`/api/projects/${projectId}`);
+        const res = await fetch(`/api/projects/${projectId}?ts=${Date.now()}`, { cache: 'no-store' });
         if (!res.ok) throw new Error("Failed to load project");
         
         const { project } = await res.json();
