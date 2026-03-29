@@ -97,6 +97,9 @@ interface ControlPanelProps {
   setSelectedProblem: (problem: string | null) => void;
   setHighlightedZones: (zones: string[]) => void;
 
+  // Manual mode support
+  isManualMode?: boolean;
+
   // Wall props
   walls?: Wall[];
   onAddWall?: (wall: Wall) => void;
@@ -151,9 +154,20 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
           Math.pow((point2.x - point1.x) * canvasWidth, 2) +
           Math.pow((point2.y - point1.y) * canvasHeight, 2)
         );
-        return lengthInPixels * newScale;
+        return (lengthInPixels * newScale) / UNIT_CONVERSIONS[props.referenceWallUnit];
       });
       props.setWallLengths(newWallLengths);
+
+      // NO LONGER SYNCING dimension boxes in the UI for upload mode as per request
+      /*
+      if (props.boundary.length === 4) {
+        props.setProject && props.setProject((prev: any) => ({
+          ...prev,
+          plot_width: newWallLengths[0],
+          plot_height: newWallLengths[1]
+        }));
+      }
+      */
     } else {
       props.setScale(null);
       props.setWallLengths([]);
@@ -165,7 +179,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
   return (
     <div className="bg-white h-full border-l border-gray-200 flex flex-col w-96 shadow-xl">
       <div className="p-6 overflow-y-auto flex-1">
-          <div className="space-y-6">
+        <div className="space-y-6">
+          {!props.isManualMode && (
             <div>
               <h3 className="text-lg font-bold text-gray-800 mb-1">
                 1. Upload Floor Plan
@@ -188,530 +203,528 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                 </button>
               )}
             </div>
+          )}
 
-            <div className="border-t pt-4">
-              <h3 className="text-lg font-bold text-gray-800 mb-2">
-                2. Define Boundary
-              </h3>
-              <p className="text-sm text-gray-500 mb-3">
-                Click corners of the plot clockwise.
-              </p>
+          <div className="border-t pt-4">
+            <h3 className="text-lg font-bold text-gray-800 mb-2">
+              2. Define Boundary
+            </h3>
+            <p className="text-sm text-gray-500 mb-3">
+              Click corners of the plot clockwise.
+            </p>
+            <button
+              onClick={props.handleStartDrawingBoundary}
+              disabled={props.drawingMode === "boundary"}
+              className="w-full mb-2 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium disabled:bg-gray-400"
+            >
+              {props.drawingMode === "boundary"
+                ? "Drawing..."
+                : "Start Drawing"}
+            </button>
+            {props.drawingMode === "boundary" && (
               <button
-                onClick={props.handleStartDrawingBoundary}
-                disabled={props.drawingMode === "boundary"}
-                className="w-full mb-2 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium disabled:bg-gray-400"
+                onClick={props.handleFinishDrawingBoundary}
+                disabled={(props.boundary?.length || 0) < 3}
+                className="w-full mb-2 py-2 bg-green-600 hover:bg-green-700 text-white rounded font-medium disabled:bg-gray-400"
               >
-                {props.drawingMode === "boundary"
-                  ? "Drawing..."
-                  : "Start Drawing"}
+                Finish Drawing
               </button>
-              {props.drawingMode === "boundary" && (
-                <button
-                  onClick={props.handleFinishDrawingBoundary}
-                  disabled={(props.boundary?.length || 0) < 3}
-                  className="w-full mb-2 py-2 bg-green-600 hover:bg-green-700 text-white rounded font-medium disabled:bg-gray-400"
-                >
-                  Finish Drawing
-                </button>
-              )}
-              <div className="flex gap-2 mb-2">
-                <button
-                  onClick={props.handleUndoLastPoint}
-                  className="w-full py-2 bg-gray-100 hover:bg-gray-200 rounded text-gray-700 font-medium border border-gray-300"
-                >
-                  Undo Last Point
-                </button>
-                <button
-                  onClick={props.handleResetBoundary}
-                  className="w-full py-2 bg-red-100 hover:bg-red-200 rounded text-red-700 font-medium border border-red-300"
-                >
-                  Reset Boundary
-                </button>
-              </div>
-
-              {props.plotWidth && props.plotHeight && (props.boundary?.length || 0) === 4 && (
-                <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg space-y-3">
-                  <h4 className="font-bold text-gray-800 text-sm">Plot Dimensions (ft) & Angle</h4>
-                  <div className="flex gap-4">
-                    <div>
-                      <label className="block text-xs text-gray-500">Width</label>
-                      <input
-                        type="number"
-                        value={props.plotWidth || ""}
-                        onChange={(e) => {
-                          const val = parseFloat(e.target.value) || 0;
-                          props.setProject && props.setProject((prev: any) => ({ ...prev, plot_width: val }));
-                          props.setBoundary && props.setBoundary([]);
-                        }}
-                        className="w-20 p-1 border rounded text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-500">Length</label>
-                      <input
-                        type="number"
-                        value={props.plotHeight || ""}
-                        onChange={(e) => {
-                          const val = parseFloat(e.target.value) || 0;
-                          props.setProject && props.setProject((prev: any) => ({ ...prev, plot_height: val }));
-                          props.setBoundary && props.setBoundary([]);
-                        }}
-                        className="w-20 p-1 border rounded text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-500">Angle (°)</label>
-                      <input
-                        type="number"
-                        value={props.plotAngle || 90}
-                        onChange={(e) => {
-                          const val = parseFloat(e.target.value) || 90;
-                          props.setPlotAngle && props.setPlotAngle(val);
-                          props.setBoundary && props.setBoundary([]);
-                        }}
-                        className="w-20 p-1 border rounded text-sm"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
+            )}
+            <div className="flex gap-2 mb-2">
+              <button
+                onClick={props.handleUndoLastPoint}
+                className="w-full py-2 bg-gray-100 hover:bg-gray-200 rounded text-gray-700 font-medium border border-gray-300"
+              >
+                Undo Last Point
+              </button>
+              <button
+                onClick={props.handleResetBoundary}
+                className="w-full py-2 bg-red-100 hover:bg-red-200 rounded text-red-700 font-medium border border-red-300"
+              >
+                Reset Boundary
+              </button>
             </div>
 
-            <div className="border-t pt-4">
-              <h3 className="text-lg font-bold text-gray-800 mb-2">
-                2b. Internal Walls
-              </h3>
-              <p className="text-sm text-gray-500 mb-3">
-                Draw internal walls. They snap to boundaries and stay at right angles.
-              </p>
-              <button
-                onClick={() => props.setDrawingMode(props.drawingMode === "wall" ? null : "wall")}
-                className={`w-full mb-2 py-2 rounded font-medium ${props.drawingMode === "wall"
-                  ? "bg-orange-600 hover:bg-orange-700 text-white"
-                  : "bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300"
-                  }`}
-              >
-                {props.drawingMode === "wall"
-                  ? "Stop Drawing Wall"
-                  : "Start Drawing Wall"}
-              </button>
-
-              {props.selectedWall && (
-                <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-lg space-y-3">
-                  <div className="flex justify-between items-center">
-                    <h4 className="font-bold text-orange-800">Edit Wall</h4>
-                    <button
-                      onClick={() => props.onDeleteWall && props.onDeleteWall(props.selectedWall!.id)}
-                      className="text-red-600 hover:text-red-800 text-xs font-semibold"
-                    >
-                      Delete
-                    </button>
-                  </div>
+            {props.isManualMode && (props.plotWidth || props.plotHeight) && (
+              <div id="tutorial-dimensions" className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg space-y-3">
+                <h4 className="font-bold text-gray-800 text-sm">Plot Dimensions ({props.referenceWallUnit}) & Angle</h4>
+                <div className="flex gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Color</label>
+                    <label className="block text-xs text-gray-500">Width</label>
                     <input
-                      type="color"
-                      value={props.selectedWall.color}
-                      onChange={(e) => props.onUpdateWall && props.onUpdateWall({ ...props.selectedWall!, color: e.target.value })}
-                      className="w-full h-8 cursor-pointer rounded"
+                      type="number"
+                      value={props.plotWidth || ""}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0;
+                        props.setProject && props.setProject((prev: any) => ({ ...prev, plot_width: val }));
+                      }}
+                      className="w-20 p-1 border rounded text-sm"
                     />
                   </div>
-                  {props.selectedWall.length && (
-                    <div className="text-sm text-gray-700">
-                      <span className="font-medium">Length:</span> {props.selectedWall.length.toFixed(2)} {props.referenceWallUnit}
-                    </div>
-                  )}
-                  <button
-                    onClick={() => props.onSelectWall && props.onSelectWall(null)}
-                    className="w-full py-1 text-xs text-orange-700 hover:underline"
-                  >
-                    Deselect
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <div className="border-t pt-4">
-              <h3 className="text-lg font-bold text-gray-800 mb-2">
-                3. Set True North
-              </h3>
-              <p className="text-sm text-gray-500 mb-2">
-                Rotate until aligned.
-              </p>
-              <input
-                type="range"
-                min="0"
-                max="360"
-                value={props.liveNorthDirection}
-                onChange={(e) =>
-                  props.setLiveNorthDirection(parseInt(e.target.value))
-                }
-                className="w-full accent-blue-600"
-              />
-              <div className="text-center text-xl font-bold text-gray-800 mt-1">
-                {props.liveNorthDirection}°
-              </div>
-            </div>
-            {props.boundary && props.boundary.length > 2 && (
-              <div className="border-t pt-4">
-                <h3 className="text-lg font-bold text-gray-800 mb-2">
-                  4. Set Scale
-                </h3>
-                <p className="text-sm text-gray-500 mb-3">
-                  First, click on one wall segment in the floor plan to select it as the reference.
-                </p>
-                {props.referenceWallIndex !== null && (
-                  <div className="space-y-3">
-                    <p className="text-sm text-gray-700">
-                      Reference Wall Selected:{" "}
-                      <span className="font-semibold text-blue-600">
-                        Wall {props.referenceWallIndex + 1}
-                      </span>
-                    </p>
-                    <div>
-                      <label
-                        htmlFor="reference-length"
-                        className="block text-sm font-medium text-gray-700 mb-1"
-                      >
-                        Real-world Length
-                      </label>
-                      <input
-                        id="reference-length"
-                        type="number"
-                        min="0.01"
-                        step="0.01"
-                        value={props.referenceWallLength ?? ""}
-                        onChange={(e) =>
-                          props.setReferenceWallLength(parseFloat(e.target.value) || null)
-                        }
-                        className="p-2 border rounded-md w-full focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="e.g., 5.2"
-                      />
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="length-unit"
-                        className="block text-sm font-medium text-gray-700 mb-1"
-                      >
-                        Unit
-                      </label>
-                      <select
-                        id="length-unit"
-                        value={props.referenceWallUnit}
-                        onChange={(e) =>
-                          props.setReferenceWallUnit(
-                            e.target.value as "feet" | "meters" | "inches"
-                          )
-                        }
-                        className="p-2 border rounded-md w-full focus:ring-blue-500 focus:border-blue-500"
-                      >
-                        <option value="meters">Meters</option>
-                        <option value="feet">Feet</option>
-                        <option value="inches">Inches</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="wall-color-name"
-                        className="block text-sm font-medium text-gray-700 mb-1"
-                      >
-                        Wall Color Name (Optional)
-                      </label>
-                      <input
-                        id="wall-color-name"
-                        type="text"
-                        value={props.wallColors[props.referenceWallIndex] || ""}
-                        onChange={(e) => {
-                          const newColors = [...props.wallColors];
-                          while (newColors.length < (props.boundary?.length || 0)) {
-                            newColors.push(null);
-                          }
-                          newColors[props.referenceWallIndex!] = e.target.value || null;
-                          props.setWallColors(newColors);
-                        }}
-                        className="p-2 border rounded-md w-full focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="e.g., Red, Blue, White"
-                      />
-                    </div>
-                    <button
-                      onClick={handleCalculateScale}
-                      className="w-full py-2 mt-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium shadow-sm transition-colors"
-                    >
-                      Set Scale
-                    </button>
-                    {props.scale && (
-                      <p className="text-sm text-gray-600 mt-2">
-                        Calculated Scale: 1px ={" "}
-                        {(1 / props.scale).toFixed(2)} {props.referenceWallUnit}
-                      </p>
-                    )}
+                  <div>
+                    <label className="block text-xs text-gray-500">Length</label>
+                    <input
+                      type="number"
+                      value={props.plotHeight || ""}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0;
+                        props.setProject && props.setProject((prev: any) => ({ ...prev, plot_height: val }));
+                      }}
+                      className="w-20 p-1 border rounded text-sm"
+                    />
                   </div>
-                )}
+                  <div>
+                    <label className="block text-xs text-gray-500">Angle (°)</label>
+                    <input
+                      type="number"
+                      value={props.plotAngle || 90}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 90;
+                        props.setPlotAngle && props.setPlotAngle(val);
+                      }}
+                      className="w-20 p-1 border rounded text-sm"
+                    />
+                  </div>
+                </div>
               </div>
             )}
+          </div>
 
-            <div className="border-t pt-6 mt-4 mb-4">
-              <button
-                onClick={() =>
-                  props.handleSaveChanges && props.handleSaveChanges()
-                }
-                disabled={props.boundary.length < 3}
-                className="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold shadow-md disabled:bg-gray-400 disabled:cursor-not-allowed"
-              >
-                Save Boundary & Analyze
-              </button>
-            </div>
-            
-            <h3 className="text-lg font-bold text-gray-800">Energy Grids</h3>
+          <div className="border-t pt-4">
+            <h3 className="text-lg font-bold text-gray-800 mb-2">
+              2b. Internal Walls
+            </h3>
+            <p className="text-sm text-gray-500 mb-3">
+              Draw internal walls. They snap to boundaries and stay at right angles.
+            </p>
+            <button
+              onClick={() => props.setDrawingMode(props.drawingMode === "wall" ? null : "wall")}
+              className={`w-full mb-2 py-2 rounded font-medium ${props.drawingMode === "wall"
+                ? "bg-orange-600 hover:bg-orange-700 text-white"
+                : "bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300"
+                }`}
+            >
+              {props.drawingMode === "wall"
+                ? "Stop Drawing Wall"
+                : "Start Drawing Wall"}
+            </button>
 
-            <div className="border border-gray-200 p-3 rounded-lg bg-gray-50 mb-3">
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Grid System Geometry</label>
-              <select
-                value={props.gridType}
-                onChange={(e) => props.onGridTypeChange(e.target.value as "81" | "64")}
-                className="w-full p-2 border rounded-md text-sm bg-white"
-              >
-                <option value="81">81-Pada (Paramasayika - Default)</option>
-                <option value="64">64-Pada (Manduka - Temple Grid)</option>
-              </select>
-            </div>
-
-            <div className="space-y-3">
-              <label className="flex items-center p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={props.showGrid.devta45}
-                  onChange={(e) =>
-                    props.setShowGrid((p) => ({
-                      ...p,
-                      devta45: e.target.checked,
-                      zone16: e.target.checked ? false : p.zone16,
-                      zone8: e.target.checked ? false : p.zone8,
-                    }))
-                  }
-                  className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
-                />
-                <div className="ml-3">
-                  <span className="block text-sm font-medium text-gray-900">
-                    45 Devtas (Vedic)
-                  </span>
-                  <span className="block text-xs text-gray-500">
-                    Precise energy field analysis
-                  </span>
+            {props.selectedWall && (
+              <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-lg space-y-3">
+                <div className="flex justify-between items-center">
+                  <h4 className="font-bold text-orange-800">Edit Wall</h4>
+                  <button
+                    onClick={() => props.onDeleteWall && props.onDeleteWall(props.selectedWall!.id)}
+                    className="text-red-600 hover:text-red-800 text-xs font-semibold"
+                  >
+                    Delete
+                  </button>
                 </div>
-              </label>
-
-              <label className="flex items-center p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={props.showGrid.zone16}
-                  onChange={(e) =>
-                    props.setShowGrid((p) => ({
-                      ...p,
-                      zone16: e.target.checked,
-                      devta45: e.target.checked ? false : p.devta45,
-                      zone8: e.target.checked ? false : p.zone8,
-                    }))
-                  }
-                  className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
-                />
-                <div className="ml-3">
-                  <span className="block text-sm font-medium text-gray-900">
-                    16 Zones (MahaVastu)
-                  </span>
-                  <span className="block text-xs text-gray-500">
-                    Elemental distribution
-                  </span>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Color</label>
+                  <input
+                    type="color"
+                    value={props.selectedWall.color}
+                    onChange={(e) => props.onUpdateWall && props.onUpdateWall({ ...props.selectedWall!, color: e.target.value })}
+                    className="w-full h-8 cursor-pointer rounded"
+                  />
                 </div>
-              </label>
-
-              <label className="flex items-center p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={props.showGrid.zone8}
-                  onChange={(e) =>
-                    props.setShowGrid((p) => ({
-                      ...p,
-                      zone8: e.target.checked,
-                      devta45: e.target.checked ? false : p.devta45,
-                      zone16: e.target.checked ? false : p.zone16,
-                    }))
-                  }
-                  className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
-                />
-                <div className="ml-3">
-                  <span className="block text-sm font-medium text-gray-900">
-                    8 Directions
-                  </span>
-                  <span className="block text-xs text-gray-500">
-                    Basic cardinal analysis
-                  </span>
-                </div>
-              </label>
-              <label className="flex items-center p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={props.showGrid.marma}
-                  onChange={(e) =>
-                    props.setShowGrid((p) => ({
-                      ...p,
-                      marma: e.target.checked,
-                    }))
-                  }
-                  className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
-                />
-                <div className="ml-3">
-                  <span className="block text-sm font-medium text-gray-900">
-                    Marma Points
-                  </span>
-                  <span className="block text-xs text-gray-500">
-                    Sensitive energy points
-                  </span>
-                </div>
-              </label>
-              <label className="flex items-center p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={props.showGrid.shaktiChakra}
-                  onChange={(e) =>
-                    props.setShowGrid((p) => ({
-                      ...p,
-                      shaktiChakra: e.target.checked,
-                    }))
-                  }
-                  className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
-                />
-                <div className="ml-3">
-                  <span className="block text-sm font-medium text-gray-900">
-                    Shakti Chakra
-                  </span>
-                  <span className="block text-xs text-gray-500">
-                    Cosmic energy grid
-                  </span>
-                </div>
-              </label>
-              {props.showGrid.shaktiChakra && (
-                <div className="pl-8 pt-2 space-y-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-                    <div className="flex gap-4 cursor-pointer">
-                      <label className="flex items-center text-sm text-gray-600 cursor-pointer">
-                        <input
-                          type="radio"
-                          className="mr-2"
-                          name="shaktiChakraType"
-                          value="complete"
-                          checked={props.shaktiChakraType === "complete" || !props.shaktiChakraType}
-                          onChange={() => props.setShaktiChakraType?.("complete")}
-                        />
-                        Complete
-                      </label>
-                      <label className="flex items-center text-sm text-gray-600 cursor-pointer">
-                        <input
-                          type="radio"
-                          className="mr-2"
-                          name="shaktiChakraType"
-                          value="zones"
-                          checked={props.shaktiChakraType === "zones"}
-                          onChange={() => props.setShaktiChakraType?.("zones")}
-                        />
-                        Zones Only
-                      </label>
-                    </div>
+                {props.selectedWall.length && (
+                  <div className="text-sm text-gray-700">
+                    <span className="font-medium">Length:</span> {props.selectedWall.length.toFixed(2)} {props.referenceWallUnit}
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Size</label>
-                    <input
-                      type="range"
-                      min="0.1"
-                      max="2"
-                      step="0.1"
-                      value={props.shaktiChakraSize}
-                      onChange={(e) => props.setShaktiChakraSize(parseFloat(e.target.value))}
-                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="border-t pt-4 space-y-3">
-              <h3 className="text-lg font-bold text-gray-800">Analysis Status</h3>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">
-                  Status: {props.analysisStale ?
-                    <span className="font-bold text-orange-500">Stale</span> :
-                    <span className="font-bold text-green-500">Live</span>
-                  }
-                </span>
+                )}
+                <button
+                  onClick={() => props.onSelectWall && props.onSelectWall(null)}
+                  className="w-full py-1 text-xs text-orange-700 hover:underline"
+                >
+                  Deselect
+                </button>
               </div>
-            </div>
+            )}
+          </div>
 
-            <div className="border-t pt-4 space-y-3">
-              <h3 className="text-lg font-bold text-gray-800">Measuring Tools</h3>
-              <button
-                onClick={() => props.setDrawingMode(props.drawingMode === "measure" ? null : "measure")}
-                className={`w-full py-2 rounded font-medium ${props.drawingMode === "measure"
-                  ? "bg-purple-600 hover:bg-purple-700 text-white"
-                  : "bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300"
-                  }`}
-              >
-                {props.drawingMode === "measure" ? "Stop Measuring" : "Measure Distance"}
-              </button>
-              {props.drawingMode === "measure" && (
-                <p className="text-xs text-purple-600 font-medium">
-                  Click two points on the canvas to measure the distance between them.
-                  {!props.scale && " (Warning: Scale not calculated in Setup tab so measurement will not be shown in real units)."}
-                </p>
-              )}
-            </div>
-
-            <div className="border-t pt-4">
-              <h3 className="text-lg font-bold text-gray-800 mb-2">
-                Highlight Problem Zones
-              </h3>
-              <select
-                value={props.selectedProblem || ""}
-                onChange={(e) => {
-                  const problem = e.target.value;
-                  props.setSelectedProblem(problem);
-                  if (problem && problemZoneMapping[problem]) {
-                    props.setHighlightedZones(problemZoneMapping[problem]);
-                    props.setShowGrid((p) => ({
-                      ...p,
-                      zone16: true,
-                      devta45: false,
-                      zone8: false,
-                    }));
-                  } else {
-                    props.setHighlightedZones([]);
-                  }
-                }}
-                className="w-full p-2 border rounded-md"
-              >
-                <option value="">Select a problem...</option>
-                {Object.keys(problemZoneMapping).map((problem) => (
-                  <option key={problem} value={problem}>
-                    {problem}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="border-t pt-6 mt-4">
-              <h3 className="text-lg font-bold text-gray-800 border-b pb-2 mb-4">Objects</h3>
-              <ObjectPalette onAddObject={props.handleAddObject} />
-            </div>
-            
-            <div className="border-t pt-6 mt-4 text-center">
-              <button
-                onClick={() =>
-                  props.handleSaveObjects && props.handleSaveObjects()
-                }
-                className="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold shadow-md"
-              >
-                Save & View Detailed Report →
-              </button>
+          <div id="tutorial-north" className="border-t pt-4">
+            <h3 className="text-lg font-bold text-gray-800 mb-2">
+              3. Set True North
+            </h3>
+            <p className="text-sm text-gray-500 mb-2">
+              Rotate until aligned.
+            </p>
+            <input
+              type="range"
+              min="0"
+              max="360"
+              value={props.liveNorthDirection}
+              onChange={(e) =>
+                props.setLiveNorthDirection(parseInt(e.target.value))
+              }
+              className="w-full accent-blue-600"
+            />
+            <div className="text-center text-xl font-bold text-gray-800 mt-1">
+              {props.liveNorthDirection}°
             </div>
           </div>
+          {props.boundary && props.boundary.length > 2 && (
+            <div className="border-t pt-4">
+              <h3 className="text-lg font-bold text-gray-800 mb-2">
+                4. Set Scale
+              </h3>
+              <p className="text-sm text-gray-500 mb-3">
+                First, click on one wall segment in the floor plan to select it as the reference.
+              </p>
+              {props.referenceWallIndex !== null && (
+                <div className="space-y-3">
+                  <p className="text-sm text-gray-700">
+                    Reference Wall Selected:{" "}
+                    <span className="font-semibold text-blue-600">
+                      Wall {props.referenceWallIndex + 1}
+                    </span>
+                  </p>
+                  <div>
+                    <label
+                      htmlFor="reference-length"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
+                      Real-world Length
+                    </label>
+                    <input
+                      id="reference-length"
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={props.referenceWallLength ?? ""}
+                      onChange={(e) =>
+                        props.setReferenceWallLength(parseFloat(e.target.value) || null)
+                      }
+                      className="p-2 border rounded-md w-full focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="e.g., 5.2"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="length-unit"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
+                      Unit
+                    </label>
+                    <select
+                      id="length-unit"
+                      value={props.referenceWallUnit}
+                      onChange={(e) =>
+                        props.setReferenceWallUnit(
+                          e.target.value as "feet" | "meters" | "inches"
+                        )
+                      }
+                      className="p-2 border rounded-md w-full focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="meters">Meters</option>
+                      <option value="feet">Feet</option>
+                      <option value="inches">Inches</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="wall-color-name"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
+                      Wall Color Name (Optional)
+                    </label>
+                    <input
+                      id="wall-color-name"
+                      type="text"
+                      value={props.wallColors[props.referenceWallIndex] || ""}
+                      onChange={(e) => {
+                        const newColors = [...props.wallColors];
+                        while (newColors.length < (props.boundary?.length || 0)) {
+                          newColors.push(null);
+                        }
+                        newColors[props.referenceWallIndex!] = e.target.value || null;
+                        props.setWallColors(newColors);
+                      }}
+                      className="p-2 border rounded-md w-full focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="e.g., Red, Blue, White"
+                    />
+                  </div>
+                  <button
+                    onClick={handleCalculateScale}
+                    className="w-full py-2 mt-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium shadow-sm transition-colors"
+                  >
+                    Set Scale
+                  </button>
+                  {props.scale && (
+                    <p className="text-sm text-gray-600 mt-2">
+                      Calculated Scale: 1px ={" "}
+                      {(props.scale / (UNIT_CONVERSIONS[props.referenceWallUnit] || 1)).toFixed(4)} {props.referenceWallUnit}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="border-t pt-6 mt-4 mb-4">
+            <button
+              onClick={() =>
+                props.handleSaveChanges && props.handleSaveChanges()
+              }
+              disabled={props.boundary.length < 3}
+              className="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold shadow-md disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              Save Boundary & Analyze
+            </button>
+          </div>
+
+          <h3 id="tutorial-layers" className="text-lg font-bold text-gray-800">Energy Grids</h3>
+
+          <div className="border border-gray-200 p-3 rounded-lg bg-gray-50 mb-3">
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Grid System Geometry</label>
+            <select
+              value={props.gridType}
+              onChange={(e) => props.onGridTypeChange(e.target.value as "81" | "64")}
+              className="w-full p-2 border rounded-md text-sm bg-white"
+            >
+              <option value="81">81-Pada (Paramasayika - Default)</option>
+              <option value="64">64-Pada (Manduka - Temple Grid)</option>
+            </select>
+          </div>
+
+          <div className="space-y-3">
+            <label className="flex items-center p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={props.showGrid.devta45}
+                onChange={(e) =>
+                  props.setShowGrid((p) => ({
+                    ...p,
+                    devta45: e.target.checked,
+                    zone16: e.target.checked ? false : p.zone16,
+                    zone8: e.target.checked ? false : p.zone8,
+                  }))
+                }
+                className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+              />
+              <div className="ml-3">
+                <span className="block text-sm font-medium text-gray-900">
+                  45 Devtas (Vedic)
+                </span>
+                <span className="block text-xs text-gray-500">
+                  Precise energy field analysis
+                </span>
+              </div>
+            </label>
+
+            <label className="flex items-center p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={props.showGrid.zone16}
+                onChange={(e) =>
+                  props.setShowGrid((p) => ({
+                    ...p,
+                    zone16: e.target.checked,
+                    devta45: e.target.checked ? false : p.devta45,
+                    zone8: e.target.checked ? false : p.zone8,
+                  }))
+                }
+                className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+              />
+              <div className="ml-3">
+                <span className="block text-sm font-medium text-gray-900">
+                  16 Zones (MahaVastu)
+                </span>
+                <span className="block text-xs text-gray-500">
+                  Elemental distribution
+                </span>
+              </div>
+            </label>
+
+            <label className="flex items-center p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={props.showGrid.zone8}
+                onChange={(e) =>
+                  props.setShowGrid((p) => ({
+                    ...p,
+                    zone8: e.target.checked,
+                    devta45: e.target.checked ? false : p.devta45,
+                    zone16: e.target.checked ? false : p.zone16,
+                  }))
+                }
+                className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+              />
+              <div className="ml-3">
+                <span className="block text-sm font-medium text-gray-900">
+                  8 Directions
+                </span>
+                <span className="block text-xs text-gray-500">
+                  Basic cardinal analysis
+                </span>
+              </div>
+            </label>
+            <label className="flex items-center p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={props.showGrid.marma}
+                onChange={(e) =>
+                  props.setShowGrid((p) => ({
+                    ...p,
+                    marma: e.target.checked,
+                  }))
+                }
+                className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+              />
+              <div className="ml-3">
+                <span className="block text-sm font-medium text-gray-900">
+                  Marma Points
+                </span>
+                <span className="block text-xs text-gray-500">
+                  Sensitive energy points
+                </span>
+              </div>
+            </label>
+            <label className="flex items-center p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={props.showGrid.shaktiChakra}
+                onChange={(e) =>
+                  props.setShowGrid((p) => ({
+                    ...p,
+                    shaktiChakra: e.target.checked,
+                  }))
+                }
+                className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+              />
+              <div className="ml-3">
+                <span className="block text-sm font-medium text-gray-900">
+                  Shakti Chakra
+                </span>
+                <span className="block text-xs text-gray-500">
+                  Cosmic energy grid
+                </span>
+              </div>
+            </label>
+            {props.showGrid.shaktiChakra && (
+              <div className="pl-8 pt-2 space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                  <div className="flex gap-4 cursor-pointer">
+                    <label className="flex items-center text-sm text-gray-600 cursor-pointer">
+                      <input
+                        type="radio"
+                        className="mr-2"
+                        name="shaktiChakraType"
+                        value="complete"
+                        checked={props.shaktiChakraType === "complete" || !props.shaktiChakraType}
+                        onChange={() => props.setShaktiChakraType?.("complete")}
+                      />
+                      Complete
+                    </label>
+                    <label className="flex items-center text-sm text-gray-600 cursor-pointer">
+                      <input
+                        type="radio"
+                        className="mr-2"
+                        name="shaktiChakraType"
+                        value="zones"
+                        checked={props.shaktiChakraType === "zones"}
+                        onChange={() => props.setShaktiChakraType?.("zones")}
+                      />
+                      Zones Only
+                    </label>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Size</label>
+                  <input
+                    type="range"
+                    min="0.1"
+                    max="2"
+                    step="0.1"
+                    value={props.shaktiChakraSize}
+                    onChange={(e) => props.setShaktiChakraSize(parseFloat(e.target.value))}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="border-t pt-4 space-y-3">
+            <h3 className="text-lg font-bold text-gray-800">Analysis Status</h3>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">
+                Status: {props.analysisStale ?
+                  <span className="font-bold text-orange-500">Stale</span> :
+                  <span className="font-bold text-green-500">Live</span>
+                }
+              </span>
+            </div>
+          </div>
+
+          <div className="border-t pt-4 space-y-3">
+            <h3 className="text-lg font-bold text-gray-800">Measuring Tools</h3>
+            <button
+              onClick={() => props.setDrawingMode(props.drawingMode === "measure" ? null : "measure")}
+              className={`w-full py-2 rounded font-medium ${props.drawingMode === "measure"
+                ? "bg-purple-600 hover:bg-purple-700 text-white"
+                : "bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300"
+                }`}
+            >
+              {props.drawingMode === "measure" ? "Stop Measuring" : "Measure Distance"}
+            </button>
+            {props.drawingMode === "measure" && (
+              <p className="text-xs text-purple-600 font-medium">
+                Click two points on the canvas to measure the distance between them.
+                {!props.scale && " (Warning: Scale not calculated in Setup tab so measurement will not be shown in real units)."}
+              </p>
+            )}
+          </div>
+
+          <div className="border-t pt-4">
+            <h3 className="text-lg font-bold text-gray-800 mb-2">
+              Highlight Problem Zones
+            </h3>
+            <select
+              value={props.selectedProblem || ""}
+              onChange={(e) => {
+                const problem = e.target.value;
+                props.setSelectedProblem(problem);
+                if (problem && problemZoneMapping[problem]) {
+                  props.setHighlightedZones(problemZoneMapping[problem]);
+                  props.setShowGrid((p) => ({
+                    ...p,
+                    zone16: true,
+                    devta45: false,
+                    zone8: false,
+                  }));
+                } else {
+                  props.setHighlightedZones([]);
+                }
+              }}
+              className="w-full p-2 border rounded-md"
+            >
+              <option value="">Select a problem...</option>
+              {Object.keys(problemZoneMapping).map((problem) => (
+                <option key={problem} value={problem}>
+                  {problem}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="border-t pt-6 mt-4">
+            <h3 className="text-lg font-bold text-gray-800 border-b pb-2 mb-4">Objects</h3>
+            <ObjectPalette onAddObject={props.handleAddObject} />
+          </div>
+
+          <div id="tutorial-analyze" className="border-t pt-6 mt-4 text-center">
+            <button
+              onClick={() =>
+                props.handleSaveObjects && props.handleSaveObjects()
+              }
+              className="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold shadow-md"
+            >
+              Save & View Detailed Report →
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

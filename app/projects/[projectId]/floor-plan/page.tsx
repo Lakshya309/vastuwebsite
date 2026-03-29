@@ -11,6 +11,8 @@ import { FloorPlanCanvas } from "@/components/floor-plan/FloorPlanCanvas";
 import { ControlPanel } from "@/components/floor-plan/ControlPanel";
 import { DevtaInfoCard } from "@/components/floor-plan/DevtaInfoCard";
 import { PlacedObject, DevtaRegion, Point, Wall } from "@/lib/floorPlanInterfaces";
+import { OBJECT_ICONS } from "@/lib/objectIcons";
+import { TutorialOverlay, TutorialStep } from "@/components/floor-plan/TutorialOverlay";
 
 export default function FloorPlanPage() {
   const params = useParams();
@@ -65,6 +67,60 @@ export default function FloorPlanPage() {
   const [plotAngle, setPlotAngle] = useState<number>(90);
   const [gridType, setGridType] = useState<"81" | "64">("81");
 
+  // Tutorial State
+  const [showTutorial, setShowTutorial] = useState(false);
+
+  useEffect(() => {
+    const hasCompletedTutorial = localStorage.getItem("vastu_tutorial_completed");
+    if (!hasCompletedTutorial) {
+      setShowTutorial(true);
+    }
+  }, []);
+
+  const tutorialSteps: TutorialStep[] = [
+    {
+      targetId: "viewport",
+      title: "Welcome to Vastu Studio",
+      content: "Let's take a quick tour to help you design your perfect Vastu-compliant floor plan.",
+      position: "center"
+    },
+    {
+      targetId: "tutorial-dimensions",
+      title: "Set Your Plot Size",
+      content: "Start by entering your plot's Width and Length. This ensures all your measurements are accurate.",
+      position: "left"
+    },
+    {
+      targetId: "tutorial-north",
+      title: "Align with Truth North",
+      content: "Use this slider to align your plan with geographic North. Vastu is all about directions!",
+      position: "left"
+    },
+    {
+      targetId: "tutorial-objects",
+      title: "Place Your Rooms",
+      content: "Drag or click items from the Palette to place them on the canvas. Toilets, Kitchens, and Beds have specific zones!",
+      position: "left"
+    },
+    {
+      targetId: "tutorial-layers",
+      title: "Analyze Energy Grids",
+      content: "Toggle between 45 Devtas or 16 Zones to see how energy flows through your plan.",
+      position: "left"
+    },
+    {
+      targetId: "tutorial-analyze",
+      title: "Get Your Report",
+      content: "Once you're happy with the placement, click here to generate a detailed Vastu compliance report.",
+      position: "left"
+    }
+  ];
+
+  const handleTutorialComplete = () => {
+    localStorage.setItem("vastu_tutorial_completed", "true");
+    setShowTutorial(false);
+  };
+
   const handleAddWall = (wall: Wall) => {
     // Calculate real-world length if scale is available
     if (scale) {
@@ -74,7 +130,7 @@ export default function FloorPlanPage() {
         Math.pow((wall.end.x - wall.start.x) * canvasWidth, 2) +
         Math.pow((wall.end.y - wall.start.y) * canvasHeight, 2)
       );
-      wall.length = pixelLength * scale;
+      wall.length = pixelLength * (scale / unitFactor);
     }
     setWalls((prev) => [...prev, wall]);
   };
@@ -156,84 +212,120 @@ export default function FloorPlanPage() {
   } = useFloorPlanAnalysis();
   const { marmaData, isLoading: isMarmaAnalyzing, error: marmaError } = useMarmaAnalysis(currentAnalysisId);
 
+  const isManualMode = !!(project?.plot_width && project?.plot_height);
+
   const debouncedBoundary = useDebounce(boundary, 500);
   const debouncedNorthDirection = useDebounce(liveNorthDirection, 500);
+  const isManualUpdate = useRef(false);
 
-  // Initialize parallelogram boundary for manual plots
+  // Unit conversion factor (base is meters)
+  const UNIT_CONVERSIONS = {
+    feet: 0.3048,
+    meters: 1,
+    inches: 0.0254,
+  };
+  const unitFactor = UNIT_CONVERSIONS[referenceWallUnit];
+
+  // Initialize or Update parallelogram boundary for manual plots
   useEffect(() => {
-    if (project?.plot_width && project?.plot_height && boundary.length === 0) {
+    if (project?.plot_width && project?.plot_height) {
+      if (boundary.length > 4) return;
+      if (isManualUpdate.current) {
+        isManualUpdate.current = false;
+        return;
+      }
+
       const w = project.plot_width;
       const h = project.plot_height;
-
       const a = (plotAngle * Math.PI) / 180;
 
-      const shiftTop = Math.max(0, h * Math.cos(a));
-      const shiftBottom = Math.max(0, -h * Math.cos(a));
-
-      const pt0 = { x: shiftTop, y: 0 };
-      const pt1 = { x: shiftTop + w, y: 0 };
-      const pt2 = { x: shiftBottom + w, y: h * Math.sin(a) };
-      const pt3 = { x: shiftBottom, y: h * Math.sin(a) };
-
-      const bboxW = w + Math.abs(h * Math.cos(a));
-      const bboxH = h * Math.sin(a);
-
+      // 1. Determine/Update Scale for manual plots
+      const initialBboxW = w + Math.abs(h * Math.cos(a));
+      const initialBboxH = h * Math.sin(a);
       const canvasAspect = 800 / 600;
-      // Prevent division by zero if angle is 0
-      const shapeAspect = bboxH === 0 ? 1 : bboxW / bboxH;
+      const shapeAspect = initialBboxH === 0 ? 1 : initialBboxW / initialBboxH;
       const adjustedAspect = shapeAspect / canvasAspect;
 
-      let normWidth, normHeight;
+      let normWidth;
       if (adjustedAspect > 1) {
         normWidth = 0.8;
-        normHeight = 0.8 / adjustedAspect;
       } else {
-        normHeight = 0.8;
         normWidth = 0.8 * adjustedAspect;
       }
 
-      const scaleToNorm = bboxW === 0 ? 1 : normWidth / bboxW;
-      const xOff = (1 - normWidth) / 2;
-      const yOff = (1 - normHeight) / 2;
-
-      const rectBoundary: Point[] = [
-        { x: xOff + pt0.x * scaleToNorm, y: yOff + pt0.y * scaleToNorm },
-        { x: xOff + pt1.x * scaleToNorm, y: yOff + pt1.y * scaleToNorm },
-        { x: xOff + pt2.x * scaleToNorm, y: yOff + pt2.y * scaleToNorm },
-        { x: xOff + pt3.x * scaleToNorm, y: yOff + pt3.y * scaleToNorm },
-      ];
-      setBoundary(rectBoundary);
-
-      // Automatically calculate and set scale for manual plots
-      // Use the top edge (index 0 to 1) as the reference wall (width).
-      const canvasWidth = 800; // Fixed canvas internal width based on FloorPlanCanvas logic
-      const pixelWidthTopEdge = w * scaleToNorm * canvasWidth;
-
-      if (pixelWidthTopEdge > 0 && w > 0) {
-        // Assume input dimensions are in feet by default for manual plots 
-        const realLengthInMeters = w * 0.3048; // 1 foot = 0.3048 meters
-        const calculatedScale = realLengthInMeters / pixelWidthTopEdge;
-
-        setScale(calculatedScale);
+      const pixelWidth = normWidth * 800; // normalized to absolute pixels in reference 800x600 space
+      const currentScale = (w * unitFactor) / pixelWidth; // meters per pixel
+      
+      // Always update scale in manual mode to reflect box values
+      if (scale !== currentScale) {
+        setScale(currentScale);
         setReferenceWallIndex(0);
         setReferenceWallLength(w);
-        setReferenceWallUnit("feet");
+      }
 
-        // Populate wall lengths array
-        const canvasHeight = 600;
-        const newWallLengths = rectBoundary.map((_, i) => {
-          const point1 = rectBoundary[i];
-          const point2 = rectBoundary[(i + 1) % rectBoundary.length];
-          const lengthInPixels = Math.sqrt(
-            Math.pow((point2.x - point1.x) * canvasWidth, 2) +
-            Math.pow((point2.y - point1.y) * canvasHeight, 2)
-          );
-          return lengthInPixels * calculatedScale;
-        });
+      // 2. Calculate Geometry based on STICKY Scale
+      // Positions are derived from absolute dimensions / scale
+      const pxW = (w * unitFactor) / currentScale;
+      const pxH = (h * unitFactor) / currentScale;
+
+      const shiftTop = Math.max(0, pxH * Math.cos(a));
+      const shiftBottom = Math.max(0, -pxH * Math.cos(a));
+
+      const pt0 = { x: shiftTop, y: 0 };
+      const pt1 = { x: shiftTop + pxW, y: 0 };
+      const pt2 = { x: shiftBottom + pxW, y: pxH * Math.sin(a) };
+      const pt3 = { x: shiftBottom, y: pxH * Math.sin(a) };
+
+      const totalPxW = pxW + Math.abs(pxH * Math.cos(a));
+      const totalPxH = pxH * Math.sin(a);
+
+      // Centering and normalizing
+      const xOff = (800 - totalPxW) / 2;
+      const yOff = (600 - totalPxH) / 2;
+
+      const rectBoundary: Point[] = [
+        { x: (xOff + pt0.x) / 800, y: (yOff + pt0.y) / 600 },
+        { x: (xOff + pt1.x) / 800, y: (yOff + pt1.y) / 600 },
+        { x: (xOff + pt2.x) / 800, y: (yOff + pt2.y) / 600 },
+        { x: (xOff + pt3.x) / 800, y: (yOff + pt3.y) / 600 },
+      ];
+
+      const isSame = boundary.length === 4 && boundary.every((p, i) =>
+        Math.abs(p.x - rectBoundary[i].x) < 0.0001 &&
+        Math.abs(p.y - rectBoundary[i].y) < 0.0001
+      );
+
+      if (!isSame) {
+        setBoundary(rectBoundary);
+        // Wall lengths label update will be handled by the specialized synchronization effect
+      }
+    }
+  }, [project?.plot_width, project?.plot_height, plotAngle, referenceWallUnit]);
+
+  // Synchronize wall lengths whenever scale, boundary, or unit changes
+  useEffect(() => {
+    if (scale && boundary.length >= 2) {
+      const canvasWidth = 800;
+      const canvasHeight = 600;
+      const newWallLengths = boundary.map((_, i) => {
+        const p1 = boundary[i];
+        const p2 = boundary[(i + 1) % boundary.length];
+        const lengthInPixels = Math.sqrt(
+          Math.pow((p2.x - p1.x) * canvasWidth, 2) +
+          Math.pow((p2.y - p1.y) * canvasHeight, 2)
+        );
+        return (lengthInPixels * scale) / unitFactor;
+      });
+
+      // Only update if values actually changed to avoid infinite loops
+      const isSame = wallLengths.length === newWallLengths.length &&
+        wallLengths.every((l, i) => Math.abs(l - newWallLengths[i]) < 0.001);
+
+      if (!isSame) {
         setWallLengths(newWallLengths);
       }
     }
-  }, [project, boundary.length, plotAngle]);
+  }, [scale, boundary, unitFactor]);
 
   useEffect(() => {
     if (currentAnalysisId) {
@@ -303,7 +395,6 @@ export default function FloorPlanPage() {
       const updated = [...prev];
       updated[index] = newPoint;
 
-      // Also update wall lengths immediately using the new points
       if (scale) {
         const canvasWidth = 800;
         const canvasHeight = 600;
@@ -314,9 +405,20 @@ export default function FloorPlanPage() {
             Math.pow((p2.x - p1.x) * canvasWidth, 2) +
             Math.pow((p2.y - p1.y) * canvasHeight, 2)
           );
-          return lengthInPixels * scale;
+          return (lengthInPixels * scale) / unitFactor;
         });
         setWallLengths(newWallLengths);
+
+        // SYNC dimension boxes if it's a 4-point boundary
+        if (updated.length === 4) {
+          isManualUpdate.current = true;
+          // Sync Width (seg 0) and Height (seg 1)
+          setProject((p: any) => ({
+            ...p,
+            plot_width: newWallLengths[0],
+            plot_height: newWallLengths[1]
+          }));
+        }
       }
 
       return updated;
@@ -513,29 +615,15 @@ export default function FloorPlanPage() {
     }
   };
 
-  const objectSvgMap: { [key: string]: string } = {
-    "Stove": "/objects/stove.svg",
-    "Toilet": "/objects/toilet.svg",
-    "Bed": "/objects/bed.svg",
-    "Wardrobe": "/objects/wardrobe.svg",
-    "Sofa": "/objects/sofa.svg",
-    "Pooja": "/objects/pooja.png",
-    "Staircase": "/objects/stairs.svg",
-    "Dining Room": "/objects/dining.svg",
-    "Overhead Tank": "/objects/overheadtank.png",
-    "Underground Tank": "/objects/undergroundtank.png",
-    "Kitchen": "/objects/stove.svg",
-  };
-
-  // We can use a Proxy to fallback to the generic icon
-  const proxiedObjectSvgMap = new Proxy(objectSvgMap, {
+  const proxiedObjectSvgMap = new Proxy(OBJECT_ICONS, {
     get: function (target, prop, receiver) {
       if (typeof prop === 'string') {
+        const type = prop as string;
         // Try exact match
-        if (target[prop]) return target[prop];
+        if (target[type]) return target[type];
 
-        // Try title casing for the lookup if it's uppercase
-        const titleCase = prop.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+        // Try title casing for the lookup
+        const titleCase = type.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
         if (target[titleCase]) return target[titleCase];
       }
       return "/objects/generic.svg";
@@ -598,7 +686,7 @@ export default function FloorPlanPage() {
               setDrawingObjectBoundary={setDrawingObjectBoundary}
               selectedObjectType={selectedObjectType}
               northDirection={liveNorthDirection}
-              scale={scale}
+              scale={scale ? scale / unitFactor : null}
               wallLengths={wallLengths}
               setReferenceWallIndex={setReferenceWallIndex}
               referenceWallIndex={referenceWallIndex}
@@ -687,6 +775,8 @@ export default function FloorPlanPage() {
           boundary={boundary}
           handleSaveChanges={handleSaveChanges}
           handleSaveObjects={handleSaveObjects}
+          // Manual mode support
+          isManualMode={isManualMode}
           // New analysis props
           isAnalyzing={isAnalyzing}
           analysisStale={analysisStale}
