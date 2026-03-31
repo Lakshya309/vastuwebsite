@@ -105,6 +105,27 @@ export async function PATCH(
   if (body.north_direction !== undefined)
     updates.north_direction = body.north_direction
 
+  if (body.plot_width !== undefined)
+    updates.plot_width = body.plot_width
+
+  if (body.plot_height !== undefined)
+    updates.plot_height = body.plot_height
+
+  if (body.plot_side_front !== undefined)
+    updates.plot_side_front = body.plot_side_front
+
+  if (body.plot_side_back !== undefined)
+    updates.plot_side_back = body.plot_side_back
+
+  if (body.plot_side_left !== undefined)
+    updates.plot_side_left = body.plot_side_left
+
+  if (body.plot_side_right !== undefined)
+    updates.plot_side_right = body.plot_side_right
+
+  if (body.plot_diagonal !== undefined)
+    updates.plot_diagonal = body.plot_diagonal
+
   if (body.status !== undefined) {
     updates.status = body.status
     if (body.status === 'completed') {
@@ -183,8 +204,17 @@ export async function DELETE(
       );
     }
 
-    // 3. Prisma will automatically cascade-delete related analyses, project_objects, 
-    // and map_plots due to the setup in schema.prisma (`onDelete: Cascade` on the relations)
+    // 3. Break circular dependencies and delete map_plots explicitly
+    await prisma.projects.update({
+      where: { id: projectId },
+      data: { active_map_plot_id: null },
+    });
+    
+    await prisma.map_plots.deleteMany({
+      where: { project_id: projectId },
+    });
+
+    // 4. Delete the project (cascades to analyses and project_objects)
     await prisma.projects.delete({
       where: { id: projectId },
     })

@@ -20,7 +20,8 @@ export default function SignupPage() {
         password,
       })
       if (error) throw error
-      router.push("/projects"); // Redirect to projects list on successful signup
+      router.refresh();
+      router.push("/projects"); // Redirect to dashboard on successful signup
     } catch (err: any) {
       setError(err.message);
     }

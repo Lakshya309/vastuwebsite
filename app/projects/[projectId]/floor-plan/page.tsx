@@ -226,81 +226,166 @@ export default function FloorPlanPage() {
   };
   const unitFactor = UNIT_CONVERSIONS[referenceWallUnit];
 
-  // Initialize or Update parallelogram boundary for manual plots
+  // Initialize or Update manual boundary (Parallelogram or Irregular Quadrilateral)
   useEffect(() => {
-    if (project?.plot_width && project?.plot_height) {
+    const isIrregular = !!(project?.plot_side_front && project?.plot_side_back && project?.plot_side_left && project?.plot_side_right);
+    const isRegular = !!(project?.plot_width && project?.plot_height);
+
+    if (isIrregular || isRegular) {
       if (boundary.length > 4) return;
       if (isManualUpdate.current) {
         isManualUpdate.current = false;
         return;
       }
 
-      const w = project.plot_width;
-      const h = project.plot_height;
-      const a = (plotAngle * Math.PI) / 180;
+      let pts: Point[] = [];
+      let totalPxW = 0;
+      let totalPxH = 0;
 
-      // 1. Determine/Update Scale for manual plots
-      const initialBboxW = w + Math.abs(h * Math.cos(a));
-      const initialBboxH = h * Math.sin(a);
-      const canvasAspect = 800 / 600;
-      const shapeAspect = initialBboxH === 0 ? 1 : initialBboxW / initialBboxH;
-      const adjustedAspect = shapeAspect / canvasAspect;
+      if (isIrregular) {
+        // 1. Calculate geometry in REAL units (meters) first
+        const a = project.plot_side_front! * unitFactor; // Front
+        const b = project.plot_side_back! * unitFactor;  // Back
+        const c = project.plot_side_left! * unitFactor;  // Left
+        const d = project.plot_side_right! * unitFactor; // Right
+        
+        let e;
+        if (project.plot_diagonal) {
+          e = project.plot_diagonal * unitFactor;
+        } else {
+          // Auto-calculate diagonal using Cyclic Quadrilateral formula (most regular shape)
+          // e is the diagonal between Front (a) and Right (d) corner, i.e., from Front-Left to Back-Right
+          e = Math.sqrt(((a * d + b * c) * (a * b + c * d)) / (a * c + b * d));
+        }
 
-      let normWidth;
-      if (adjustedAspect > 1) {
-        normWidth = 0.8;
+        // Law of Cosines on Triangle 1 (Side Front, Side Right, Diagonal)
+        // Cosine of angle at Front-Right vertex
+        const cosAngleFR = (a * a + d * d - e * e) / (2 * a * d);
+        const sinAngleFR = Math.sqrt(Math.max(0, 1 - cosAngleFR * cosAngleFR));
+
+        // Let Front-Left be (0,0) and Front-Right be (a, 0)
+        const p0 = { x: 0, y: 0 };
+        const p1 = { x: a, y: 0 };
+        // Back-Right vertex
+        const p2 = { x: a - d * cosAngleFR, y: d * sinAngleFR };
+
+        // Law of Cosines on Triangle 2 (Side Left, Side Back, Diagonal)
+        // Cosine of angle at Front-Left vertex relative to Diagonal
+        const cosAngleFL = (c * c + e * e - b * b) / (2 * c * e);
+        const angleFL = Math.acos(Math.max(-1, Math.min(1, cosAngleFL)));
+        
+        // Angle of Diagonal vector (FL to BR)
+        const angleDiag = Math.atan2(p2.y, p2.x);
+        
+        // Back-Left vertex
+        const p3 = {
+          x: c * Math.cos(angleDiag + angleFL),
+          y: c * Math.sin(angleDiag + angleFL)
+        };
+
+        const minX = Math.min(p0.x, p1.x, p2.x, p3.x);
+        const minY = Math.min(p0.y, p1.y, p2.y, p3.y);
+        const maxX = Math.max(p0.x, p1.x, p2.x, p3.x);
+        const maxY = Math.max(p0.y, p1.y, p2.y, p3.y);
+
+        const realW = maxX - minX;
+        const realH = maxY - minY;
+
+        // 2. Determine/Update Scale
+        const canvasAspect = 800 / 600;
+        const shapeAspect = realH === 0 ? 1 : realW / realH;
+        const adjustedAspect = shapeAspect / canvasAspect;
+
+        let normWidth;
+        if (adjustedAspect > 1) normWidth = 0.8;
+        else normWidth = 0.8 * adjustedAspect;
+
+        const pixelWidth = normWidth * 800;
+        const currentScale = realW / pixelWidth;
+
+        if (scale !== currentScale) {
+          setScale(currentScale);
+          setReferenceWallIndex(0);
+          setReferenceWallLength(project.plot_side_front!);
+        }
+
+        // 3. Normalize points
+        pts = [p0, p1, p2, p3].map(p => ({
+          x: (p.x - minX) / currentScale,
+          y: (p.y - minY) / currentScale
+        }));
+        totalPxW = realW / currentScale;
+        totalPxH = realH / currentScale;
+
       } else {
-        normWidth = 0.8 * adjustedAspect;
+        const w = project?.plot_width || 0;
+        const h = project?.plot_height || 0;
+        const a = (plotAngle * Math.PI) / 180;
+
+        const initialBboxW = w + Math.abs(h * Math.cos(a));
+        const initialBboxH = h * Math.sin(a);
+        const canvasAspect = 800 / 600;
+        const shapeAspect = initialBboxH === 0 ? 1 : initialBboxW / initialBboxH;
+        const adjustedAspect = shapeAspect / canvasAspect;
+
+        let normWidth;
+        if (adjustedAspect > 1) normWidth = 0.8;
+        else normWidth = 0.8 * adjustedAspect;
+
+        const pixelWidth = normWidth * 800;
+        const currentScale = (w * unitFactor) / pixelWidth;
+
+        if (scale !== currentScale) {
+          setScale(currentScale);
+          setReferenceWallIndex(0);
+          setReferenceWallLength(w);
+        }
+
+        const pxW = (w * unitFactor) / currentScale;
+        const pxH = (h * unitFactor) / currentScale;
+
+        const shiftTop = Math.max(0, pxH * Math.cos(a));
+        const shiftBottom = Math.max(0, -pxH * Math.cos(a));
+
+        pts = [
+          { x: shiftTop, y: 0 },
+          { x: shiftTop + pxW, y: 0 },
+          { x: shiftBottom + pxW, y: pxH * Math.sin(a) },
+          { x: shiftBottom, y: pxH * Math.sin(a) },
+        ];
+
+        totalPxW = pxW + Math.abs(pxH * Math.cos(a));
+        totalPxH = pxH * Math.sin(a);
       }
 
-      const pixelWidth = normWidth * 800; // normalized to absolute pixels in reference 800x600 space
-      const currentScale = (w * unitFactor) / pixelWidth; // meters per pixel
-      
-      // Always update scale in manual mode to reflect box values
-      if (scale !== currentScale) {
-        setScale(currentScale);
-        setReferenceWallIndex(0);
-        setReferenceWallLength(w);
-      }
-
-      // 2. Calculate Geometry based on STICKY Scale
-      // Positions are derived from absolute dimensions / scale
-      const pxW = (w * unitFactor) / currentScale;
-      const pxH = (h * unitFactor) / currentScale;
-
-      const shiftTop = Math.max(0, pxH * Math.cos(a));
-      const shiftBottom = Math.max(0, -pxH * Math.cos(a));
-
-      const pt0 = { x: shiftTop, y: 0 };
-      const pt1 = { x: shiftTop + pxW, y: 0 };
-      const pt2 = { x: shiftBottom + pxW, y: pxH * Math.sin(a) };
-      const pt3 = { x: shiftBottom, y: pxH * Math.sin(a) };
-
-      const totalPxW = pxW + Math.abs(pxH * Math.cos(a));
-      const totalPxH = pxH * Math.sin(a);
-
-      // Centering and normalizing
       const xOff = (800 - totalPxW) / 2;
       const yOff = (600 - totalPxH) / 2;
 
-      const rectBoundary: Point[] = [
-        { x: (xOff + pt0.x) / 800, y: (yOff + pt0.y) / 600 },
-        { x: (xOff + pt1.x) / 800, y: (yOff + pt1.y) / 600 },
-        { x: (xOff + pt2.x) / 800, y: (yOff + pt2.y) / 600 },
-        { x: (xOff + pt3.x) / 800, y: (yOff + pt3.y) / 600 },
-      ];
+      const finalBoundary: Point[] = pts.map(p => ({
+        x: (xOff + p.x) / 800,
+        y: (yOff + p.y) / 600,
+      }));
 
       const isSame = boundary.length === 4 && boundary.every((p, i) =>
-        Math.abs(p.x - rectBoundary[i].x) < 0.0001 &&
-        Math.abs(p.y - rectBoundary[i].y) < 0.0001
+        Math.abs(p.x - finalBoundary[i].x) < 0.0001 &&
+        Math.abs(p.y - finalBoundary[i].y) < 0.0001
       );
 
       if (!isSame) {
-        setBoundary(rectBoundary);
-        // Wall lengths label update will be handled by the specialized synchronization effect
+        setBoundary(finalBoundary);
       }
     }
-  }, [project?.plot_width, project?.plot_height, plotAngle, referenceWallUnit]);
+  }, [
+    project?.plot_width,
+    project?.plot_height,
+    project?.plot_side_front,
+    project?.plot_side_back,
+    project?.plot_side_left,
+    project?.plot_side_right,
+    project?.plot_diagonal,
+    plotAngle,
+    referenceWallUnit
+  ]);
 
   // Synchronize wall lengths whenever scale, boundary, or unit changes
   useEffect(() => {
@@ -412,12 +497,30 @@ export default function FloorPlanPage() {
         // SYNC dimension boxes if it's a 4-point boundary
         if (updated.length === 4) {
           isManualUpdate.current = true;
-          // Sync Width (seg 0) and Height (seg 1)
-          setProject((p: any) => ({
-            ...p,
-            plot_width: newWallLengths[0],
-            plot_height: newWallLengths[1]
-          }));
+
+          if (project?.plot_side_front !== undefined && project?.plot_side_front !== null) {
+            // Sync Irregular fields
+            const diagPx = Math.sqrt(
+              Math.pow((updated[2].x - updated[0].x) * canvasWidth, 2) +
+              Math.pow((updated[2].y - updated[0].y) * canvasHeight, 2)
+            );
+
+            setProject((p: any) => ({
+              ...p,
+              plot_side_front: newWallLengths[0],
+              plot_side_right: newWallLengths[1],
+              plot_side_back: newWallLengths[2],
+              plot_side_left: newWallLengths[3],
+              plot_diagonal: (diagPx * scale) / unitFactor
+            }));
+          } else {
+            // Sync Regular Width (seg 0) and Height (seg 1)
+            setProject((p: any) => ({
+              ...p,
+              plot_width: newWallLengths[0],
+              plot_height: newWallLengths[1]
+            }));
+          }
         }
       }
 
@@ -751,6 +854,11 @@ export default function FloorPlanPage() {
           }}
           plotWidth={project?.plot_width}
           plotHeight={project?.plot_height}
+          plotSideFront={project?.plot_side_front}
+          plotSideBack={project?.plot_side_back}
+          plotSideLeft={project?.plot_side_left}
+          plotSideRight={project?.plot_side_right}
+          plotDiagonal={project?.plot_diagonal}
           setProject={setProject}
           plotAngle={plotAngle}
           setPlotAngle={setPlotAngle}

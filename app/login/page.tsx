@@ -20,6 +20,7 @@ export default function LoginPage() {
         password,
       })
       if (error) throw error
+      router.refresh();
       router.push("/projects"); // Redirect to dashboard on successful login
     } catch (err: any) {
       setError(err.message);

@@ -85,6 +85,11 @@ model projects {
   active_map_plot_id                               String?           @db.Uuid
   plot_width                                       Float?
   plot_height                                      Float?
+  plot_side_front                                  Float?
+  plot_side_back                                   Float?
+  plot_side_left                                   Float?
+  plot_side_right                                  Float?
+  plot_diagonal                                    Float?
   analyses                                         analyses[]
   map_plots_map_plots_project_idToprojects         map_plots[]       @relation("map_plots_project_idToprojects")
   project_objects                                  project_objects[]

@@ -19,7 +19,18 @@ export async function POST(req: NextRequest) {
     }
     const uid = user.id;
 
-    const { name, creator_name, report_for, plot_width, plot_height } = await req.json();
+    const {
+      name,
+      creator_name,
+      report_for,
+      plot_width,
+      plot_height,
+      plot_side_front,
+      plot_side_back,
+      plot_side_left,
+      plot_side_right,
+      plot_diagonal
+    } = await req.json();
 
     if (!name) {
       return NextResponse.json(
@@ -36,6 +47,11 @@ export async function POST(req: NextRequest) {
         report_for: report_for,
         plot_width: plot_width ? parseFloat((plot_width as any).toString()) : null,
         plot_height: plot_height ? parseFloat((plot_height as any).toString()) : null,
+        plot_side_front: plot_side_front ? parseFloat((plot_side_front as any).toString()) : null,
+        plot_side_back: plot_side_back ? parseFloat((plot_side_back as any).toString()) : null,
+        plot_side_left: plot_side_left ? parseFloat((plot_side_left as any).toString()) : null,
+        plot_side_right: plot_side_right ? parseFloat((plot_side_right as any).toString()) : null,
+        plot_diagonal: plot_diagonal ? parseFloat((plot_diagonal as any).toString()) : null,
       }
     });
 

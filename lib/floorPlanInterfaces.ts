@@ -49,6 +49,11 @@ export interface ProjectData {
   placed_objects: PlacedObject[] | null;
   plot_width?: number | null;
   plot_height?: number | null;
+  plot_side_front?: number | null;
+  plot_side_back?: number | null;
+  plot_side_left?: number | null;
+  plot_side_right?: number | null;
+  plot_diagonal?: number | null;
   profiles?: {
     email: string | null;
   } | null;

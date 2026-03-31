@@ -57,6 +57,11 @@ interface ControlPanelProps {
 
   plotWidth?: number | null;
   plotHeight?: number | null;
+  plotSideFront?: number | null;
+  plotSideBack?: number | null;
+  plotSideLeft?: number | null;
+  plotSideRight?: number | null;
+  plotDiagonal?: number | null;
   setProject?: any;
   plotAngle?: number;
   setPlotAngle?: any;
@@ -242,47 +247,129 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
               </button>
             </div>
 
-            {props.isManualMode && (props.plotWidth || props.plotHeight) && (
+            {props.isManualMode && (
               <div id="tutorial-dimensions" className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg space-y-3">
-                <h4 className="font-bold text-gray-800 text-sm">Plot Dimensions ({props.referenceWallUnit}) & Angle</h4>
-                <div className="flex gap-4">
-                  <div>
-                    <label className="block text-xs text-gray-500">Width</label>
-                    <input
-                      type="number"
-                      value={props.plotWidth || ""}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value) || 0;
-                        props.setProject && props.setProject((prev: any) => ({ ...prev, plot_width: val }));
-                      }}
-                      className="w-20 p-1 border rounded text-sm"
-                    />
+                <h4 className="font-bold text-gray-800 text-sm">Plot Dimensions ({props.referenceWallUnit})</h4>
+                
+                {(!props.plotSideFront && !props.plotSideBack) ? (
+                  <div className="space-y-3">
+                    <div className="flex gap-4">
+                      <div>
+                        <label className="block text-xs text-gray-500">Width</label>
+                        <input
+                          type="number"
+                          value={props.plotWidth || ""}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 0;
+                            props.setProject && props.setProject((prev: any) => ({ ...prev, plot_width: val }));
+                          }}
+                          className="w-20 p-1 border rounded text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500">Length</label>
+                        <input
+                          type="number"
+                          value={props.plotHeight || ""}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 0;
+                            props.setProject && props.setProject((prev: any) => ({ ...prev, plot_height: val }));
+                          }}
+                          className="w-20 p-1 border rounded text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500">Angle (°)</label>
+                        <input
+                          type="number"
+                          value={props.plotAngle || 90}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 90;
+                            props.setPlotAngle && props.setPlotAngle(val);
+                          }}
+                          className="w-20 p-1 border rounded text-sm"
+                        />
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => props.setProject && props.setProject((prev: any) => ({ ...prev, plot_side_front: prev.plot_width, plot_side_back: prev.plot_width, plot_side_left: prev.plot_height, plot_side_right: prev.plot_height, plot_diagonal: Math.sqrt(prev.plot_width**2 + prev.plot_height**2) }))}
+                      className="text-[10px] text-blue-600 hover:underline"
+                    >
+                      Convert to Irregular Plot
+                    </button>
                   </div>
-                  <div>
-                    <label className="block text-xs text-gray-500">Length</label>
-                    <input
-                      type="number"
-                      value={props.plotHeight || ""}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value) || 0;
-                        props.setProject && props.setProject((prev: any) => ({ ...prev, plot_height: val }));
-                      }}
-                      className="w-20 p-1 border rounded text-sm"
-                    />
+                ) : (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[10px] text-gray-500">Front</label>
+                        <input
+                          type="number"
+                          value={props.plotSideFront || ""}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 0;
+                            props.setProject && props.setProject((prev: any) => ({ ...prev, plot_side_front: val }));
+                          }}
+                          className="w-full p-1 border rounded text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-gray-500">Back</label>
+                        <input
+                          type="number"
+                          value={props.plotSideBack || ""}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 0;
+                            props.setProject && props.setProject((prev: any) => ({ ...prev, plot_side_back: val }));
+                          }}
+                          className="w-full p-1 border rounded text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-gray-500">Left</label>
+                        <input
+                          type="number"
+                          value={props.plotSideLeft || ""}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 0;
+                            props.setProject && props.setProject((prev: any) => ({ ...prev, plot_side_left: val }));
+                          }}
+                          className="w-full p-1 border rounded text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-gray-500">Right</label>
+                        <input
+                          type="number"
+                          value={props.plotSideRight || ""}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 0;
+                            props.setProject && props.setProject((prev: any) => ({ ...prev, plot_side_right: val }));
+                          }}
+                          className="w-full p-1 border rounded text-sm"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-gray-500">Diagonal (Optional)</label>
+                      <input
+                        type="number"
+                        value={props.plotDiagonal || ""}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          props.setProject && props.setProject((prev: any) => ({ ...prev, plot_diagonal: val }));
+                        }}
+                        className="w-full p-1 border rounded text-sm"
+                      />
+                    </div>
+                    <button 
+                      onClick={() => props.setProject && props.setProject((prev: any) => ({ ...prev, plot_side_front: null, plot_side_back: null, plot_side_left: null, plot_side_right: null, plot_diagonal: null }))}
+                      className="text-[10px] text-red-600 hover:underline"
+                    >
+                      Reset to Regular Plot
+                    </button>
                   </div>
-                  <div>
-                    <label className="block text-xs text-gray-500">Angle (°)</label>
-                    <input
-                      type="number"
-                      value={props.plotAngle || 90}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value) || 90;
-                        props.setPlotAngle && props.setPlotAngle(val);
-                      }}
-                      className="w-20 p-1 border rounded text-sm"
-                    />
-                  </div>
-                </div>
+                )}
               </div>
             )}
           </div>
