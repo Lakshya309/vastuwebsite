@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '../../../../lib/supabase'
-import { prisma } from '../../../../lib/db'
-import { r2Client, BUCKET_NAME } from '../../../../lib/r2'
+import { createServerSupabaseClient } from '@/lib/supabase'
+import { prisma } from '@/lib/db'
+import { r2Client, BUCKET_NAME } from '@/lib/r2'
 import { GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
@@ -27,9 +27,9 @@ export async function GET(
     }
 
     const project = await prisma.projects.findFirst({
-      where: { 
+      where: {
         id: projectId,
-        user_id: user.id 
+        user_id: user.id
       },
       include: {
         project_objects: {
@@ -51,6 +51,7 @@ export async function GET(
     }
 
     let floor_plan_path = null
+    let video_url = null
 
     if (project.active_map_plot_id) {
       const mapPlot = await prisma.map_plots.findUnique({
@@ -64,12 +65,26 @@ export async function GET(
             Bucket: BUCKET_NAME,
             Key: mapPlot.storage_path,
           })
-          
+
           // Generate an expiring presigned URL (valid for 1 hour)
           floor_plan_path = await getSignedUrl(r2Client, command, { expiresIn: 3600 })
         } catch (storageError) {
-          console.error("Error generating pre-signed URL for R2:", storageError)
+          console.error("Error generating pre-signed URL for R2 (floor plan):", storageError)
         }
+      }
+    }
+
+    if (project.video_path) {
+      try {
+        const command = new GetObjectCommand({
+          Bucket: BUCKET_NAME,
+          Key: project.video_path,
+        })
+
+        // Generate an expiring presigned URL (valid for 1 hour)
+        video_url = await getSignedUrl(r2Client, command, { expiresIn: 3600 })
+      } catch (storageError) {
+        console.error("Error generating pre-signed URL for R2 (video):", storageError)
       }
     }
 
@@ -78,6 +93,7 @@ export async function GET(
         project: {
           ...project,
           floor_plan_path: floor_plan_path,
+          video_url: video_url,
           placed_objects: project.project_objects ?? [],
         },
       },
@@ -104,6 +120,30 @@ export async function PATCH(
 
   if (body.north_direction !== undefined)
     updates.north_direction = body.north_direction
+
+  if (body.plot_width !== undefined)
+    updates.plot_width = body.plot_width
+
+  if (body.plot_height !== undefined)
+    updates.plot_height = body.plot_height
+
+  if (body.plot_side_front !== undefined)
+    updates.plot_side_front = body.plot_side_front
+
+  if (body.plot_side_back !== undefined)
+    updates.plot_side_back = body.plot_side_back
+
+  if (body.plot_side_left !== undefined)
+    updates.plot_side_left = body.plot_side_left
+
+  if (body.plot_side_right !== undefined)
+    updates.plot_side_right = body.plot_side_right
+
+  if (body.plot_diagonal !== undefined)
+    updates.plot_diagonal = body.plot_diagonal
+
+  if (body.assigned_astrologer_id !== undefined)
+    updates.assigned_astrologer_id = body.assigned_astrologer_id
 
   if (body.status !== undefined) {
     updates.status = body.status
@@ -158,6 +198,11 @@ export async function DELETE(
   }
 
   try {
+    const projectToDelete = await prisma.projects.findUnique({
+      where: { id: projectId },
+      select: { video_path: true }
+    });
+
     // 1. Fetch all map plots to delete their files from Cloudflare R2
     const mapPlots = await prisma.map_plots.findMany({
       where: { project_id: projectId },
@@ -165,26 +210,38 @@ export async function DELETE(
     });
 
     // 2. Delete each associated file from R2 storage
-    if (mapPlots.length > 0) {
+    const filesToDelete = [
+      ...(mapPlots.map(p => p.storage_path).filter(Boolean)),
+      ...(projectToDelete?.video_path ? [projectToDelete.video_path] : [])
+    ];
+
+    if (filesToDelete.length > 0) {
       await Promise.all(
-        mapPlots.map(async (plot) => {
-          if (plot.storage_path) {
-            try {
-              const command = new DeleteObjectCommand({
-                Bucket: BUCKET_NAME,
-                Key: plot.storage_path,
-              });
-              await r2Client.send(command);
-            } catch (r2Error) {
-              console.error(`Failed to delete file from R2: ${plot.storage_path}`, r2Error);
-            }
+        filesToDelete.map(async (path) => {
+          try {
+            const command = new DeleteObjectCommand({
+              Bucket: BUCKET_NAME,
+              Key: path as string,
+            });
+            await r2Client.send(command);
+          } catch (r2Error) {
+            console.error(`Failed to delete file from R2: ${path}`, r2Error);
           }
         })
       );
     }
 
-    // 3. Prisma will automatically cascade-delete related analyses, project_objects, 
-    // and map_plots due to the setup in schema.prisma (`onDelete: Cascade` on the relations)
+    // 3. Break circular dependencies and delete map_plots explicitly
+    await prisma.projects.update({
+      where: { id: projectId },
+      data: { active_map_plot_id: null },
+    });
+
+    await prisma.map_plots.deleteMany({
+      where: { project_id: projectId },
+    });
+
+    // 4. Delete the project (cascades to analyses and project_objects)
     await prisma.projects.delete({
       where: { id: projectId },
     })

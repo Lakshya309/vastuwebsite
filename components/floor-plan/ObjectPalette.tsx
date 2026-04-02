@@ -60,7 +60,7 @@ export const ObjectPalette: React.FC<ObjectPaletteProps> = ({
 
   return (
     <div className="p-4 border-t">
-      <h3 className="text-lg font-semibold mb-2">Objects</h3>
+      <h3 className="text-lg font-semibold mb-2">Items to Place</h3>
       <div id="tutorial-objects" className="grid grid-cols-3 gap-2 max-h-96 overflow-y-auto pr-2">
         {objects.map((obj) => (
           <ObjectPaletteItem

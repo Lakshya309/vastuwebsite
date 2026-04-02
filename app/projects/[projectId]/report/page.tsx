@@ -25,6 +25,8 @@ import { calculateAreaDistribution } from "../../../utils/calculateAreaDistribut
 import { ZoneBarChart } from "../../../../components/ZoneBarChart";
 import { DevtaBarChart } from "../../../../components/DevtaBarChart";
 import { FloorPlanCanvas } from "../../../../components/floor-plan/FloorPlanCanvas";
+import { motion, AnimatePresence } from "framer-motion";
+import { Download, LayoutDashboard, FileText, ChevronRight, Share2, Printer } from "lucide-react";
 
 // --- INTERFACES ---
 
@@ -33,12 +35,11 @@ interface Project {
   name: string;
   creator_name?: string;
   report_for?: string;
-  floor_plan_path?: string | null; // Added to interface for image
+  floor_plan_path?: string | null;
   boundary_normalized: Point[] | null;
   north_direction: number | null;
   placed_objects: PlacedObject[] | null;
 }
-
 
 interface AnalyzedObjectResult {
   object_id: string;
@@ -88,36 +89,33 @@ const ZONES_DEFINITION = [
   { zone: 'N', startAngle: 348.75, endAngle: 11.25 },
 ];
 
-
-// --- CONSTANTS ---
 const COLORS = {
-  EXCELLENT: "#10B981",
-  GOOD: "#34D399",
-  BAD: "#F59E0B",
-  CRITICAL: "#EF4444",
+  EXCELLENT: "#10B981", // Emerald
+  GOOD: "#34D399",      // Teal
+  BAD: "#F59E0B",       // Gold/Amber
+  CRITICAL: "#EF4444",  // Rose
 };
 
 const getVerdictTextColor = (verdict: string) => {
   switch (verdict) {
-    case "EXCELLENT": return { color: 'rgb(22 101 52)' };
-    case "GOOD": return { color: 'rgb(21 128 61)' };
-    case "BAD": return { color: 'rgb(180 83 9)' };
-    case "CRITICAL": return { color: 'rgb(185 28 28)' };
-    default: return { color: 'rgb(75 85 99)' };
+    case "EXCELLENT": return "text-emerald-700";
+    case "GOOD": return "text-teal-700";
+    case "BAD": return "text-amber-700";
+    case "CRITICAL": return "text-rose-700";
+    default: return "text-gray-600";
   }
 };
 
-const getVerdictColor = (verdict: string) => {
+const getVerdictBgColor = (verdict: string) => {
   switch (verdict) {
-    case "EXCELLENT": return { backgroundColor: 'rgb(209 250 229)' };
-    case "GOOD": return { backgroundColor: 'rgb(209 250 229)' };
-    case "BAD": return { backgroundColor: 'rgb(254 243 199)' };
-    case "CRITICAL": return { backgroundColor: 'rgb(254 226 226)' };
-    default: return { backgroundColor: 'rgb(243 244 246)' };
+    case "EXCELLENT": return "bg-emerald-50";
+    case "GOOD": return "bg-teal-50";
+    case "BAD": return "bg-amber-50";
+    case "CRITICAL": return "bg-rose-50";
+    default: return "bg-gray-50";
   }
 };
 
-// --- COMPONENT ---
 export default function ReportPage() {
   const params = useParams();
   const projectId = params.projectId as string;
@@ -156,27 +154,14 @@ export default function ReportPage() {
     setReportSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
 
-
-
-  // --- PDF Export Logic ---
   const handleExportPdf = async () => {
-    if (!reportContentRef.current) {
-      alert("Report content not found for PDF export.");
-      return;
-    }
-
+    if (!reportContentRef.current) return;
     setLoading(true);
-    setError(null);
-
-    const canvas = await html2canvas(reportContentRef.current, {
-      backgroundColor: '#ffffff',
-    });
+    const canvas = await html2canvas(reportContentRef.current, { backgroundColor: '#ffffff' });
     const dataUrl = canvas.toDataURL('image/png');
-
     const pdf = new jsPDF("p", "mm", "a4");
     const pdfWidth = pdf.internal.pageSize.getWidth();
     const pdfHeight = pdf.internal.pageSize.getHeight();
-
     const imgProps = pdf.getImageProperties(dataUrl);
     const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
     let heightLeft = imgHeight;
@@ -191,16 +176,13 @@ export default function ReportPage() {
       pdf.addImage(dataUrl, 'PNG', 0, position, pdfWidth, imgHeight);
       heightLeft -= pdfHeight;
     }
-
     pdf.save(`Vastu_Report_${project?.name || projectId}.pdf`);
-
     setLoading(false);
   };
-  // --- DATA FETCHING ---
+
   useEffect(() => {
     const fetchReportData = async () => {
       if (!projectId) return;
-
       const urlParams = new URLSearchParams(window.location.search);
       const analysisId = urlParams.get("analysisId");
 
@@ -211,14 +193,8 @@ export default function ReportPage() {
       }
 
       setLoading(true);
-      setError(null);
-
       try {
         const analysisResponse = await fetch(`/api/analysis/full-report?analysisId=${analysisId}`);
-        if (!analysisResponse.ok) {
-          const errorDetail = await analysisResponse.json();
-          throw new Error(errorDetail.error || "Failed to fetch Vastu analysis report.");
-        }
         const vastuData: VastuAnalysisResult = await analysisResponse.json();
         setVastuAnalysisResult(vastuData);
 
@@ -229,9 +205,6 @@ export default function ReportPage() {
         setHighlightedZones([...new Set(badZones)]);
 
         const projectResponse = await fetch(`/api/projects/${projectId}`);
-        if (!projectResponse.ok) {
-          throw new Error("Failed to fetch project details.");
-        }
         const projectData = await projectResponse.json();
         setProject(projectData.project);
 
@@ -239,7 +212,6 @@ export default function ReportPage() {
           setLiveNorthDirection(projectData.project.north_direction);
         }
 
-        // Calculate and set zone graph data using the more accurate API results
         const mergedData = ZONES_DEFINITION.map(zDef => {
           const areaData = vastuData.zone_areas_16.find(a => a.name === zDef.zone);
           const boundaryData = vastuData.zone_boundary_16.find(b => b.name === zDef.zone);
@@ -249,314 +221,301 @@ export default function ReportPage() {
             areaPercent: areaData ? areaData.percentage : 0,
           };
         });
-
         setZoneGraphData(mergedData);
-
       } catch (err: any) {
-        console.error("Error fetching report data:", err);
         setError(err.message);
-        setVastuAnalysisResult(null);
       } finally {
         setLoading(false);
       }
     };
     fetchReportData();
-  }, [projectId, setLiveNorthDirection]);
+  }, [projectId]);
 
-  // --- RENDER LOGIC ---
-  if (loading && !vastuAnalysisResult) { // Show initial loading screen
+  if (loading && !vastuAnalysisResult) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-600">Loading Vastu Report...</p>
+      <div className="min-h-screen organic-gradient flex items-center justify-center">
+        <motion.div 
+          animate={{ rotate: 360 }}
+          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+          className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full"
+        />
       </div>
     );
   }
-  if (error) {
+
+  if (error || !project || !vastuAnalysisResult) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-red-500">Error: {error}</p>
+      <div className="min-h-screen bg-rose-50 flex items-center justify-center p-8">
+        <div className="glass p-8 rounded-3xl border border-rose-200 text-center">
+          <h2 className="text-2xl font-cormorant font-bold text-rose-700 mb-4 italic">Spectral Error</h2>
+          <p className="text-gray-600 mb-6">{error || "Project data unavailable."}</p>
+          <Link href={`/projects/${projectId}/floor-plan`} className="px-6 py-3 bg-rose-600 text-white rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg">Return to Sanctum</Link>
+        </div>
       </div>
     );
   }
-  if (!project || !vastuAnalysisResult) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-600">No project data or analysis available.</p>
-      </div>
-    );
-  }
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: { opacity: 1, transition: { staggerChildren: 0.1, delayChildren: 0.3 } }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: "easeOut" } }
+  };
 
   return (
-    <div className="min-h-screen bg-gray-100 text-gray-900 p-8 print-container">
-      <div className="flex justify-between items-center border-b border-gray-200 pb-4 mb-8 no-print">
-        <h1 className="text-4xl font-bold">
-          Vastu Analysis Report for {project.name}
-        </h1>
-        <div>
-          <p className="text-sm text-gray-500">Created by: {project.creator_name}</p>
-          <p className="text-sm text-gray-500">Report for: {project.report_for}</p>
-        </div>
-        <nav className="-mb-px flex space-x-8" aria-label="Tabs">
-          <Link href={`/projects/${projectId}`} className="text-gray-500 hover:text-gray-800">Overview</Link>
-          <Link href={`/projects/${projectId}/floor-plan`} className="text-gray-500 hover:text-gray-800">Floor Plan</Link>
-          <Link href={`/projects/${projectId}/report`} className="text-blue-600 border-b-2 border-blue-600 font-semibold">Report</Link>
-        </nav>
-        <button
-          onClick={handleExportPdf}
-          disabled={loading}
-          className="px-4 py-2 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 rounded shadow no-print disabled:bg-gray-400"
-        >
-          {loading ? 'Preparing...' : 'Save as PDF'}
-        </button>
-      </div>
+    <div className="min-h-screen organic-gradient p-4 md:p-12 relative overflow-hidden">
+      {/* Background Decor */}
+      <div className="absolute top-0 right-0 w-[50vw] h-[50vw] bg-primary/5 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/3" />
+      <div className="absolute bottom-0 left-0 w-[40vw] h-[40vw] bg-teal-500/5 rounded-full blur-[100px] translate-y-1/3 -translate-x-1/4" />
 
-      <div className="bg-white p-4 rounded-lg shadow-md mb-8 no-print">
-        <h3 className="text-lg font-semibold mb-2">Customize Report</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {Object.keys(reportSections).map(key => (
-            <label key={key} className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={reportSections[key as keyof typeof reportSections]}
-                onChange={() => handleSectionChange(key as keyof typeof reportSections)}
-                className="rounded text-blue-600"
-              />
-              <span className="text-sm capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
-            </label>
-          ))}
-        </div>
-      </div>
-
-      {/* Print-specific styles */}
-      <style jsx global>{`
-        @media print {
-          html, body {
-            margin: 0 !important;
-            padding: 0 !important;
-            width: 210mm !important; /* A4 width */
-            height: 297mm !important; /* A4 height */
-            overflow: hidden !important; /* Prevent scrollbars on print */
-          }
-          @page {
-            size: A4;
-            margin: 0;
-          }
-          .print-container {
-            width: 210mm !important;
-            box-sizing: border-box !important;
-            padding: 10mm !important; /* Add some padding for content inside A4 */
-            background-color: #fff !important;
-            color: #000 !important;
-          }
-          /* Hide elements that shouldn't appear in print */
-          .no-print, .no-print * {
-            display: none !important;
-          }
-          /* Adjust font sizes for print readability */
-          h1, h2, h3, h4, h5, h6 {
-            font-size: unset !important; /* Reset to allow relative scaling */
-          }
-          .text-4xl { font-size: 24pt !important; }
-          .text-2xl { font-size: 16pt !important; }
-          .text-xl { font-size: 14pt !important; }
-          .text-lg { font-size: 12pt !important; }
-          .text-base { font-size: 10pt !important; }
-          .text-sm { font-size: 9pt !important; }
-          .text-xs { font-size: 8pt !important; }
-          
-          /* Ensure charts and images scale correctly */
-          .recharts-responsive-container {
-            width: 100% !important;
-            height: auto !important;
-            max-height: 120mm; /* Increased limit to accommodate taller devta charts */
-          }
-          img {
-            max-width: 100% !important;
-            height: auto !important;
-          }
-
-          /* Control table layout for print */
-          table {
-            width: 100% !important;
-            border-collapse: collapse !important;
-          }
-          th, td {
-            padding: 8px 5px !important;
-            border: 1px solid #ccc !important;
-            font-size: 9pt !important;
-            white-space: normal !important; /* Allow text to wrap */
-          }
-          thead {
-            display: table-header-group !important; /* Repeat table headers on each page */
-          }
-          tr {
-            page-break-inside: avoid !important; /* Avoid breaking rows across pages */
-            page-break-after: auto !important;
-          }
-          /* Ensure content within these divs doesn't break poorly */
-          .grid {
-            display: block !important; /* Break grid layout for print */
-          }
-          .grid > div {
-            width: 100% !important;
-            margin-bottom: 10mm !important; /* Space between sections */
-            page-break-inside: avoid !important;
-          }
-          .page-break-before-detailed-report {
-            page-break-before: always !important;
-            margin-top: 0 !important; /* Remove top margin when breaking page */
-          }
-        }
-      `}</style>
-
-      <div id="report-content" ref={reportContentRef} className="bg-white p-8">
-        {/* Professional Header */}
-        <div className="flex justify-between items-start border-b-2 border-gray-800 pb-6 mb-8">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-xl">
-              MV
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">Manglam Vastu</h2>
-              <p className="text-sm text-gray-600 italic">Vedic Architecture & Sacred Science</p>
-            </div>
-          </div>
-          <div className="text-right">
-            <h1 className="text-3xl font-extrabold text-blue-700 uppercase tracking-tight">Vastu Analysis Report</h1>
-            <div className="mt-2 space-y-1">
-              <p className="text-sm font-medium text-gray-700">Project: <span className="text-gray-900">{project.name}</span></p>
-              <p className="text-sm font-medium text-gray-700">Created For: <span className="text-gray-900">{project.report_for || "Valued Client"}</span></p>
-              <p className="text-sm font-medium text-gray-700">Expert: <span className="text-gray-900">{project.creator_name || "Yogesh Keshwani"}</span></p>
-              <p className="text-xs text-gray-500">{new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-            </div>
+      {/* Navigation Header */}
+      <motion.div 
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        className="max-w-7xl mx-auto mb-12 flex flex-col md:flex-row justify-between items-center gap-6 no-print relative z-10"
+      >
+        <div className="flex items-center gap-6">
+          <Link href="/dashboard" className="glass p-3 rounded-2xl border border-white hover:bg-white transition-all">
+            <LayoutDashboard size={20} className="text-primary" />
+          </Link>
+          <div>
+            <h1 className="text-4xl md:text-5xl font-cormorant font-bold italic text-primary tracking-tight">Spectral Manifest</h1>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.4em] mt-1 ml-1">Vastu Analysis Record • {project.name}</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-          {reportSections.overallCompliance && vastuAnalysisResult.analyzed_objects.length > 0 && (
-            <div className="md:col-span-1 bg-white p-6 rounded-2xl shadow-lg flex flex-col items-center justify-center">
-              <h2 className="text-2xl font-bold mb-4 text-gray-800">Overall Vastu Compliance</h2>
-              <div className="relative w-48 h-48">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={handleExportPdf}
+            disabled={loading}
+            className="flex items-center gap-3 px-6 py-4 bg-primary text-white rounded-2xl text-[10px] font-bold uppercase tracking-widest shadow-2xl shadow-primary/20 hover:scale-[1.03] transition-all disabled:opacity-50"
+          >
+            <Download size={14} />
+            {loading ? "Calibrating..." : "Export Record"}
+          </button>
+          <div className="glass px-4 py-2 rounded-2xl border border-white hidden md:flex items-center gap-6">
+            <Link href={`/projects/${projectId}/floor-plan`} className="text-[10px] font-bold text-gray-400 hover:text-primary uppercase tracking-widest transition-colors flex items-center gap-2">
+              Studio <ChevronRight size={12} />
+            </Link>
+            <span className="text-primary text-[10px] font-bold uppercase tracking-widest border-b border-primary pb-0.5">Final Report</span>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Report Customization (Dashboard Style) */}
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="max-w-7xl mx-auto mb-12 flex flex-wrap gap-3 no-print"
+      >
+        {Object.keys(reportSections).map(key => (
+          <button
+            key={key}
+            onClick={() => handleSectionChange(key as keyof typeof reportSections)}
+            className={`px-4 py-2.5 rounded-xl border text-[9px] font-bold uppercase tracking-widest transition-all ${
+              reportSections[key as keyof typeof reportSections]
+                ? "bg-primary text-white border-primary shadow-lg shadow-primary/20"
+                : "glass text-gray-400 border-white hover:border-primary/30"
+            }`}
+          >
+            {key.replace(/([A-Z])/g, ' $1').trim()}
+          </button>
+        ))}
+      </motion.div>
+
+      {/* MAIN REPORT AREA */}
+      <motion.div 
+        ref={reportContentRef}
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+        className="max-w-7xl mx-auto space-y-12 relative z-10"
+      >
+        {/* Cinematic Header Card */}
+        <motion.div variants={itemVariants} className="glass p-12 rounded-[3.5rem] border border-white shadow-2xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
+          <div className="flex flex-col md:flex-row justify-between items-start gap-12 relative z-10">
+            <div className="space-y-6">
+              <div className="w-20 h-20 bg-primary/10 rounded-[2rem] flex items-center justify-center text-primary font-cormorant font-bold italic text-3xl border border-primary/20">
+                MV
+              </div>
+              <div>
+                <h2 className="text-3xl font-cormorant font-bold italic text-primary leading-tight">Manglam Vastu</h2>
+                <p className="text-sm text-gray-500 font-bold uppercase tracking-[0.2em] italic">Vedic Architecture & Sacred Science</p>
+              </div>
+            </div>
+            <div className="md:text-right space-y-6">
+              <div className="inline-block px-6 py-2 bg-primary/5 rounded-full border border-primary/10 text-primary text-[10px] font-bold uppercase tracking-[0.4em] italic mb-4">
+                Analysis Identification: {projectId.slice(0, 8)}
+              </div>
+              <div className="space-y-2">
+                <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest">Spectral Subject</p>
+                <p className="text-4xl font-cormorant font-bold italic text-primary leading-none">{project.name}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-8 md:gap-12 mt-8">
+                <div>
+                  <p className="text-gray-400 text-[8px] font-bold uppercase tracking-widest mb-1">Steward</p>
+                  <p className="text-sm font-bold text-gray-700">{project.report_for || "Valued Client"}</p>
+                </div>
+                <div>
+                  <p className="text-gray-400 text-[8px] font-bold uppercase tracking-widest mb-1">Vastu Expert</p>
+                  <p className="text-sm font-bold text-gray-700">{project.creator_name || "Yogesh Keshwani"}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="mt-12 pt-12 border-t border-white/50 flex justify-between items-center">
+            <div className="flex gap-4">
+              <Share2 size={16} className="text-gray-300" />
+              <Printer size={16} className="text-gray-300" />
+              <FileText size={16} className="text-gray-300" />
+            </div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.3em] italic">
+              Concluded on {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+            </p>
+          </div>
+        </motion.div>
+
+        {/* Global Pulse (Overall Compliance & Pie) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+          {reportSections.overallCompliance && (
+            <motion.div variants={itemVariants} className="lg:col-span-5 glass p-10 rounded-[3rem] border border-white flex flex-col items-center text-center">
+              <h3 className="text-2xl font-cormorant font-bold italic text-primary mb-8 underline underline-offset-8 decoration-primary/10 tracking-tight">Manifestation Score</h3>
+              <div className="relative w-64 h-64 mb-8">
                 <ResponsiveContainer width="100%" height="100%">
                   <RadialBarChart
-                    innerRadius="90%"
-                    outerRadius="70%"
-                    barSize={20}
+                    innerRadius="85%"
+                    outerRadius="75%"
+                    barSize={24}
                     data={[{ name: "Vastu Score", uv: vastuAnalysisResult.overall_percentage, fill: COLORS[vastuAnalysisResult.overall_verdict] }]}
                     startAngle={90}
                     endAngle={90 - (360 * vastuAnalysisResult.overall_percentage / 100)}
                   >
-                    <RadialBar cornerRadius={10} background={{ fill: '#eeeeee' }} dataKey="uv" />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cccccc' }}
-                      itemStyle={{ color: '#000000' }}
-                      formatter={(value: number | undefined) => [`${(value ?? 0).toFixed(1)}%`, 'Score']}
-                    />
+                    <RadialBar cornerRadius={20} background={{ fill: 'rgba(0,0,0,0.03)' }} dataKey="uv" />
                   </RadialBarChart>
-                </ResponsiveContainer>                <p
-                  className="absolute inset-0 flex items-center justify-center text-5xl font-bold"
-                  style={{ color: COLORS[vastuAnalysisResult.overall_verdict] }}
-                >
-                  {vastuAnalysisResult.overall_percentage.toFixed(0)}%
-                </p>
+                </ResponsiveContainer>
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                  <p className="text-7xl font-cormorant font-bold italic text-primary leading-none -mt-4">
+                    {vastuAnalysisResult.overall_percentage.toFixed(0)}<span className="text-2xl text-primary/40">%</span>
+                  </p>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">{vastuAnalysisResult.total_score} Total Points</p>
+                </div>
               </div>
-              <p className="text-lg text-gray-600 mt-2">
-                Status: <span className="font-bold" style={getVerdictTextColor(vastuAnalysisResult.overall_verdict)}>
-                  {vastuAnalysisResult.overall_verdict}
+              <div className={`px-8 py-3 rounded-2xl border text-sm font-bold uppercase tracking-[0.2em] relative overflow-hidden group ${getVerdictBgColor(vastuAnalysisResult.overall_verdict)} border-white transition-all`}>
+                <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
+                <span className={`relative z-10 ${getVerdictTextColor(vastuAnalysisResult.overall_verdict)}`}>
+                  Spectral Alignment: {vastuAnalysisResult.overall_verdict}
                 </span>
-              </p>
-              <p className="text-sm text-gray-500">Total Score: {vastuAnalysisResult.total_score}</p>
-            </div>
+              </div>
+            </motion.div>
           )}
 
-          {reportSections.objectDistribution && vastuAnalysisResult.analyzed_objects.length > 0 && (
-            <div className="md:col-span-2 bg-white p-6 rounded-2xl shadow-lg flex flex-col items-center justify-center">
-              <h2 className="text-2xl font-bold mb-4 text-gray-800">Object Status Distribution</h2>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={Object.values(
-                      vastuAnalysisResult.analyzed_objects.reduce((acc, obj) => {
-                        acc[obj.verdict] = (acc[obj.verdict] || 0) + 1;
-                        return acc;
-                      }, {} as Record<string, number>)
-                    ).map((count, i) => ({
-                      name: Object.keys(
+          {reportSections.objectDistribution && (
+            <motion.div variants={itemVariants} className="lg:col-span-7 glass p-10 rounded-[3rem] border border-white">
+              <h3 className="text-2xl font-cormorant font-bold italic text-primary mb-8 px-4 tracking-tight">Component Resonance</h3>
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={Object.values(
                         vastuAnalysisResult.analyzed_objects.reduce((acc, obj) => {
                           acc[obj.verdict] = (acc[obj.verdict] || 0) + 1;
                           return acc;
                         }, {} as Record<string, number>)
-                      )[i],
-                      value: count,
-                    }))}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    outerRadius={100}
-                    dataKey="value"
-                    label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
-                  >
-                    {Object.keys(
-                      vastuAnalysisResult.analyzed_objects.reduce((acc, obj) => {
-                        acc[obj.verdict] = (acc[obj.verdict] || 0) + 1;
-                        return acc;
-                      }, {} as Record<string, number>)
-                    ).map((verdict, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[verdict as keyof typeof COLORS]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cccccc' }}
-                    itemStyle={{ color: '#000000' }}
-                  />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
+                      ).map((count, i) => ({
+                        name: Object.keys(
+                          vastuAnalysisResult.analyzed_objects.reduce((acc, obj) => {
+                            acc[obj.verdict] = (acc[obj.verdict] || 0) + 1;
+                            return acc;
+                          }, {} as Record<string, number>)
+                        )[i],
+                        value: count,
+                      }))}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={80}
+                      outerRadius={100}
+                      paddingAngle={8}
+                      dataKey="value"
+                    >
+                      {Object.keys(
+                        vastuAnalysisResult.analyzed_objects.reduce((acc, obj) => {
+                          acc[obj.verdict] = (acc[obj.verdict] || 0) + 1;
+                          return acc;
+                        }, {} as Record<string, number>)
+                      ).map((verdict, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[verdict as keyof typeof COLORS]} className="stroke-[4] stroke-white" />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.1)', fontStyle: 'italic', fontWeight: 'bold' }}
+                    />
+                    <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ paddingTop: '20px', textTransform: 'uppercase', fontSize: '8px', fontWeight: 'bold', letterSpacing: '0.2em' }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <p className="text-center text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-8 italic leading-relaxed">
+                Distribution of objects across the spectral spectrum of Vastu compliance.
+              </p>
+            </motion.div>
           )}
         </div>
 
+        {/* Energy Charts (Boundary & Area) */}
         {zoneGraphData.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
             {reportSections.boundaryDistribution && (
-              <ZoneBarChart
-                data={zoneGraphData}
-                chartType="boundary"
-                title="Directional Boundary Distribution"
-              />
+              <motion.div variants={itemVariants} className="glass p-10 rounded-[3rem] border border-white">
+                <ZoneBarChart
+                  data={zoneGraphData}
+                  chartType="boundary"
+                  title="Perimeter Dispersion"
+                />
+              </motion.div>
             )}
             {reportSections.areaDistribution && (
-              <ZoneBarChart
-                data={zoneGraphData}
-                chartType="area"
-                title="Zone Area Distribution"
-              />
+              <motion.div variants={itemVariants} className="glass p-10 rounded-[3rem] border border-white">
+                <ZoneBarChart
+                  data={zoneGraphData}
+                  chartType="area"
+                  title="Spatial Volume Intensity"
+                />
+              </motion.div>
             )}
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-8 mb-8">
-          {reportSections.devta32 && vastuAnalysisResult.devta_areas_32 && vastuAnalysisResult.devta_areas_32.length > 0 && (
-            <DevtaBarChart
-              data={vastuAnalysisResult.devta_areas_32}
-              title="Outer 32 Devta Area Distribution (%)"
-              color="#3b82f6"
-            />
+        {/* Devta Distribution */}
+        <div className="grid grid-cols-1 gap-12">
+          {reportSections.devta32 && vastuAnalysisResult.devta_areas_32 && (
+            <motion.div variants={itemVariants} className="glass p-10 rounded-[3rem] border border-white">
+              <DevtaBarChart
+                data={vastuAnalysisResult.devta_areas_32}
+                title="Symmetry of the 32 Outer Deities (%)"
+                color="#3b82f6"
+              />
+            </motion.div>
           )}
-          {reportSections.devta45 && vastuAnalysisResult.devta_areas_45 && vastuAnalysisResult.devta_areas_45.length > 0 && (
-            <DevtaBarChart
-              data={vastuAnalysisResult.devta_areas_45}
-              title="Complete 45 Devta Area Distribution (%)"
-              color="#10b981"
-            />
+          {reportSections.devta45 && vastuAnalysisResult.devta_areas_45 && (
+            <motion.div variants={itemVariants} className="glass p-10 rounded-[3rem] border border-white">
+              <DevtaBarChart
+                data={vastuAnalysisResult.devta_areas_45}
+                title="Harmonic Balance of the 45 Celestial Masters (%)"
+                color="#10b981"
+              />
+            </motion.div>
           )}
         </div>
 
-        {reportSections.floorPlan && vastuAnalysisResult.analyzed_objects.length > 0 && (
-          <div className="mt-8 bg-white p-6 rounded-2xl shadow-lg page-break-before-detailed-report">
-            <h2 className="text-2xl font-bold mb-4 text-gray-800 text-center">Floor Plan Overview</h2>
-            <div className="flex justify-center">
-              <div className="w-[500px] h-[500px]">
+        {/* Floor Plan Visualization */}
+        {reportSections.floorPlan && (
+          <motion.div variants={itemVariants} className="glass p-12 rounded-[3.5rem] border border-white">
+            <h3 className="text-3xl font-cormorant font-bold italic text-primary text-center mb-12 tracking-tight">Spectral Geometry Overview</h3>
+            <div className="flex justify-center bg-white/20 p-8 rounded-[3rem] border border-white/50 shadow-inner">
+              <div className="w-[80vw] max-w-[600px] h-[80vw] max-h-[600px]">
                 <FloorPlanCanvas
                   isStatic={true}
                   floorPlanImage={project.floor_plan_path || null}
@@ -594,74 +553,122 @@ export default function ReportPage() {
                 />
               </div>
             </div>
-          </div>
+            <p className="text-center text-[10px] font-bold text-gray-400 uppercase tracking-[0.3em] mt-8 italic px-12 leading-relaxed">
+              Interaction permitted. Click any element to reveal its karmic solution or spectral status relative to the grid.
+            </p>
+          </motion.div>
         )}
 
-        {solution && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-lg shadow-lg">
-              <h3 className="text-lg font-bold mb-4">Suggested Solution</h3>
-              <p>{solution}</p>
-              <button
-                onClick={() => setSolution(null)}
-                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded"
-              >
-                Close
-              </button>
+        {/* Detailed Register (Table) */}
+        {reportSections.detailedReport && (
+          <motion.div variants={itemVariants} className="glass rounded-[3.5rem] border border-white overflow-hidden">
+            <div className="p-12 border-b border-white/50">
+              <h3 className="text-3xl font-cormorant font-bold italic text-primary tracking-tight">Universal Component Register</h3>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2 mt-2">Comprehensive audit of all manifested elements within the geometry.</p>
             </div>
-          </div>
-        )}
-
-
-        {reportSections.detailedReport && vastuAnalysisResult.analyzed_objects.length > 0 && (
-          <div className="mt-8 bg-white p-6 rounded-2xl shadow-lg page-break-before-detailed-report">
-            <h2 className="text-2xl font-bold mb-4 text-gray-800">Detailed Object Report</h2>
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="w-full">
+                <thead className="bg-primary/[0.02]">
                   <tr>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Object Type</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Zone</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Devta</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Grade</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Verdict</th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Message</th>
+                    {['Manifestation', 'Celestial Zone', 'Deity Region', 'Impact', 'Grade', 'Verdict'].map((h) => (
+                      <th key={h} className="px-8 py-6 text-left text-[9px] font-bold text-primary uppercase tracking-[0.2em] italic border-b border-white/50">{h}</th>
+                    ))}
+                    <th className="px-8 py-6 text-left text-[9px] font-bold text-primary uppercase tracking-[0.2em] italic border-b border-white/50">Guidance</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="divide-y divide-white/30">
                   {vastuAnalysisResult.analyzed_objects.map((obj) => (
-                    <tr key={obj.object_id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{obj.object_type}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{obj.zone16_direction || "N/A"}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{obj.devta_region || "N/A"}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{obj.score_impact}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <tr key={obj.object_id} className="hover:bg-white/40 transition-colors group">
+                      <td className="px-8 py-8 whitespace-nowrap text-xs font-bold text-gray-700">{obj.object_type}</td>
+                      <td className="px-8 py-8 whitespace-nowrap text-[10px] font-bold text-primary uppercase tracking-widest">{obj.zone16_direction || "Void"}</td>
+                      <td className="px-8 py-8 whitespace-nowrap text-[10px] font-bold text-primary uppercase tracking-widest">{obj.devta_region || "Void"}</td>
+                      <td className="px-8 py-8 whitespace-nowrap text-xs font-bold text-gray-500 italic">{obj.score_impact > 0 ? `+${obj.score_impact}` : obj.score_impact}</td>
+                      <td className="px-8 py-8 whitespace-nowrap text-xs">
                         {obj.grade && (
-                          <span
-                            className="px-2 inline-flex text-xs leading-5 font-bold rounded-full text-white"
-                            style={{
-                              backgroundColor: obj.grade === "B" ? "green" : obj.grade === "C" ? "orange" : "red",
-                            }}
-                          >
+                          <span className={`w-8 h-8 rounded-full border flex items-center justify-center font-bold text-[10px] ${
+                            obj.grade === 'A' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 
+                            obj.grade === 'B' ? 'bg-teal-50 text-teal-700 border-teal-100' :
+                            'bg-amber-50 text-amber-700 border-amber-100'
+                          }`}>
                             {obj.grade}
                           </span>
                         )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" style={{ ...getVerdictColor(obj.verdict), ...getVerdictTextColor(obj.verdict) }}>
+                      <td className="px-8 py-8 whitespace-nowrap">
+                        <span className={`px-4 py-1.5 rounded-full text-[8px] font-bold uppercase tracking-widest border border-white ${getVerdictTextColor(obj.verdict)} ${getVerdictBgColor(obj.verdict)} shadow-inner`}>
                           {obj.verdict}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500" style={{ whiteSpace: "normal" }}>{obj.message}</td>
+                      <td className="px-8 py-8 text-[10px] font-medium text-gray-400 group-hover:text-gray-600 leading-relaxed max-w-xs">{obj.message}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </div>
+          </motion.div>
         )}
-      </div>
+      </motion.div>
+
+      {/* Solution Overlay (Spectral) */}
+      <AnimatePresence>
+        {solution && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-primary/20 backdrop-blur-md flex items-center justify-center z-[100] p-6"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="glass max-w-lg w-full p-10 rounded-[3rem] border border-white shadow-[0_50px_100px_-20px_rgba(0,0,0,0.2)] text-center relative"
+            >
+              <button 
+                onClick={() => setSolution(null)}
+                className="absolute top-6 right-6 w-10 h-10 rounded-full glass border border-white flex items-center justify-center text-gray-400 hover:text-primary transition-colors"
+              >
+                ✕
+              </button>
+              <h3 className="text-3xl font-cormorant font-bold italic text-primary mb-6">Spectral Guidance</h3>
+              <div className="w-16 h-1 bg-gradient-to-r from-transparent via-primary to-transparent mx-auto mb-8" />
+              <p className="text-gray-600 font-medium leading-loose mb-10 italic">
+                "{solution}"
+              </p>
+              <button
+                onClick={() => setSolution(null)}
+                className="w-full py-4 bg-primary text-white rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] shadow-xl shadow-primary/20 hover:scale-[1.02] transition-all"
+              >
+                Absorb Guidance →
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <style jsx global>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 10px; }
+        
+        @media print {
+          .no-print { display: none !important; }
+          .organic-gradient { background: #fff !important; }
+          .glass { border: 1px solid #eee !important; box-shadow: none !important; backdrop-filter: none !important; background: #fff !important; }
+          .min-h-screen { padding: 0 !important; margin: 0 !important; }
+          .max-w-7xl { max-width: 100% !important; padding: 0 !important; }
+          body { font-size: 10pt !important; color: #000 !important; }
+          h1, h2, h3 { color: #000 !important; page-break-after: avoid; }
+          .overflow-x-auto { overflow: visible !important; }
+          table { page-break-inside: auto; width: 100% !important; border-collapse: collapse !important; }
+          tr { page-break-inside: avoid; page-break-after: auto; }
+          thead { display: table-header-group; }
+          
+          /* Visual adjustments for PDF/Print */
+          . radial-bar-chart { max-width: 150mm !important; }
+          .recharts-responsive-container { width: 100% !important; height: auto !important; max-height: 80mm; }
+        }
+      `}</style>
     </div>
   );
 }

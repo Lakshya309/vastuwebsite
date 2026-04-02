@@ -3,8 +3,8 @@ import { createServerSupabaseClient } from '@/lib/supabase';
 import { prisma } from '@/lib/db';
 import { redirect } from 'next/navigation';
 import AdminUserTable from './AdminUserTable';
-import AstrologerKeyGenerator from './AstrologerKeyGenerator';
 import AdminProjectTable from './AdminProjectTable';
+import AdminApplicationTable from './AdminApplicationTable';
 
 export default async function AdminPage() {
   const supabase = await createServerSupabaseClient();
@@ -78,15 +78,53 @@ export default async function AdminPage() {
     });
 
     return (
-      <div className="container mx-auto p-4">
-        <h1 className="text-2xl font-bold mb-4">Admin Dashboard</h1>
-        <AstrologerKeyGenerator />
-        <AdminUserTable users={usersWithCredits as any} />
-        <AdminProjectTable projects={transformedProjects as any} />
+      <div className="min-h-screen pt-32 px-6 lg:px-24 pb-40 relative overflow-hidden">
+        
+        {/* BACKGROUND ELEMENTS */}
+        <div className="fixed inset-0 z-0 pointer-events-none organic-gradient opacity-60" />
+
+        <div className="relative z-10 max-w-7xl mx-auto">
+          <div className="mb-20">
+            <h1 className="text-5xl md:text-8xl font-cormorant font-bold italic text-primary leading-tight">Command Center.</h1>
+            <p className="text-gray-500 mt-4 flex items-center gap-2 font-light tracking-widest uppercase text-[10px]">
+              Global Platform Governance & Astral Oversight
+            </p>
+          </div>
+
+          <div className="grid gap-16">
+            <section>
+               <h2 className="text-2xl font-cormorant font-bold italic text-primary mb-8 px-4">Practitioner Applications</h2>
+               <div className="glass rounded-[2rem] overflow-hidden border border-white">
+                 <AdminApplicationTable />
+               </div>
+            </section>
+
+            <section>
+               <h2 className="text-2xl font-cormorant font-bold italic text-primary mb-8 px-4">User Constellation</h2>
+               <div className="glass rounded-[2rem] overflow-hidden border border-white">
+                 <AdminUserTable users={usersWithCredits as any} />
+               </div>
+            </section>
+
+            <section>
+               <h2 className="text-2xl font-cormorant font-bold italic text-primary mb-8 px-4">Project Streams</h2>
+               <div className="glass rounded-[2rem] overflow-hidden border border-white">
+                 <AdminProjectTable projects={transformedProjects as any} />
+               </div>
+            </section>
+          </div>
+        </div>
       </div>
     );
   } catch (error) {
     console.error("Error loading admin data:", error);
-    return <div>Error loading admin data. Ensure the database connection is valid.</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="glass p-12 text-center rounded-[3rem] border-red-100 bg-red-50/10">
+          <p className="text-red-600 font-medium italic">Spectral Sync Error: Ensure the database frequency is stable.</p>
+        </div>
+      </div>
+    );
   }
 }
+

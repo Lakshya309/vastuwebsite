@@ -3,6 +3,8 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser"
+import { motion } from "framer-motion";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function SignupPage() {
   const [email, setEmail] = useState("");
@@ -10,6 +12,7 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const supabase = createSupabaseBrowserClient()
+  const { refresh } = useAuth();
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,60 +23,105 @@ export default function SignupPage() {
         password,
       })
       if (error) throw error
-      router.push("/projects"); // Redirect to projects list on successful signup
+      await refresh();
+      router.push("/projects"); // Redirect to dashboard on successful signup
     } catch (err: any) {
       setError(err.message);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900 flex items-center justify-center p-4">
-      <div className="bg-white p-8 rounded-2xl shadow-sm w-full max-w-md">
-        <h1 className="text-3xl font-bold text-center mb-6">Create Account</h1>
-        <form onSubmit={handleSignup}>
-          <div className="mb-4">
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-              Email
-            </label>
-            <input
-              type="email"
-              id="email"
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
+    <div className="min-h-screen relative flex items-center justify-center p-6 overflow-hidden">
+      {/* Cinematic Background */}
+      <div className="fixed inset-0 z-0 organic-gradient opacity-80" />
+      <div className="fixed inset-0 z-0 bg-white/40" />
+
+      <motion.div 
+        initial={{ opacity: 0, y: 40 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
+        className="relative z-10 w-full max-w-lg"
+      >
+        <div className="glass p-12 md:p-16 rounded-[3rem] border border-white shadow-2xl relative overflow-hidden group">
+          {/* Accent Glow */}
+          <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-teal-500/10 rounded-full blur-3xl opacity-50 group-hover:opacity-100 transition-opacity duration-1000" />
+          
+          <div className="relative z-10">
+            <div className="text-center mb-12">
+              <h1 className="text-5xl md:text-6xl font-cormorant font-bold italic text-primary leading-tight mb-2">Join Us.</h1>
+              <p className="text-gray-400 text-[10px] font-bold uppercase tracking-[0.3em]">Initialize Your Cosmic Journey</p>
+            </div>
+
+            <form onSubmit={handleSignup} className="space-y-8">
+              <div className="space-y-2">
+                <label htmlFor="email" className="block text-[9px] font-bold text-gray-400 uppercase tracking-widest ml-4">
+                  Universal Identity (Email)
+                </label>
+                <input
+                  type="email"
+                  id="email"
+                  className="w-full px-6 py-4 bg-white/50 border border-white rounded-2xl focus:outline-none focus:ring-4 focus:ring-primary/5 transition-all text-sm italic placeholder:text-gray-300 shadow-sm"
+                  placeholder="name@astral.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="password" className="block text-[9px] font-bold text-gray-400 uppercase tracking-widest ml-4">
+                  Define Access Key
+                </label>
+                <input
+                  type="password"
+                  id="password"
+                  className="w-full px-6 py-4 bg-white/50 border border-white rounded-2xl focus:outline-none focus:ring-4 focus:ring-primary/5 transition-all text-sm italic placeholder:text-gray-300 shadow-sm"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+
+              {error && (
+                <motion.p 
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="text-red-500 text-xs font-bold italic ml-4"
+                >
+                  Spectral Error: {error}
+                </motion.p>
+              )}
+
+              <button
+                type="submit"
+                className="w-full py-5 bg-primary text-white rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all duration-300"
+              >
+                Begin Integration
+              </button>
+            </form>
+
+            <div className="mt-12 text-center">
+              <p className="text-[10px] text-gray-400 font-medium">
+                Already have an account?{" "}
+                <a href="/login" className="text-primary font-bold hover:underline decoration-teal-500 decoration-2 underline-offset-4">
+                  Establish Linkage
+                </a>
+              </p>
+            </div>
+
+            <div className="mt-12 pt-8 border-t border-white/50 flex flex-col items-center">
+              <p className="text-[9px] text-gray-400 font-bold uppercase tracking-[0.2em] mb-4">Vastu Professionals</p>
+              <a
+                href="/astrologer/apply"
+                className="group flex items-center justify-center gap-2 px-8 py-4 bg-white/70 border border-white text-primary rounded-2xl hover:bg-primary hover:text-white transition-all font-bold text-[10px] uppercase tracking-widest shadow-sm hover:shadow-lg"
+              >
+                Apply for Expert Status
+              </a>
+            </div>
           </div>
-          <div className="mb-6">
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-              Password
-            </label>
-            <input
-              type="password"
-              id="password"
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-          {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
-          <button
-            type="submit"
-            className="w-full px-4 py-3 bg-indigo-600 text-white rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-          >
-            Sign Up
-          </button>
-        </form>
-        <p className="text-center text-sm text-gray-600 mt-6">
-          Already have an account?{" "}
-          <a href="/login" className="font-medium text-indigo-600 hover:text-indigo-500">
-            Login
-          </a>
-        </p>
-      </div>
+        </div>
+      </motion.div>
     </div>
   );
-}
+}

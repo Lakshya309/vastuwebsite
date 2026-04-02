@@ -2,12 +2,15 @@
 'use client';
 
 import React, { useState } from 'react';
+import { Key, Copy, CheckCircle2, Sparkles } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 export default function AstrologerKeyGenerator() {
   const [duration, setDuration] = useState(30);
   const [generatedKey, setGeneratedKey] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [copied, setCopied] = useState(false);
 
   const handleGenerateKey = async () => {
     setLoading(true);
@@ -37,58 +40,79 @@ export default function AstrologerKeyGenerator() {
 
   const handleCopyToClipboard = () => {
     navigator.clipboard.writeText(generatedKey);
-    // Optionally, show a "Copied!" message
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div className="p-6 my-6 bg-white border border-gray-200 rounded-lg shadow-md">
-      <h2 className="text-xl font-bold mb-4">Astrologer Key Generator</h2>
-      <div className="flex items-center space-x-4">
-        <div>
-          <label htmlFor="duration" className="block text-sm font-medium text-gray-700">
-            Validity (Days)
-          </label>
-          <input
-            type="number"
-            id="duration"
-            value={duration}
-            onChange={(e) => setDuration(parseInt(e.target.value, 10))}
-            className="mt-1 block w-32 px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-            min="1"
-          />
-        </div>
-        <button
-          onClick={handleGenerateKey}
-          disabled={loading}
-          className="self-end px-6 py-2 bg-blue-600 text-white font-semibold rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400"
-        >
-          {loading ? 'Generating...' : 'Generate Key'}
-        </button>
-      </div>
-
-      {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
-
-      {generatedKey && (
-        <div className="mt-6">
-          <label className="block text-sm font-medium text-gray-700">
-            Generated Key:
-          </label>
-          <div className="flex items-center mt-1">
-            <input
-              type="text"
-              readOnly
-              value={generatedKey}
-              className="flex-grow px-3 py-2 bg-gray-50 border border-gray-300 rounded-l-md shadow-sm focus:outline-none sm:text-sm"
-            />
-            <button
-              onClick={handleCopyToClipboard}
-              className="px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-r-md border border-l-0 border-gray-300 hover:bg-gray-300"
-            >
-              Copy
-            </button>
+    <div className="glass p-10 rounded-[2.5rem] border border-white shadow-xl shadow-black/[0.02] relative overflow-hidden group">
+      <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl group-hover:bg-primary/10 transition-colors" />
+      
+      <div className="relative z-10">
+        <div className="flex items-center gap-4 mb-8">
+          <div className="w-12 h-12 bg-white rounded-xl shadow-sm border border-gray-50 flex items-center justify-center text-primary">
+            <Key size={24} />
+          </div>
+          <div>
+            <h3 className="text-xl font-cormorant font-bold italic text-primary">Access Provisioning</h3>
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Generate Temporary Practitioner Tokens</p>
           </div>
         </div>
-      )}
+
+        <div className="flex flex-col md:flex-row items-end gap-6">
+          <div className="flex-1">
+            <label htmlFor="duration" className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">
+              Temporal Validity (Days)
+            </label>
+            <input
+              type="number"
+              id="duration"
+              value={duration}
+              onChange={(e) => setDuration(parseInt(e.target.value, 10))}
+              className="w-full px-6 py-4 bg-white/50 border border-white rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-light italic"
+              min="1"
+            />
+          </div>
+          <button
+            onClick={handleGenerateKey}
+            disabled={loading}
+            className="px-10 py-4 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/20 hover:scale-105 transition-all text-[10px] tracking-widest uppercase disabled:bg-gray-300 flex items-center gap-3"
+          >
+            {loading ? 'Encrypting...' : <><Sparkles size={16} /> Forge Token</>}
+          </button>
+        </div>
+
+        {error && (
+          <motion.p 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            className="mt-6 text-xs text-red-600 font-medium italic"
+          >
+            {error}
+          </motion.p>
+        )}
+
+        {generatedKey && (
+          <div className="mt-10 pt-10 border-t border-gray-100/50">
+            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">
+              Generated Credentials:
+            </label>
+            <div className="flex items-center gap-4">
+              <div className="flex-grow px-8 py-4 glass border border-teal-100 rounded-xl font-mono text-primary text-lg tracking-wider font-bold shadow-inner">
+                {generatedKey}
+              </div>
+              <button
+                onClick={handleCopyToClipboard}
+                className="p-4 bg-white border border-gray-100 text-primary hover:bg-primary hover:text-white rounded-xl transition-all shadow-sm active:scale-90"
+                title="Copy to terminal"
+              >
+                {copied ? <CheckCircle2 size={24} className="text-green-500" /> : <Copy size={24} />}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
+
