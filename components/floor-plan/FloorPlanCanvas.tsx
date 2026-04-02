@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useLayoutEffect, useState, useRef } from "react";
 import {
   Point,
   DevtaRegion,
@@ -885,7 +885,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     imageLoadedTrigger // Inject the trigger into the dependency array!
   ]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (drawingMode !== "measure") {
       setMeasureStart(null);
       setMeasureEnd(null);

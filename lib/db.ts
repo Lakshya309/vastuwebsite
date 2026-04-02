@@ -8,7 +8,6 @@ const prismaClientSingleton = () => {
   return new PrismaClient({ adapter })
 }
 
-// @ts-ignore
 const globalForPrisma = globalThis as unknown as {
   prisma: ReturnType<typeof prismaClientSingleton> | undefined
 }

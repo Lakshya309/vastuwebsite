@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 interface UserProfile {
   id: string;
@@ -62,8 +63,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     if (!supabaseUrl || !supabaseAnonKey) return;
 
-    const { createClient } = require("@supabase/supabase-js");
-    const browserClient = createClient(supabaseUrl, supabaseAnonKey);
+    const browserClient: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey);
 
     const { data: { subscription } } = browserClient.auth.onAuthStateChange(async (event: string) => {
       if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "TOKEN_REFRESHED") {
