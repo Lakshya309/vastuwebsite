@@ -54,6 +54,8 @@ export interface ProjectData {
   plot_side_left?: number | null;
   plot_side_right?: number | null;
   plot_diagonal?: number | null;
+  video_url?: string | null;
+  assigned_astrologer_id?: string | null;
   profiles?: {
     email: string | null;
   } | null;

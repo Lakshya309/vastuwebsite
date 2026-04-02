@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { Video, VideoOff } from "lucide-react";
 import { useFloorPlanData } from "@/hooks/useFloorPlanData";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useFloorPlanAnalysis } from "@/hooks/useFloorPlanAnalysis";
@@ -10,9 +11,12 @@ import { useMarmaAnalysis } from "@/hooks/useMarmaAnalysis";
 import { FloorPlanCanvas } from "@/components/floor-plan/FloorPlanCanvas";
 import { ControlPanel } from "@/components/floor-plan/ControlPanel";
 import { DevtaInfoCard } from "@/components/floor-plan/DevtaInfoCard";
+
 import { PlacedObject, DevtaRegion, Point, Wall } from "@/lib/floorPlanInterfaces";
 import { OBJECT_ICONS } from "@/lib/objectIcons";
 import { TutorialOverlay, TutorialStep } from "@/components/floor-plan/TutorialOverlay";
+import { ResizableLayout } from "@/components/floor-plan/ResizableLayout";
+import { VideoPlayer } from "@/components/floor-plan/VideoPlayer";
 
 export default function FloorPlanPage() {
   const params = useParams();
@@ -44,6 +48,7 @@ export default function FloorPlanPage() {
     marma: false,
     shaktiChakra: false,
   });
+  const [showVideo, setShowVideo] = useState(false);
   const [selectedObjectType, setSelectedObjectType] = useState("Toilet");
   const [drawingObjectBoundary, setDrawingObjectBoundary] = useState<Point[]>(
     [],
@@ -81,37 +86,37 @@ export default function FloorPlanPage() {
     {
       targetId: "viewport",
       title: "Welcome to Vastu Studio",
-      content: "Let's take a quick tour to help you design your perfect Vastu-compliant floor plan.",
+      content: "Design your Vastu-compliant floor plan in a few simple steps.",
       position: "center"
     },
     {
       targetId: "tutorial-dimensions",
       title: "Set Your Plot Size",
-      content: "Start by entering your plot's Width and Length. This ensures all your measurements are accurate.",
+      content: "Enter your plot's Width and Length to get accurate measurements.",
       position: "left"
     },
     {
       targetId: "tutorial-north",
-      title: "Align with Truth North",
-      content: "Use this slider to align your plan with geographic North. Vastu is all about directions!",
+      title: "Set North Direction",
+      content: "Use this slider to set which direction your plot faces using a compass.",
       position: "left"
     },
     {
       targetId: "tutorial-objects",
-      title: "Place Your Rooms",
-      content: "Drag or click items from the Palette to place them on the canvas. Toilets, Kitchens, and Beds have specific zones!",
+      title: "Place Room Items",
+      content: "Click items from the list to place them on your floor plan. Each item has an ideal direction in Vastu.",
       position: "left"
     },
     {
       targetId: "tutorial-layers",
-      title: "Analyze Energy Grids",
-      content: "Toggle between 45 Devtas or 16 Zones to see how energy flows through your plan.",
+      title: "View Energy Grids",
+      content: "Toggle different grids to see how energy flows through your plan.",
       position: "left"
     },
     {
       targetId: "tutorial-analyze",
       title: "Get Your Report",
-      content: "Once you're happy with the placement, click here to generate a detailed Vastu compliance report.",
+      content: "Click here to generate a detailed Vastu analysis report for your floor plan.",
       position: "left"
     }
   ];
@@ -212,7 +217,9 @@ export default function FloorPlanPage() {
   } = useFloorPlanAnalysis();
   const { marmaData, isLoading: isMarmaAnalyzing, error: marmaError } = useMarmaAnalysis(currentAnalysisId);
 
-  const isManualMode = !!(project?.plot_width && project?.plot_height);
+  const isManualMode = !!(project?.plot_width && project?.plot_height) || 
+                     !!(project?.plot_side_front && project?.plot_side_back && 
+                        project?.plot_side_left && project?.plot_side_right);
 
   const debouncedBoundary = useDebounce(boundary, 500);
   const debouncedNorthDirection = useDebounce(liveNorthDirection, 500);
@@ -248,7 +255,7 @@ export default function FloorPlanPage() {
         const b = project.plot_side_back! * unitFactor;  // Back
         const c = project.plot_side_left! * unitFactor;  // Left
         const d = project.plot_side_right! * unitFactor; // Right
-        
+
         let e;
         if (project.plot_diagonal) {
           e = project.plot_diagonal * unitFactor;
@@ -273,10 +280,10 @@ export default function FloorPlanPage() {
         // Cosine of angle at Front-Left vertex relative to Diagonal
         const cosAngleFL = (c * c + e * e - b * b) / (2 * c * e);
         const angleFL = Math.acos(Math.max(-1, Math.min(1, cosAngleFL)));
-        
+
         // Angle of Diagonal vector (FL to BR)
         const angleDiag = Math.atan2(p2.y, p2.x);
-        
+
         // Back-Left vertex
         const p3 = {
           x: c * Math.cos(angleDiag + angleFL),
@@ -376,6 +383,7 @@ export default function FloorPlanPage() {
       }
     }
   }, [
+    boundary,
     project?.plot_width,
     project?.plot_height,
     project?.plot_side_front,
@@ -734,187 +742,394 @@ export default function FloorPlanPage() {
   });
 
   return (
-    <div className="h-screen bg-gray-100 flex flex-col overflow-hidden">
+    <div className="h-screen relative flex flex-col overflow-hidden bg-white/20">
+      {/* BACKGROUND ELEMENTS */}
+      <div className="fixed inset-0 z-0 pointer-events-none organic-gradient opacity-40" />
+
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 shrink-0 z-10">
-        <div className="flex items-center gap-4">
+      <header className="relative z-20 glass border-b border-white/50 h-20 flex items-center justify-between px-8 shrink-0 shadow-lg backdrop-blur-3xl">
+        <div className="flex items-center gap-6">
           <Link
             href={`/projects/${projectId}`}
-            className="text-gray-500 hover:text-gray-800"
+            className="flex items-center justify-center w-10 h-10 bg-white/50 rounded-xl text-primary hover:bg-primary hover:text-white transition-all shadow-sm border border-white"
           >
-            ← Back
+            ←
           </Link>
-          <h1 className="text-xl font-bold text-gray-800">
-            {project?.name || "Untitled Project"}{" "}
-            <span className="text-gray-400 font-normal">/ Vastu Studio</span>
-          </h1>
+          <div className="flex flex-col">
+            <h1 className="text-2xl font-cormorant font-bold italic text-primary leading-none">
+              {project?.name || "Floor Plan"}
+            </h1>
+            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.2em] mt-1 italic">Vastu Analysis</span>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <button className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded">
+          <div className="flex items-center gap-4">
+          {project?.video_url && (
+            <button
+              onClick={() => setShowVideo(!showVideo)}
+              className={`px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-2xl transition-all flex items-center gap-2 border shadow-sm ${
+                showVideo 
+                  ? 'bg-teal-500 text-white border-teal-600 shadow-teal-200' 
+                  : 'bg-white/70 text-primary border-white hover:bg-white'
+              }`}
+            >
+              {showVideo ? <VideoOff size={14} /> : <Video size={14} />}
+              {showVideo ? 'Close Video' : 'Open Video'}
+            </button>
+          )}
+          <button className="px-6 py-2.5 text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-primary transition-colors">
             Save Draft
           </button>
         </div>
       </header>
 
       {/* Main Workspace */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Canvas Area (Left) */}
-        <div className="flex-1 bg-gray-50 relative overflow-hidden flex items-center justify-center p-8">
-          <div className="bg-white shadow-2xl rounded-lg overflow-hidden relative">
-            <FloorPlanCanvas
-              floorPlanImage={floorPlanImage}
-              boundary={boundary}
-              onDrawBoundary={handleDrawBoundary}
-              placedObjects={placedObjects}
-              onMoveObject={handleMoveObject}
-              onResizeObject={handleResizeObject}
-              onRotateObject={handleRotateObject}
-              onDeleteObject={handleDeleteObject}
-              objectSvgMap={proxiedObjectSvgMap}
-              devtaRegions={showGrid.devta45 ? devtaRegions : []}
-              zone16Regions={showGrid.zone16 ? zones16 : []}
-              zone8Regions={showGrid.zone8 ? zones8 : []}
-              marmaData={showGrid.marma ? marmaData : null}
-              shaktiChakra={showGrid.shaktiChakra}
-              shaktiChakraSize={shaktiChakraSize}
-              shaktiChakraType={shaktiChakraType}
-              plotCentroid={plotCentroid}
-              onDevtaClick={handleDevtaClick}
-              onZoneClick={handleZoneClick}
-              drawingMode={drawingMode}
-              setDrawingMode={setDrawingMode}
-              onPlaceObject={handlePlaceObject}
-              onCanvasClick={handleCanvasClick}
-              drawingObjectBoundary={drawingObjectBoundary}
-              setDrawingObjectBoundary={setDrawingObjectBoundary}
-              selectedObjectType={selectedObjectType}
-              northDirection={liveNorthDirection}
-              scale={scale ? scale / unitFactor : null}
-              wallLengths={wallLengths}
-              setReferenceWallIndex={setReferenceWallIndex}
-              referenceWallIndex={referenceWallIndex}
-              wallColors={wallColors}
-              plotWidth={project?.plot_width}
-              plotHeight={project?.plot_height}
-              highlightedZones={highlightedZones}
-              walls={walls}
-              onAddWall={handleAddWall}
-              onSelectWall={setSelectedWall}
-              selectedWall={selectedWall}
-              onMoveBoundaryVertex={handleMoveBoundaryVertex}
-            />
-
-            {/* Overlay Status Indicators */}
-            <div className="absolute top-4 left-4 flex flex-col gap-2">
-              {showGrid.devta45 && (
-                <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded shadow">
-                  45 Devtas ON
-                </span>
-              )}
-              {showGrid.zone16 && (
-                <span className="bg-indigo-600 text-white text-xs px-2 py-1 rounded shadow">
-                  16 Zones ON
-                </span>
-              )}
-              {showGrid.zone8 && (
-                <span className="bg-purple-600 text-white text-xs px-2 py-1 rounded shadow">
-                  8 Zones ON
-                </span>
-              )}
-            </div>
-
-            {selectedDevta && (
-              <DevtaInfoCard
-                devta={selectedDevta}
-                onClose={handleCloseDevtaCard}
-              />
-            )}
-            {selectedZone && (
-              <DevtaInfoCard
-                devta={selectedZone}
-                onClose={handleCloseZoneCard}
-              />
-            )}
-          </div>
-        </div>
-
-        {/* Control Panel (Right) */}
-        <ControlPanel
-          projectId={projectId}
-          error={error || analysisError}
-          loading={loading}
-          showGrid={showGrid}
-          setShowGrid={setShowGrid}
-          gridType={gridType}
-          onGridTypeChange={(val) => {
-            setGridType(val);
-            if (currentAnalysisId) {
-              fetchDetailedAnalysisResults(currentAnalysisId, "devta", val);
+      <div className="flex-1 flex overflow-hidden min-h-0">
+        {showVideo && project?.video_url ? (
+          <ResizableLayout
+            minLeftWidth={380}
+            maxLeftWidth={700}
+            defaultLeftWidth={500}
+            leftPanel={
+              <div className="h-full bg-gray-900 flex flex-col">
+                {/* Video Player - fills available space */}
+                <div className="flex-1 min-h-0">
+                  <VideoPlayer
+                    url={project.video_url}
+                    onClose={() => setShowVideo(false)}
+                    title={`Video Analysis - ${project.name}`}
+                    className="h-full"
+                  />
+                </div>
+                {/* Info Panel */}
+                <div className="p-4 bg-gray-800/90 backdrop-blur-sm border-t border-gray-700/50">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="w-2 h-2 bg-teal-400 rounded-full animate-pulse" />
+                    <h4 className="text-white text-xs font-semibold">Video Analysis Mode</h4>
+                  </div>
+                  <p className="text-gray-400 text-[10px] leading-relaxed">
+                    Pause the video to place objects on your floor plan. Use it to verify structural elements.
+                  </p>
+                </div>
+              </div>
             }
-          }}
-          plotWidth={project?.plot_width}
-          plotHeight={project?.plot_height}
-          plotSideFront={project?.plot_side_front}
-          plotSideBack={project?.plot_side_back}
-          plotSideLeft={project?.plot_side_left}
-          plotSideRight={project?.plot_side_right}
-          plotDiagonal={project?.plot_diagonal}
-          setProject={setProject}
-          plotAngle={plotAngle}
-          setPlotAngle={setPlotAngle}
-          liveNorthDirection={liveNorthDirection}
-          setLiveNorthDirection={setLiveNorthDirection}
-          selectedFile={selectedFile}
-          handleImageUpload={handleImageUpload}
-          handleStartDrawingBoundary={handleStartDrawingBoundary}
-          handleFinishDrawingBoundary={handleFinishDrawingBoundary}
-          handleReupload={handleReupload}
-          handleResetBoundary={handleResetBoundary}
-          handleUndoLastPoint={handleUndoLastPoint}
-          selectedObjectType={selectedObjectType}
-          setSelectedObjectType={setSelectedObjectType}
-          handleAddObject={handleAddObject}
-          placedObjects={placedObjects}
-          devtaRegions={devtaRegions}
-          zone16Regions={zones16}
-          zone8Regions={zones8}
-          drawingMode={drawingMode}
-          setDrawingMode={setDrawingMode}
-          boundary={boundary}
-          handleSaveChanges={handleSaveChanges}
-          handleSaveObjects={handleSaveObjects}
-          // Manual mode support
-          isManualMode={isManualMode}
-          // New analysis props
-          isAnalyzing={isAnalyzing}
-          analysisStale={analysisStale}
-          shaktiChakraSize={shaktiChakraSize}
-          setShaktiChakraSize={setShaktiChakraSize}
-          shaktiChakraType={shaktiChakraType}
-          setShaktiChakraType={setShaktiChakraType}
-          scale={scale}
-          setScale={setScale}
-          wallLengths={wallLengths}
-          setWallLengths={setWallLengths}
-          referenceWallIndex={referenceWallIndex}
-          setReferenceWallIndex={setReferenceWallIndex}
-          referenceWallLength={referenceWallLength}
-          setReferenceWallLength={setReferenceWallLength}
-          referenceWallUnit={referenceWallUnit}
-          setReferenceWallUnit={setReferenceWallUnit}
-          wallColors={wallColors}
-          setWallColors={setWallColors}
-          selectedProblem={selectedProblem}
-          setSelectedProblem={setSelectedProblem}
-          setHighlightedZones={setHighlightedZones}
-          // Wall props
-          walls={walls}
-          onAddWall={handleAddWall}
-          onUpdateWall={handleUpdateWall}
-          onDeleteWall={handleDeleteWall}
-          selectedWall={selectedWall}
-          onSelectWall={setSelectedWall}
-        />
+            rightPanel={
+              <div className="flex h-full min-h-0">
+                <div className="flex-1 bg-gray-50 relative overflow-hidden flex items-center justify-center p-4">
+                  <div className="bg-white shadow-2xl rounded-lg overflow-hidden relative">
+                    <FloorPlanCanvas
+                      floorPlanImage={floorPlanImage}
+                      boundary={boundary}
+                      onDrawBoundary={handleDrawBoundary}
+                      placedObjects={placedObjects}
+                      onMoveObject={handleMoveObject}
+                      onResizeObject={handleResizeObject}
+                      onRotateObject={handleRotateObject}
+                      onDeleteObject={handleDeleteObject}
+                      objectSvgMap={proxiedObjectSvgMap}
+                      devtaRegions={showGrid.devta45 ? devtaRegions : []}
+                      zone16Regions={showGrid.zone16 ? zones16 : []}
+                      zone8Regions={showGrid.zone8 ? zones8 : []}
+                      marmaData={showGrid.marma ? marmaData : null}
+                      shaktiChakra={showGrid.shaktiChakra}
+                      shaktiChakraSize={shaktiChakraSize}
+                      shaktiChakraType={shaktiChakraType}
+                      plotCentroid={plotCentroid}
+                      onDevtaClick={handleDevtaClick}
+                      onZoneClick={handleZoneClick}
+                      drawingMode={drawingMode}
+                      setDrawingMode={setDrawingMode}
+                      onPlaceObject={handlePlaceObject}
+                      onCanvasClick={handleCanvasClick}
+                      drawingObjectBoundary={drawingObjectBoundary}
+                      setDrawingObjectBoundary={setDrawingObjectBoundary}
+                      selectedObjectType={selectedObjectType}
+                      northDirection={liveNorthDirection}
+                      scale={scale ? scale / unitFactor : null}
+                      wallLengths={wallLengths}
+                      setReferenceWallIndex={setReferenceWallIndex}
+                      referenceWallIndex={referenceWallIndex}
+                      wallColors={wallColors}
+                      plotWidth={project?.plot_width}
+                      plotHeight={project?.plot_height}
+                      highlightedZones={highlightedZones}
+                      walls={walls}
+                      onAddWall={handleAddWall}
+                      onSelectWall={setSelectedWall}
+                      selectedWall={selectedWall}
+                      onMoveBoundaryVertex={handleMoveBoundaryVertex}
+                    />
+
+                    {/* Overlay Status Indicators */}
+                    <div className="absolute top-4 left-4 flex flex-col gap-2">
+                      {showGrid.devta45 && (
+                        <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded shadow">
+                          45 Energy Zones
+                        </span>
+                      )}
+                      {showGrid.zone16 && (
+                        <span className="bg-indigo-600 text-white text-xs px-2 py-1 rounded shadow">
+                          16 Zones
+                        </span>
+                      )}
+                      {showGrid.zone8 && (
+                        <span className="bg-purple-600 text-white text-xs px-2 py-1 rounded shadow">
+                          8 Directions
+                        </span>
+                      )}
+                    </div>
+
+                    {selectedDevta && (
+                      <DevtaInfoCard
+                        devta={selectedDevta}
+                        onClose={handleCloseDevtaCard}
+                      />
+                    )}
+                    {selectedZone && (
+                      <DevtaInfoCard
+                        devta={selectedZone}
+                        onClose={handleCloseZoneCard}
+                      />
+                    )}
+                  </div>
+                </div>
+
+                {/* Control Panel (Right) */}
+                <div className="h-full overflow-y-auto flex-shrink-0">
+                  <ControlPanel
+                    projectId={projectId}
+                    error={error || analysisError}
+                    loading={loading}
+                    showGrid={showGrid}
+                    setShowGrid={setShowGrid}
+                    gridType={gridType}
+                    onGridTypeChange={(val) => {
+                      setGridType(val);
+                      if (currentAnalysisId) {
+                        fetchDetailedAnalysisResults(currentAnalysisId, "devta", val);
+                      }
+                    }}
+                    plotWidth={project?.plot_width}
+                    plotHeight={project?.plot_height}
+                    plotSideFront={project?.plot_side_front}
+                    plotSideBack={project?.plot_side_back}
+                    plotSideLeft={project?.plot_side_left}
+                    plotSideRight={project?.plot_side_right}
+                    plotDiagonal={project?.plot_diagonal}
+                    setProject={setProject}
+                    plotAngle={plotAngle}
+                    setPlotAngle={setPlotAngle}
+                    liveNorthDirection={liveNorthDirection}
+                    setLiveNorthDirection={setLiveNorthDirection}
+                    selectedFile={selectedFile}
+                    handleImageUpload={handleImageUpload}
+                    handleStartDrawingBoundary={handleStartDrawingBoundary}
+                    handleFinishDrawingBoundary={handleFinishDrawingBoundary}
+                    handleReupload={handleReupload}
+                    handleResetBoundary={handleResetBoundary}
+                    handleUndoLastPoint={handleUndoLastPoint}
+                    selectedObjectType={selectedObjectType}
+                    setSelectedObjectType={setSelectedObjectType}
+                    handleAddObject={handleAddObject}
+                    placedObjects={placedObjects}
+                    devtaRegions={devtaRegions}
+                    zone16Regions={zones16}
+                    zone8Regions={zones8}
+                    drawingMode={drawingMode}
+                    setDrawingMode={setDrawingMode}
+                    boundary={boundary}
+                    handleSaveChanges={handleSaveChanges}
+                    handleSaveObjects={handleSaveObjects}
+                    isManualMode={isManualMode}
+                    isAnalyzing={isAnalyzing}
+                    analysisStale={analysisStale}
+                    shaktiChakraSize={shaktiChakraSize}
+                    setShaktiChakraSize={setShaktiChakraSize}
+                    shaktiChakraType={shaktiChakraType}
+                    setShaktiChakraType={setShaktiChakraType}
+                    scale={scale}
+                    setScale={setScale}
+                    wallLengths={wallLengths}
+                    setWallLengths={setWallLengths}
+                    referenceWallIndex={referenceWallIndex}
+                    setReferenceWallIndex={setReferenceWallIndex}
+                    referenceWallLength={referenceWallLength}
+                    setReferenceWallLength={setReferenceWallLength}
+                    referenceWallUnit={referenceWallUnit}
+                    setReferenceWallUnit={setReferenceWallUnit}
+                    wallColors={wallColors}
+                    setWallColors={setWallColors}
+                    selectedProblem={selectedProblem}
+                    setSelectedProblem={setSelectedProblem}
+                    setHighlightedZones={setHighlightedZones}
+                    // Wall props
+                    walls={walls}
+                    onAddWall={handleAddWall}
+                    onUpdateWall={handleUpdateWall}
+                    onDeleteWall={handleDeleteWall}
+                    selectedWall={selectedWall}
+                    onSelectWall={setSelectedWall}
+                  />
+                </div>
+              </div>
+            }
+          />
+        ) : (
+          <div className="flex-1 flex h-full min-h-0">
+            <div className="flex-1 bg-gray-50 relative overflow-hidden flex items-center justify-center p-4">
+              <div className="bg-white shadow-2xl rounded-lg overflow-hidden relative">
+                <FloorPlanCanvas
+                  floorPlanImage={floorPlanImage}
+                  boundary={boundary}
+                  onDrawBoundary={handleDrawBoundary}
+                  placedObjects={placedObjects}
+                  onMoveObject={handleMoveObject}
+                  onResizeObject={handleResizeObject}
+                  onRotateObject={handleRotateObject}
+                  onDeleteObject={handleDeleteObject}
+                  objectSvgMap={proxiedObjectSvgMap}
+                  devtaRegions={showGrid.devta45 ? devtaRegions : []}
+                  zone16Regions={showGrid.zone16 ? zones16 : []}
+                  zone8Regions={showGrid.zone8 ? zones8 : []}
+                  marmaData={showGrid.marma ? marmaData : null}
+                  shaktiChakra={showGrid.shaktiChakra}
+                  shaktiChakraSize={shaktiChakraSize}
+                  shaktiChakraType={shaktiChakraType}
+                  plotCentroid={plotCentroid}
+                  onDevtaClick={handleDevtaClick}
+                  onZoneClick={handleZoneClick}
+                  drawingMode={drawingMode}
+                  setDrawingMode={setDrawingMode}
+                  onPlaceObject={handlePlaceObject}
+                  onCanvasClick={handleCanvasClick}
+                  drawingObjectBoundary={drawingObjectBoundary}
+                  setDrawingObjectBoundary={setDrawingObjectBoundary}
+                  selectedObjectType={selectedObjectType}
+                  northDirection={liveNorthDirection}
+                  scale={scale ? scale / unitFactor : null}
+                  wallLengths={wallLengths}
+                  setReferenceWallIndex={setReferenceWallIndex}
+                  referenceWallIndex={referenceWallIndex}
+                  wallColors={wallColors}
+                  plotWidth={project?.plot_width}
+                  plotHeight={project?.plot_height}
+                  highlightedZones={highlightedZones}
+                  walls={walls}
+                  onAddWall={handleAddWall}
+                  onSelectWall={setSelectedWall}
+                  selectedWall={selectedWall}
+                  onMoveBoundaryVertex={handleMoveBoundaryVertex}
+                />
+
+                {/* Overlay Status Indicators */}
+                <div className="absolute top-4 left-4 flex flex-col gap-2">
+                  {showGrid.devta45 && (
+                    <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded shadow">
+                      45 Energy Zones
+                    </span>
+                  )}
+                  {showGrid.zone16 && (
+                    <span className="bg-indigo-600 text-white text-xs px-2 py-1 rounded shadow">
+                      16 Zones
+                    </span>
+                  )}
+                  {showGrid.zone8 && (
+                    <span className="bg-purple-600 text-white text-xs px-2 py-1 rounded shadow">
+                      8 Directions
+                    </span>
+                  )}
+                </div>
+
+                {selectedDevta && (
+                  <DevtaInfoCard
+                    devta={selectedDevta}
+                    onClose={handleCloseDevtaCard}
+                  />
+                )}
+                {selectedZone && (
+                  <DevtaInfoCard
+                    devta={selectedZone}
+                    onClose={handleCloseZoneCard}
+                  />
+                )}
+              </div>
+            </div>
+            <div className="h-full overflow-y-auto flex-shrink-0">
+              <ControlPanel
+                projectId={projectId}
+                error={error || analysisError}
+                loading={loading}
+                showGrid={showGrid}
+                setShowGrid={setShowGrid}
+                gridType={gridType}
+                onGridTypeChange={(val) => {
+                  setGridType(val);
+                  if (currentAnalysisId) {
+                    fetchDetailedAnalysisResults(currentAnalysisId, "devta", val);
+                  }
+                }}
+                plotWidth={project?.plot_width}
+                plotHeight={project?.plot_height}
+                plotSideFront={project?.plot_side_front}
+                plotSideBack={project?.plot_side_back}
+                plotSideLeft={project?.plot_side_left}
+                plotSideRight={project?.plot_side_right}
+                plotDiagonal={project?.plot_diagonal}
+                setProject={setProject}
+                plotAngle={plotAngle}
+                setPlotAngle={setPlotAngle}
+                liveNorthDirection={liveNorthDirection}
+                setLiveNorthDirection={setLiveNorthDirection}
+                selectedFile={selectedFile}
+                handleImageUpload={handleImageUpload}
+                handleStartDrawingBoundary={handleStartDrawingBoundary}
+                handleFinishDrawingBoundary={handleFinishDrawingBoundary}
+                handleReupload={handleReupload}
+                handleResetBoundary={handleResetBoundary}
+                handleUndoLastPoint={handleUndoLastPoint}
+                selectedObjectType={selectedObjectType}
+                setSelectedObjectType={setSelectedObjectType}
+                handleAddObject={handleAddObject}
+                placedObjects={placedObjects}
+                devtaRegions={devtaRegions}
+                zone16Regions={zones16}
+                zone8Regions={zones8}
+                drawingMode={drawingMode}
+                setDrawingMode={setDrawingMode}
+                boundary={boundary}
+                handleSaveChanges={handleSaveChanges}
+                handleSaveObjects={handleSaveObjects}
+                isManualMode={isManualMode}
+                isAnalyzing={isAnalyzing}
+                analysisStale={analysisStale}
+                shaktiChakraSize={shaktiChakraSize}
+                setShaktiChakraSize={setShaktiChakraSize}
+                shaktiChakraType={shaktiChakraType}
+                setShaktiChakraType={setShaktiChakraType}
+                scale={scale}
+                setScale={setScale}
+                wallLengths={wallLengths}
+                setWallLengths={setWallLengths}
+                referenceWallIndex={referenceWallIndex}
+                setReferenceWallIndex={setReferenceWallIndex}
+                referenceWallLength={referenceWallLength}
+                setReferenceWallLength={setReferenceWallLength}
+                referenceWallUnit={referenceWallUnit}
+                setReferenceWallUnit={setReferenceWallUnit}
+                wallColors={wallColors}
+                setWallColors={setWallColors}
+                selectedProblem={selectedProblem}
+                setSelectedProblem={setSelectedProblem}
+                setHighlightedZones={setHighlightedZones}
+                walls={walls}
+                onAddWall={handleAddWall}
+                onUpdateWall={handleUpdateWall}
+                onDeleteWall={handleDeleteWall}
+                selectedWall={selectedWall}
+                onSelectWall={setSelectedWall}
+              />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

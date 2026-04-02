@@ -46,13 +46,16 @@ model map_plots {
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model profiles {
-  id         String     @id @db.Uuid
-  email      String?
-  role       String     @default("user")
-  created_at DateTime?  @default(now()) @db.Timestamptz(6)
-  valid_from DateTime?  @db.Timestamptz(6)
-  valid_to   DateTime?  @db.Timestamptz(6)
-  projects   projects[]
+  id                      String                    @id @db.Uuid
+  email                   String?
+  role                    String                    @default("user")
+  created_at              DateTime?                 @default(now()) @db.Timestamptz(6)
+  valid_from              DateTime?                 @db.Timestamptz(6)
+  valid_to                DateTime?                 @db.Timestamptz(6)
+  unique_code             String?                   @unique
+  astrologer_applications astrologer_applications[]
+  assigned_projects       projects[]                @relation("ProjectToAstrologer")
+  projects                projects[]
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -85,15 +88,18 @@ model projects {
   active_map_plot_id                               String?           @db.Uuid
   plot_width                                       Float?
   plot_height                                      Float?
-  plot_side_front                                  Float?
+  plot_diagonal                                    Float?
   plot_side_back                                   Float?
+  plot_side_front                                  Float?
   plot_side_left                                   Float?
   plot_side_right                                  Float?
-  plot_diagonal                                    Float?
+  assigned_astrologer_id                           String?           @db.Uuid
+  video_path                                       String?
   analyses                                         analyses[]
   map_plots_map_plots_project_idToprojects         map_plots[]       @relation("map_plots_project_idToprojects")
   project_objects                                  project_objects[]
   map_plots_projects_active_map_plot_idTomap_plots map_plots?        @relation("projects_active_map_plot_idTomap_plots", fields: [active_map_plot_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  astrologer                                       profiles?         @relation("ProjectToAstrologer", fields: [assigned_astrologer_id], references: [id], onUpdate: NoAction)
   profiles                                         profiles          @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 
@@ -111,6 +117,15 @@ model astrologer_keys {
   claimed_by    String?   @db.Uuid
   claimed_at    DateTime? @db.Timestamptz(6)
   created_at    DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+model astrologer_applications {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id     String    @db.Uuid
+  status      String    @default("PENDING")
+  created_at  DateTime  @default(now()) @db.Timestamptz(6)
+  reviewed_at DateTime? @db.Timestamptz(6)
+  profiles    profiles  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 
 enum color_type {

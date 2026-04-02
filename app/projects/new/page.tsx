@@ -16,6 +16,7 @@ export default function NewProjectPage() {
   const [sideLeft, setSideLeft] = useState("");
   const [sideRight, setSideRight] = useState("");
   const [diagonal, setDiagonal] = useState("");
+  const [astrologerCode, setAstrologerCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -42,6 +43,7 @@ export default function NewProjectPage() {
           plot_side_left: plotType === "manual" && isIrregular ? parseFloat(sideLeft) : null,
           plot_side_right: plotType === "manual" && isIrregular ? parseFloat(sideRight) : null,
           plot_diagonal: plotType === "manual" && isIrregular ? parseFloat(diagonal) : null,
+          astrologer_code: astrologerCode || null,
         }),
       });
 
@@ -96,6 +98,20 @@ export default function NewProjectPage() {
               onChange={(e) => setReportFor(e.target.value)}
               required
             />
+            
+            <div className="pt-2">
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">Connect with Expert</label>
+              <input
+                type="text"
+                className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all font-mono placeholder:font-sans"
+                placeholder="EXPERT-CODE-123 (Optional)"
+                value={astrologerCode}
+                onChange={(e) => setAstrologerCode(e.target.value.toUpperCase())}
+              />
+              <p className="text-[10px] text-gray-400 mt-2 ml-1 italic">
+                *Entering an expert code will automatically share this project with your consultant.
+              </p>
+            </div>
 
             <div className="flex gap-4 p-1 bg-gray-100 rounded-lg">
               <button

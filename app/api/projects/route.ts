@@ -19,6 +19,26 @@ export async function POST(req: NextRequest) {
     }
     const uid = user.id;
 
+    let profile = await prisma.profiles.findUnique({
+      where: { id: uid }
+    });
+
+    if (!profile) {
+      profile = await prisma.profiles.create({
+        data: {
+          id: uid,
+          email: user.email,
+          role: "user"
+        }
+      });
+
+      await prisma.user_credits.upsert({
+        where: { user_id: uid },
+        update: {},
+        create: { user_id: uid, credits: 0 }
+      });
+    }
+
     const {
       name,
       creator_name,
@@ -29,14 +49,25 @@ export async function POST(req: NextRequest) {
       plot_side_back,
       plot_side_left,
       plot_side_right,
-      plot_diagonal
+      plot_diagonal,
+      astrologer_code
     } = await req.json();
 
     if (!name) {
       return NextResponse.json(
-        { message: "Project name is required" },
+        { message: "Name is required" },
         { status: 400 }
       );
+    }
+
+    let assigned_astrologer_id = null;
+    if (astrologer_code) {
+      const astrologerProfile = await prisma.profiles.findUnique({
+        where: { unique_code: astrologer_code }
+      });
+      if (astrologerProfile) {
+        assigned_astrologer_id = astrologerProfile.id;
+      }
     }
 
     const newProject = await prisma.projects.create({
@@ -52,6 +83,7 @@ export async function POST(req: NextRequest) {
         plot_side_left: plot_side_left ? parseFloat((plot_side_left as any).toString()) : null,
         plot_side_right: plot_side_right ? parseFloat((plot_side_right as any).toString()) : null,
         plot_diagonal: plot_diagonal ? parseFloat((plot_diagonal as any).toString()) : null,
+        assigned_astrologer_id: assigned_astrologer_id
       }
     });
 

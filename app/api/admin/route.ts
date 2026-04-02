@@ -42,7 +42,10 @@ export async function POST(req: NextRequest) {
             { status: 400 }
           );
         }
-        await prisma.$executeRaw`SELECT admin_update_user_role(${userId}::uuid, ${newRole})`;
+        await prisma.profiles.update({
+          where: { id: userId },
+          data: { role: newRole }
+        });
         break;
 
       case "adjustCredits":
@@ -52,7 +55,11 @@ export async function POST(req: NextRequest) {
             { status: 400 }
           );
         }
-        await prisma.$executeRaw`SELECT admin_adjust_user_credits(${userId}::uuid, ${amount})`;
+        await prisma.user_credits.upsert({
+          where: { user_id: userId },
+          update: { credits: { increment: amount } },
+          create: { user_id: userId, credits: amount }
+        });
         break;
 
       case "updateAstrologerAccess":
@@ -62,7 +69,13 @@ export async function POST(req: NextRequest) {
             { status: 400 }
           );
         }
-        await prisma.$executeRaw`SELECT admin_update_astrologer_access(${userId}::uuid, ${validFrom}::timestamp, ${validTo}::timestamp)`;
+        await prisma.profiles.update({
+          where: { id: userId },
+          data: { 
+            valid_from: new Date(validFrom), 
+            valid_to: new Date(validTo) 
+          }
+        });
         break;
 
       default:
