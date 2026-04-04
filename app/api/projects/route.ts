@@ -93,7 +93,12 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
+  console.log("=== DEBUG ===");
+  console.log("Auth header:", req.headers.get('Authorization')?.substring(0, 20) + "...");
+  
   const authResult = await validateAuth(req as Request);
+  console.log("Auth result:", authResult.error ? `Error: ${authResult.error}` : `Success: ${authResult.user?.id}`);
+  
   if (authResult.error) {
     return NextResponse.json({ message: authResult.error }, { status: authResult.status });
   }
