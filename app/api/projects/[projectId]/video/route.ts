@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase";
+import { validateAuth } from "@/lib/supabase-server-api";
 import { prisma } from "@/lib/db";
 import { r2Client, BUCKET_NAME } from "@/lib/r2";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
@@ -43,26 +43,18 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ projectId: string }> }
 ) {
-  const supabase = await createServerSupabaseClient();
+  const authResult = await validateAuth(req as Request);
+  if (authResult.error) {
+    return NextResponse.json({ message: authResult.error }, { status: authResult.status });
+  }
   const { projectId } = await params;
+  const uid = authResult.user!.id;
 
   // Temporary file paths for cleanup
   let tempInputPath: string | null = null;
   let tempOutputPath: string | null = null;
 
   try {
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser();
-    if (error || !user) {
-      return NextResponse.json(
-        { message: "Unauthorized: No token provided" },
-        { status: 401 }
-      );
-    }
-    const uid = user.id;
-
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
 

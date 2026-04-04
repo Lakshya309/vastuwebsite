@@ -1,24 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "../../../lib/supabase";
+import { validateAuth } from "../../../lib/supabase-server-api";
 import { prisma } from "../../../lib/db";
 
 export async function POST(req: NextRequest) {
-  const supabase = await createServerSupabaseClient();
+  const authResult = await validateAuth(req as Request);
+  if (authResult.error) {
+    return NextResponse.json({ message: authResult.error }, { status: authResult.status });
+  }
+  const uid = authResult.user!.id;
+  const user = authResult.user!;
 
   try {
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { message: "Unauthorized: Invalid token" },
-        { status: 401 }
-      );
-    }
-    const uid = user.id;
-
     let profile = await prisma.profiles.findUnique({
       where: { id: uid }
     });
@@ -101,23 +93,15 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  const supabase = await createServerSupabaseClient();
+  const authResult = await validateAuth(req as Request);
+  if (authResult.error) {
+    return NextResponse.json({ message: authResult.error }, { status: authResult.status });
+  }
   try {
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { message: "Unauthorized: Invalid token" },
-        { status: 401 }
-      );
-    }
 
     const projectsList = await prisma.projects.findMany({
       where: {
-        user_id: user.id, // Explicitly enforce user isolation (RLS substitute)
+        user_id: authResult.user!.id, // Explicitly enforce user isolation (RLS substitute)
         deleted_at: null,
       },
       orderBy: {
