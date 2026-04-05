@@ -16,7 +16,6 @@ export default function NewProjectPage() {
   const [sideLeft, setSideLeft] = useState("");
   const [sideRight, setSideRight] = useState("");
   const [diagonal, setDiagonal] = useState("");
-  const [rightAngleCorner, setRightAngleCorner] = useState("");
   const [astrologerCode, setAstrologerCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,6 +27,30 @@ export default function NewProjectPage() {
     setError(null);
 
     try {
+      // Client-side validation for irregular plots
+      if (plotType === "manual" && isIrregular) {
+        const a = parseFloat(sideFront);
+        const b = parseFloat(sideBack);
+        const c = parseFloat(sideLeft);
+        const d = parseFloat(sideRight);
+        const e = diagonal ? parseFloat(diagonal) : null;
+
+        if (!a || !b || !c || !d || a <= 0 || b <= 0 || c <= 0 || d <= 0) {
+          throw new Error("All four sides must be positive numbers");
+        }
+
+        if (e) {
+          // Triangle inequality for FL triangle (Front, Left, Diagonal)
+          if (e >= a + c || a >= e + c || c >= a + e) {
+            throw new Error("Invalid diagonal: cannot form a triangle with front and left sides");
+          }
+          // Triangle inequality for BR triangle (Back, Right, Diagonal)
+          if (e >= b + d || b >= e + d || d >= b + e) {
+            throw new Error("Invalid diagonal: cannot form a triangle with back and right sides");
+          }
+        }
+      }
+
       const response = await fetch("/api/projects", {
         method: "POST",
         headers: {
@@ -43,9 +66,7 @@ export default function NewProjectPage() {
           plot_side_back: plotType === "manual" && isIrregular ? parseFloat(sideBack) : null,
           plot_side_left: plotType === "manual" && isIrregular ? parseFloat(sideLeft) : null,
           plot_side_right: plotType === "manual" && isIrregular ? parseFloat(sideRight) : null,
-          plot_diagonal: plotType === "manual" && isIrregular ? parseFloat(diagonal) : null,
-          has_right_angle: plotType === "manual" && isIrregular && rightAngleCorner ? true : false,
-          right_angle_corner: plotType === "manual" && isIrregular ? rightAngleCorner || null : null,
+          plot_diagonal: plotType === "manual" && isIrregular && diagonal ? parseFloat(diagonal) : null,
           expert_code: astrologerCode || null,
         }),
       });
@@ -233,37 +254,6 @@ export default function NewProjectPage() {
                       value={diagonal}
                       onChange={(e) => setDiagonal(e.target.value)}
                     />
-                    <div className="mt-3">
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">
-                        Is one corner 90°?
-                      </p>
-                      <div className="grid grid-cols-4 gap-2">
-                        {[
-                          { key: "FL", label: "Front-Left" },
-                          { key: "FR", label: "Front-Right" },
-                          { key: "BL", label: "Back-Left" },
-                          { key: "BR", label: "Back-Right" },
-                        ].map((corner) => (
-                          <button
-                            key={corner.key}
-                            type="button"
-                            onClick={() => setRightAngleCorner(rightAngleCorner === corner.key ? "" : corner.key)}
-                            className={`py-1.5 px-2 text-xs font-medium rounded-md transition-colors ${
-                              rightAngleCorner === corner.key
-                                ? "bg-indigo-600 text-white shadow-sm"
-                                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                            }`}
-                          >
-                            {corner.label}
-                          </button>
-                        ))}
-                      </div>
-                      {rightAngleCorner && (
-                        <p className="text-[9px] text-indigo-500 mt-1.5 italic">
-                          *Right-angle trapezoid calculation will be used
-                        </p>
-                      )}
-                    </div>
                   </div>
                 )}
               </div>

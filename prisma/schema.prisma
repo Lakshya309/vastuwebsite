@@ -97,8 +97,6 @@ model projects {
   plot_side_front                                  Float?
   plot_side_left                                   Float?
   plot_side_right                                  Float?
-  has_right_angle                                  Boolean?
-  right_angle_corner                              String?
   assigned_astrologer_id                           String?           @db.Uuid
   expert_id                                        String?           @db.Uuid
   metadata                                         Json?

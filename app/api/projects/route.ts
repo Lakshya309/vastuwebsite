@@ -42,8 +42,6 @@ export async function POST(req: NextRequest) {
       plot_side_left,
       plot_side_right,
       plot_diagonal,
-      has_right_angle,
-      right_angle_corner,
       astrologer_code,
       expert_code
     } = await req.json();
@@ -55,6 +53,39 @@ export async function POST(req: NextRequest) {
         { message: "Name is required" },
         { status: 400 }
       );
+    }
+
+    // Server-side validation for irregular plots
+    const a = plot_side_front ? parseFloat(plot_side_front.toString()) : null;
+    const b = plot_side_back ? parseFloat(plot_side_back.toString()) : null;
+    const c = plot_side_left ? parseFloat(plot_side_left.toString()) : null;
+    const d = plot_side_right ? parseFloat(plot_side_right.toString()) : null;
+    const e = plot_diagonal ? parseFloat(plot_diagonal.toString()) : null;
+
+    if (a && b && c && d) {
+      if (a <= 0 || b <= 0 || c <= 0 || d <= 0) {
+        return NextResponse.json(
+          { message: "All sides must be positive numbers" },
+          { status: 400 }
+        );
+      }
+
+      if (e) {
+        // Triangle inequality for FL triangle (Front, Left, Diagonal)
+        if (e >= a + c || a >= e + c || c >= a + e) {
+          return NextResponse.json(
+            { message: "Invalid diagonal: cannot form a triangle with front and left sides" },
+            { status: 400 }
+          );
+        }
+        // Triangle inequality for BR triangle (Back, Right, Diagonal)
+        if (e >= b + d || b >= e + d || d >= b + e) {
+          return NextResponse.json(
+            { message: "Invalid diagonal: cannot form a triangle with back and right sides" },
+            { status: 400 }
+          );
+        }
+      }
     }
 
     let assigned_astrologer_id = null;
@@ -75,13 +106,11 @@ export async function POST(req: NextRequest) {
         report_for: report_for,
         plot_width: plot_width ? parseFloat((plot_width as any).toString()) : null,
         plot_height: plot_height ? parseFloat((plot_height as any).toString()) : null,
-        plot_side_front: plot_side_front ? parseFloat((plot_side_front as any).toString()) : null,
-        plot_side_back: plot_side_back ? parseFloat((plot_side_back as any).toString()) : null,
-        plot_side_left: plot_side_left ? parseFloat((plot_side_left as any).toString()) : null,
-        plot_side_right: plot_side_right ? parseFloat((plot_side_right as any).toString()) : null,
-        plot_diagonal: plot_diagonal ? parseFloat((plot_diagonal as any).toString()) : null,
-        has_right_angle: has_right_angle || false,
-        right_angle_corner: right_angle_corner || null,
+        plot_side_front: a,
+        plot_side_back: b,
+        plot_side_left: c,
+        plot_side_right: d,
+        plot_diagonal: e,
         assigned_astrologer_id: assigned_astrologer_id
       }
     });

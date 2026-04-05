@@ -309,7 +309,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                       </div>
                     </div>
                     <button 
-                      onClick={() => props.setProject && props.setProject((prev: any) => ({ ...prev, plot_side_front: prev.plot_width, plot_side_back: prev.plot_width, plot_side_left: prev.plot_height, plot_side_right: prev.plot_height, plot_diagonal: Math.sqrt(prev.plot_width**2 + prev.plot_height**2), has_right_angle: null, right_angle_corner: null }))}
+                      onClick={() => props.setProject && props.setProject((prev: any) => ({ ...prev, plot_side_front: prev.plot_width, plot_side_back: prev.plot_width, plot_side_left: prev.plot_height, plot_side_right: prev.plot_height, plot_diagonal: Math.sqrt(prev.plot_width**2 + prev.plot_height**2) }))}
                       className="text-[9px] font-bold text-primary hover:underline italic uppercase tracking-widest"
                     >
                       Use Different Sides
@@ -346,33 +346,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                         placeholder="Optional"
                       />
                     </div>
-                    <div>
-                      <label className="block text-[8px] font-bold text-gray-400 uppercase tracking-tighter mb-1">90° Corner</label>
-                      <div className="grid grid-cols-4 gap-1">
-                        {["FL", "FR", "BL", "BR"].map((corner) => (
-                          <button
-                            key={corner}
-                            onClick={() => {
-                              const isSelected = (props as any).rightAngleCorner === corner;
-                              props.setProject && props.setProject((prev: any) => ({
-                                ...prev,
-                                has_right_angle: !isSelected,
-                                right_angle_corner: isSelected ? null : corner
-                              }));
-                            }}
-                            className={`py-1 px-1 text-[9px] font-bold rounded transition-colors ${
-                              (props as any).rightAngleCorner === corner
-                                ? "bg-primary text-white"
-                                : "bg-white/50 text-gray-600 hover:bg-white"
-                            }`}
-                          >
-                            {corner}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
                     <button 
-                      onClick={() => props.setProject && props.setProject((prev: any) => ({ ...prev, plot_side_front: null, plot_side_back: null, plot_side_left: null, plot_side_right: null, plot_diagonal: null, has_right_angle: null, right_angle_corner: null }))}
+                      onClick={() => props.setProject && props.setProject((prev: any) => ({ ...prev, plot_side_front: null, plot_side_back: null, plot_side_left: null, plot_side_right: null, plot_diagonal: null }))}
                       className="text-[9px] font-bold text-rose-500 hover:underline italic uppercase tracking-widest"
                     >
                       Back to Rectangle

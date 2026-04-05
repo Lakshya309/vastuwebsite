@@ -251,93 +251,44 @@ export default function FloorPlanPage() {
 
       if (isIrregular) {
         // 1. Calculate geometry in REAL units (meters) first
+        // a = Front, b = Back, c = Left, d = Right
+        // Diagonal connects FL to BR
         const a = project.plot_side_front! * unitFactor; // Front
         const b = project.plot_side_back! * unitFactor;  // Back
         const c = project.plot_side_left! * unitFactor;  // Left
         const d = project.plot_side_right! * unitFactor; // Right
 
-        let p0: Point, p1: Point, p2: Point, p3: Point;
-
-        // Check if right-angle trapezoid calculation should be used
-        const hasRightAngle = project.has_right_angle && project.right_angle_corner;
-        
-        if (hasRightAngle && project.right_angle_corner) {
-          // Right-angle trapezoid calculation
-          // The 90° corner is placed at origin, sides extend along axes
-          switch (project.right_angle_corner) {
-            case "FR": {
-              // Front-Right corner is 90°
-              // p1 = FR at origin, p0 = FL on x-axis, p2 = BR on y-axis, p3 = BL
-              p1 = { x: 0, y: 0 };
-              p0 = { x: -a, y: 0 };
-              p2 = { x: 0, y: d };
-              p3 = { x: -a, y: d };
-              break;
-            }
-            case "FL": {
-              // Front-Left corner is 90°
-              // p0 = FL at origin, p1 = FR on x-axis, p3 = BL on y-axis, p2 = BR
-              p0 = { x: 0, y: 0 };
-              p1 = { x: a, y: 0 };
-              p3 = { x: 0, y: c };
-              p2 = { x: a, y: c };
-              break;
-            }
-            case "BR": {
-              // Back-Right corner is 90°
-              // p2 = BR at origin, p1 = FR on x-axis, p3 = BL on y-axis, p0 = FL
-              p2 = { x: 0, y: 0 };
-              p1 = { x: -d, y: 0 };
-              p3 = { x: 0, y: -b };
-              p0 = { x: -d, y: -b };
-              break;
-            }
-            case "BL": {
-              // Back-Left corner is 90°
-              // p3 = BL at origin, p2 = BR on x-axis, p0 = FL on y-axis, p1 = FR
-              p3 = { x: 0, y: 0 };
-              p2 = { x: b, y: 0 };
-              p0 = { x: 0, y: -c };
-              p1 = { x: b, y: -c };
-              break;
-            }
-            default:
-              // Fallback to cyclic quadrilateral calculation
-              p0 = { x: 0, y: 0 };
-              p1 = { x: 0, y: 0 };
-              p2 = { x: 0, y: 0 };
-              p3 = { x: 0, y: 0 };
-          }
+        // 2. Calculate or use provided diagonal (FL to BR)
+        let e;
+        if (project.plot_diagonal) {
+          e = project.plot_diagonal * unitFactor;
         } else {
-          // Original cyclic quadrilateral calculation for general irregular shapes
-          let e;
-          if (project.plot_diagonal) {
-            e = project.plot_diagonal * unitFactor;
-          } else {
-            // Auto-calculate diagonal using Cyclic Quadrilateral formula (most regular shape)
-            e = Math.sqrt(((a * d + b * c) * (a * b + c * d)) / (a * c + b * d));
-          }
-
-          // Law of Cosines on Triangle 1 (Side Front, Side Right, Diagonal)
-          const cosAngleFR = (a * a + d * d - e * e) / (2 * a * d);
-          const sinAngleFR = Math.sqrt(Math.max(0, 1 - cosAngleFR * cosAngleFR));
-
-          // Let Front-Left be (0,0) and Front-Right be (a, 0)
-          p0 = { x: 0, y: 0 };
-          p1 = { x: a, y: 0 };
-          p2 = { x: a - d * cosAngleFR, y: d * sinAngleFR };
-
-          // Law of Cosines on Triangle 2 (Side Left, Side Back, Diagonal)
-          const cosAngleFL = (c * c + e * e - b * b) / (2 * c * e);
-          const angleFL = Math.acos(Math.max(-1, Math.min(1, cosAngleFL)));
-          const angleDiag = Math.atan2(p2.y, p2.x);
-
-          p3 = {
-            x: c * Math.cos(angleDiag + angleFL),
-            y: c * Math.sin(angleDiag + angleFL)
-          };
+          // Auto-calculate diagonal using Cyclic Quadrilateral formula (most regular shape)
+          e = Math.sqrt(((a * d + b * c) * (a * b + c * d)) / (a * c + b * d));
         }
 
+        // 3. Calculate positions using Law of Cosines
+        // Triangle 1 (FL corner): Front(a), Left(c), Diagonal(e)
+        // FL is at origin (0,0)
+        const cosAngleFL = (a * a + c * c - e * e) / (2 * a * c);
+        const sinAngleFL = Math.sqrt(Math.max(0, 1 - cosAngleFL * cosAngleFL));
+
+        const p0 = { x: 0, y: 0 };      // FL (origin)
+        const p1 = { x: a, y: 0 };      // FR (on x-axis, front side)
+        const p2 = { x: c * cosAngleFL, y: c * sinAngleFL };  // BL
+
+        // Triangle 2 (BR corner): Back(b), Right(d), Diagonal(e)
+        // Calculate angle at BR
+        const cosAngleBR = (b * b + d * d - e * e) / (2 * b * d);
+        const angleBR = Math.acos(Math.max(-1, Math.min(1, cosAngleBR)));
+
+        // BR position: from BL, go along back side at angleBR from diagonal
+        const p3 = {
+          x: p2.x + b * Math.cos(Math.PI - angleBR),
+          y: p2.y + b * Math.sin(Math.PI - angleBR)
+        };
+
+        // Calculate bounding box dimensions
         const minX = Math.min(p0.x, p1.x, p2.x, p3.x);
         const minY = Math.min(p0.y, p1.y, p2.y, p3.y);
         const maxX = Math.max(p0.x, p1.x, p2.x, p3.x);
@@ -364,7 +315,7 @@ export default function FloorPlanPage() {
           setReferenceWallLength(project.plot_side_front!);
         }
 
-        // 3. Normalize points
+        // 3. Scale points to pixels (normalize to positive quadrant first, then scale)
         pts = [p0, p1, p2, p3].map(p => ({
           x: (p.x - minX) / currentScale,
           y: (p.y - minY) / currentScale
