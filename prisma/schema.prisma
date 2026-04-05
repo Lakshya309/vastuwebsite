@@ -52,10 +52,14 @@ model profiles {
   created_at              DateTime?                 @default(now()) @db.Timestamptz(6)
   valid_from              DateTime?                 @db.Timestamptz(6)
   valid_to                DateTime?                 @db.Timestamptz(6)
-  unique_code             String?                   @unique
+  expert_code             String?                   @unique
+  is_expert_pending       Boolean                   @default(false)
+  referred_by_expert_id   String?                   @db.Uuid
   astrologer_applications astrologer_applications[]
   assigned_projects       projects[]                @relation("ProjectToAstrologer")
   projects                projects[]
+  referred_users          profiles[]                @relation("ExpertReferral")
+  referred_by_expert      profiles?                 @relation("ExpertReferral", fields: [referred_by_expert_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -93,7 +97,11 @@ model projects {
   plot_side_front                                  Float?
   plot_side_left                                   Float?
   plot_side_right                                  Float?
+  has_right_angle                                  Boolean?
+  right_angle_corner                              String?
   assigned_astrologer_id                           String?           @db.Uuid
+  expert_id                                        String?           @db.Uuid
+  metadata                                         Json?
   video_path                                       String?
   analyses                                         analyses[]
   map_plots_map_plots_project_idToprojects         map_plots[]       @relation("map_plots_project_idToprojects")

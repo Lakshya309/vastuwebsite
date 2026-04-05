@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase";
 import { prisma } from "@/lib/db";
 
-async function generateUniqueCode() {
+async function generateExpertCode() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let isUnique = false;
   let code = '';
@@ -13,7 +13,7 @@ async function generateUniqueCode() {
         code += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     const existing = await prisma.profiles.findUnique({
-      where: { unique_code: code }
+      where: { expert_code: code }
     });
     if (!existing) isUnique = true;
   }
@@ -61,8 +61,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Application not found or already processed" }, { status: 404 });
     }
 
-    // 3. Generate unique code
-    const uniqueCode = await generateUniqueCode();
+    // 3. Generate expert code
+    const expertCode = await generateExpertCode();
 
     // 4. Update profile and application in a transaction
     await prisma.$transaction([
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
         where: { id: application.user_id },
         data: {
           role: "astrologer",
-          unique_code: uniqueCode,
+          expert_code: expertCode,
           valid_from: new Date(),
           // Defaulting to 1 year for new astrologers, can be adjusted manually
           valid_to: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
       })
     ]);
 
-    return NextResponse.json({ message: "Application approved successfully", uniqueCode }, { status: 200 });
+    return NextResponse.json({ message: "Application approved successfully", expertCode }, { status: 200 });
   } catch (error: any) {
     console.error("Error approving application:", error);
     return NextResponse.json(

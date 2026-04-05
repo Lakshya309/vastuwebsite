@@ -256,39 +256,87 @@ export default function FloorPlanPage() {
         const c = project.plot_side_left! * unitFactor;  // Left
         const d = project.plot_side_right! * unitFactor; // Right
 
-        let e;
-        if (project.plot_diagonal) {
-          e = project.plot_diagonal * unitFactor;
+        let p0: Point, p1: Point, p2: Point, p3: Point;
+
+        // Check if right-angle trapezoid calculation should be used
+        const hasRightAngle = project.has_right_angle && project.right_angle_corner;
+        
+        if (hasRightAngle && project.right_angle_corner) {
+          // Right-angle trapezoid calculation
+          // The 90° corner is placed at origin, sides extend along axes
+          switch (project.right_angle_corner) {
+            case "FR": {
+              // Front-Right corner is 90°
+              // p1 = FR at origin, p0 = FL on x-axis, p2 = BR on y-axis, p3 = BL
+              p1 = { x: 0, y: 0 };
+              p0 = { x: -a, y: 0 };
+              p2 = { x: 0, y: d };
+              p3 = { x: -a, y: d };
+              break;
+            }
+            case "FL": {
+              // Front-Left corner is 90°
+              // p0 = FL at origin, p1 = FR on x-axis, p3 = BL on y-axis, p2 = BR
+              p0 = { x: 0, y: 0 };
+              p1 = { x: a, y: 0 };
+              p3 = { x: 0, y: c };
+              p2 = { x: a, y: c };
+              break;
+            }
+            case "BR": {
+              // Back-Right corner is 90°
+              // p2 = BR at origin, p1 = FR on x-axis, p3 = BL on y-axis, p0 = FL
+              p2 = { x: 0, y: 0 };
+              p1 = { x: -d, y: 0 };
+              p3 = { x: 0, y: -b };
+              p0 = { x: -d, y: -b };
+              break;
+            }
+            case "BL": {
+              // Back-Left corner is 90°
+              // p3 = BL at origin, p2 = BR on x-axis, p0 = FL on y-axis, p1 = FR
+              p3 = { x: 0, y: 0 };
+              p2 = { x: b, y: 0 };
+              p0 = { x: 0, y: -c };
+              p1 = { x: b, y: -c };
+              break;
+            }
+            default:
+              // Fallback to cyclic quadrilateral calculation
+              p0 = { x: 0, y: 0 };
+              p1 = { x: 0, y: 0 };
+              p2 = { x: 0, y: 0 };
+              p3 = { x: 0, y: 0 };
+          }
         } else {
-          // Auto-calculate diagonal using Cyclic Quadrilateral formula (most regular shape)
-          // e is the diagonal between Front (a) and Right (d) corner, i.e., from Front-Left to Back-Right
-          e = Math.sqrt(((a * d + b * c) * (a * b + c * d)) / (a * c + b * d));
+          // Original cyclic quadrilateral calculation for general irregular shapes
+          let e;
+          if (project.plot_diagonal) {
+            e = project.plot_diagonal * unitFactor;
+          } else {
+            // Auto-calculate diagonal using Cyclic Quadrilateral formula (most regular shape)
+            e = Math.sqrt(((a * d + b * c) * (a * b + c * d)) / (a * c + b * d));
+          }
+
+          // Law of Cosines on Triangle 1 (Side Front, Side Right, Diagonal)
+          const cosAngleFR = (a * a + d * d - e * e) / (2 * a * d);
+          const sinAngleFR = Math.sqrt(Math.max(0, 1 - cosAngleFR * cosAngleFR));
+
+          // Let Front-Left be (0,0) and Front-Right be (a, 0)
+          p0 = { x: 0, y: 0 };
+          p1 = { x: a, y: 0 };
+          p2 = { x: a - d * cosAngleFR, y: d * sinAngleFR };
+
+          // Law of Cosines on Triangle 2 (Side Left, Side Back, Diagonal)
+          const cosAngleFL = (c * c + e * e - b * b) / (2 * c * e);
+          const angleFL = Math.acos(Math.max(-1, Math.min(1, cosAngleFL)));
+          const angleDiag = Math.atan2(p2.y, p2.x);
+
+          p3 = {
+            x: c * Math.cos(angleDiag + angleFL),
+            y: c * Math.sin(angleDiag + angleFL)
+          };
         }
-
-        // Law of Cosines on Triangle 1 (Side Front, Side Right, Diagonal)
-        // Cosine of angle at Front-Right vertex
-        const cosAngleFR = (a * a + d * d - e * e) / (2 * a * d);
-        const sinAngleFR = Math.sqrt(Math.max(0, 1 - cosAngleFR * cosAngleFR));
-
-        // Let Front-Left be (0,0) and Front-Right be (a, 0)
-        const p0 = { x: 0, y: 0 };
-        const p1 = { x: a, y: 0 };
-        // Back-Right vertex
-        const p2 = { x: a - d * cosAngleFR, y: d * sinAngleFR };
-
-        // Law of Cosines on Triangle 2 (Side Left, Side Back, Diagonal)
-        // Cosine of angle at Front-Left vertex relative to Diagonal
-        const cosAngleFL = (c * c + e * e - b * b) / (2 * c * e);
-        const angleFL = Math.acos(Math.max(-1, Math.min(1, cosAngleFL)));
-
-        // Angle of Diagonal vector (FL to BR)
-        const angleDiag = Math.atan2(p2.y, p2.x);
-
-        // Back-Left vertex
-        const p3 = {
-          x: c * Math.cos(angleDiag + angleFL),
-          y: c * Math.sin(angleDiag + angleFL)
-        };
 
         const minX = Math.min(p0.x, p1.x, p2.x, p3.x);
         const minY = Math.min(p0.y, p1.y, p2.y, p3.y);

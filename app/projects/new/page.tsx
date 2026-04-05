@@ -16,6 +16,7 @@ export default function NewProjectPage() {
   const [sideLeft, setSideLeft] = useState("");
   const [sideRight, setSideRight] = useState("");
   const [diagonal, setDiagonal] = useState("");
+  const [rightAngleCorner, setRightAngleCorner] = useState("");
   const [astrologerCode, setAstrologerCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +44,9 @@ export default function NewProjectPage() {
           plot_side_left: plotType === "manual" && isIrregular ? parseFloat(sideLeft) : null,
           plot_side_right: plotType === "manual" && isIrregular ? parseFloat(sideRight) : null,
           plot_diagonal: plotType === "manual" && isIrregular ? parseFloat(diagonal) : null,
-          astrologer_code: astrologerCode || null,
+          has_right_angle: plotType === "manual" && isIrregular && rightAngleCorner ? true : false,
+          right_angle_corner: plotType === "manual" && isIrregular ? rightAngleCorner || null : null,
+          expert_code: astrologerCode || null,
         }),
       });
 
@@ -230,9 +233,37 @@ export default function NewProjectPage() {
                       value={diagonal}
                       onChange={(e) => setDiagonal(e.target.value)}
                     />
-                    <p className="text-[10px] text-gray-400">
-                      *Optional. Leave blank to auto-calculate the most regular shape.
-                    </p>
+                    <div className="mt-3">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">
+                        Is one corner 90°?
+                      </p>
+                      <div className="grid grid-cols-4 gap-2">
+                        {[
+                          { key: "FL", label: "Front-Left" },
+                          { key: "FR", label: "Front-Right" },
+                          { key: "BL", label: "Back-Left" },
+                          { key: "BR", label: "Back-Right" },
+                        ].map((corner) => (
+                          <button
+                            key={corner.key}
+                            type="button"
+                            onClick={() => setRightAngleCorner(rightAngleCorner === corner.key ? "" : corner.key)}
+                            className={`py-1.5 px-2 text-xs font-medium rounded-md transition-colors ${
+                              rightAngleCorner === corner.key
+                                ? "bg-indigo-600 text-white shadow-sm"
+                                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                            }`}
+                          >
+                            {corner.label}
+                          </button>
+                        ))}
+                      </div>
+                      {rightAngleCorner && (
+                        <p className="text-[9px] text-indigo-500 mt-1.5 italic">
+                          *Right-angle trapezoid calculation will be used
+                        </p>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

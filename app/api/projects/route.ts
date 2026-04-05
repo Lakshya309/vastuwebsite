@@ -42,8 +42,13 @@ export async function POST(req: NextRequest) {
       plot_side_left,
       plot_side_right,
       plot_diagonal,
-      astrologer_code
+      has_right_angle,
+      right_angle_corner,
+      astrologer_code,
+      expert_code
     } = await req.json();
+
+    const expertCode = astrologer_code || expert_code;
 
     if (!name) {
       return NextResponse.json(
@@ -53,9 +58,9 @@ export async function POST(req: NextRequest) {
     }
 
     let assigned_astrologer_id = null;
-    if (astrologer_code) {
+    if (expertCode) {
       const astrologerProfile = await prisma.profiles.findUnique({
-        where: { unique_code: astrologer_code }
+        where: { expert_code: expertCode }
       });
       if (astrologerProfile) {
         assigned_astrologer_id = astrologerProfile.id;
@@ -75,6 +80,8 @@ export async function POST(req: NextRequest) {
         plot_side_left: plot_side_left ? parseFloat((plot_side_left as any).toString()) : null,
         plot_side_right: plot_side_right ? parseFloat((plot_side_right as any).toString()) : null,
         plot_diagonal: plot_diagonal ? parseFloat((plot_diagonal as any).toString()) : null,
+        has_right_angle: has_right_angle || false,
+        right_angle_corner: right_angle_corner || null,
         assigned_astrologer_id: assigned_astrologer_id
       }
     });

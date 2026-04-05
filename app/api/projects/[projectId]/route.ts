@@ -143,6 +143,12 @@ export async function PATCH(
   if (body.plot_diagonal !== undefined)
     updates.plot_diagonal = body.plot_diagonal
 
+  if (body.has_right_angle !== undefined)
+    updates.has_right_angle = body.has_right_angle
+
+  if (body.right_angle_corner !== undefined)
+    updates.right_angle_corner = body.right_angle_corner
+
   if (body.assigned_astrologer_id !== undefined)
     updates.assigned_astrologer_id = body.assigned_astrologer_id
 
