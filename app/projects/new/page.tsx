@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { feasibleDiagonalInterval } from "@/lib/plotGeometry";
 
 export default function NewProjectPage() {
   const [projectName, setProjectName] = useState("");
@@ -39,14 +40,17 @@ export default function NewProjectPage() {
           throw new Error("All four sides must be positive numbers");
         }
 
+        const interval = feasibleDiagonalInterval(a, b, c, d);
+        if (!interval) {
+          throw new Error(
+            "Invalid plot: these four sides cannot form a quadrilateral. Adjust the side lengths."
+          );
+        }
         if (e) {
-          // Triangle inequality for FL triangle (Front, Left, Diagonal)
-          if (e >= a + c || a >= e + c || c >= a + e) {
-            throw new Error("Invalid diagonal: cannot form a triangle with front and left sides");
-          }
-          // Triangle inequality for BR triangle (Back, Right, Diagonal)
-          if (e >= b + d || b >= e + d || d >= b + e) {
-            throw new Error("Invalid diagonal: cannot form a triangle with back and right sides");
+          if (e <= interval.min || e >= interval.max) {
+            throw new Error(
+              `Invalid diagonal: must be strictly between ${interval.min.toFixed(2)} and ${interval.max.toFixed(2)} (FL–BR diagonal).`
+            );
           }
         }
       }

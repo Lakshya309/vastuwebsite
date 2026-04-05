@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateAuth } from "../../../lib/supabase-server-api";
 import { prisma } from "../../../lib/db";
+import { feasibleDiagonalInterval } from "../../../lib/plotGeometry";
 
 export async function POST(req: NextRequest) {
   const authResult = await validateAuth(req as Request);
@@ -70,18 +71,22 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      const interval = feasibleDiagonalInterval(a, b, c, d);
+      if (!interval) {
+        return NextResponse.json(
+          {
+            message:
+              "Invalid plot: these four sides cannot form a quadrilateral. Adjust the side lengths.",
+          },
+          { status: 400 }
+        );
+      }
       if (e) {
-        // Triangle inequality for FL triangle (Front, Left, Diagonal)
-        if (e >= a + c || a >= e + c || c >= a + e) {
+        if (e <= interval.min || e >= interval.max) {
           return NextResponse.json(
-            { message: "Invalid diagonal: cannot form a triangle with front and left sides" },
-            { status: 400 }
-          );
-        }
-        // Triangle inequality for BR triangle (Back, Right, Diagonal)
-        if (e >= b + d || b >= e + d || d >= b + e) {
-          return NextResponse.json(
-            { message: "Invalid diagonal: cannot form a triangle with back and right sides" },
+            {
+              message: `Invalid diagonal: must be strictly between ${interval.min.toFixed(2)} and ${interval.max.toFixed(2)} (FL–BR diagonal).`,
+            },
             { status: 400 }
           );
         }
