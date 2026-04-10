@@ -55,11 +55,13 @@ model profiles {
   expert_code             String?                   @unique
   is_expert_pending       Boolean                   @default(false)
   referred_by_expert_id   String?                   @db.Uuid
+  razorpay_customer_id    String?
   astrologer_applications astrologer_applications[]
   assigned_projects       projects[]                @relation("ProjectToAstrologer")
   projects                projects[]
   referred_users          profiles[]                @relation("ExpertReferral")
   referred_by_expert      profiles?                 @relation("ExpertReferral", fields: [referred_by_expert_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  user_subscriptions      user_subscriptions[]
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -113,6 +115,75 @@ model user_credits {
   user_id    String    @id @db.Uuid
   credits    Int       @default(0)
   updated_at DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+model subscription_plans {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String
+  description     String?
+  price_inr       Int
+  duration_days   Int
+  plan_type       String    @default("monthly")
+  features        Json?
+  is_active       Boolean   @default(true)
+  razorpay_plan_id String?  @unique
+  created_at      DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime? @default(now()) @db.Timestamptz(6)
+  user_subscriptions user_subscriptions[]
+}
+
+model user_subscriptions {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id               String    @db.Uuid
+  plan_id               String    @db.Uuid
+  razorpay_subscription_id String? @unique
+  razorpay_customer_id  String?
+  status                String    @default("active")
+  started_at            DateTime  @default(now()) @db.Timestamptz(6)
+  expires_at            DateTime  @db.Timestamptz(6)
+  cancelled_at          DateTime?
+  auto_renew            Boolean   @default(true)
+  created_at            DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime? @default(now()) @db.Timestamptz(6)
+  plans                 subscription_plans @relation(fields: [plan_id], references: [id])
+  profiles              profiles  @relation(fields: [user_id], references: [id])
+}
+
+model razorpay_orders {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id               String    @db.Uuid
+  razorpay_order_id     String    @unique
+  amount                Int
+  currency              String    @default("INR")
+  status                String    @default("pending")
+  order_type            String
+  credits_purchased     Int?
+  plan_id               String?   @db.Uuid
+  receipt               String?
+  notes                 Json?
+  created_at            DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+model razorpay_payments {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  razorpay_payment_id   String    @unique
+  razorpay_order_id     String
+  razorpay_signature    String?
+  user_id               String    @db.Uuid
+  amount                Int
+  currency              String    @default("INR")
+  status                String    @default("created")
+  method                String?
+  created_at            DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+model razorpay_events {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  event_type    String
+  payload       Json
+  processed     Boolean   @default(false)
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
 }
 
 model astrologer_keys {

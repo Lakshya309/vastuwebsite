@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateAuth } from "../../../lib/supabase-server-api";
 import { prisma } from "../../../lib/db";
+import { checkPaymentAccess } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   const authResult = await validateAuth(req as Request);
@@ -10,7 +11,6 @@ export async function POST(req: NextRequest) {
   const uid = authResult.user!.id;
 
   try {
-    // Fetch user profile
     const profile = await prisma.profiles.findUnique({
       where: { id: uid },
       select: { role: true, valid_from: true, valid_to: true }
@@ -27,26 +27,21 @@ export async function POST(req: NextRequest) {
     let allowed_to_analyze = false;
     let blocking_message = "Analysis blocked.";
 
-    if (profile.role === "astrologer") {
-      const now = new Date();
-      const validFrom = profile.valid_from ? new Date(profile.valid_from) : null;
-      const validTo = profile.valid_to ? new Date(profile.valid_to) : null;
-
-      if (validFrom && validTo && now >= validFrom && now <= validTo) {
+    if (profile.role === "admin") {
+      allowed_to_analyze = true;
+    } else if (profile.role === "astrologer" || profile.role === "user") {
+      const paymentAccess = await checkPaymentAccess(uid);
+      if (paymentAccess.hasAccess) {
         allowed_to_analyze = true;
       } else {
-        blocking_message = "Astrologer access expired or not yet valid.";
+        blocking_message = "No active subscription or credits. Please purchase credits or subscribe.";
       }
-    } else if (profile.role === "user") {
-        allowed_to_analyze = true; 
-    } else if (profile.role === "admin") {
-        allowed_to_analyze = true; 
     } else {
       blocking_message = "Unsupported user role. Analysis blocked.";
     }
 
     if (!allowed_to_analyze) {
-      return NextResponse.json({ message: blocking_message }, { status: 403 });
+      return NextResponse.json({ message: blocking_message, needs_payment: true }, { status: 403 });
     }
 
     const { projectId, analysisType, boundary_normalized, north_direction, analysisDate, analysisTime } = await req.json();

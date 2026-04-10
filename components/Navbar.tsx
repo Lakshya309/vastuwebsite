@@ -1,11 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import LogoutButton from "./LogoutButton";
+import { ChevronDown } from "lucide-react";
 
 const Navbar = () => {
   const { user, loading } = useAuth();
+  const [legalDropdownOpen, setLegalDropdownOpen] = useState(false);
 
   const isAstrologer = user?.profile?.role === 'astrologer';
   const isAdmin = user?.profile?.role === 'admin';
@@ -47,6 +50,12 @@ const Navbar = () => {
               >
                 Home
               </Link>
+              <Link
+                href="/pricing"
+                className="text-gray-600 hover:text-primary px-3 py-2 text-sm font-medium transition-colors"
+              >
+                Pricing
+              </Link>
               {user && (
                 <Link
                   href="/projects"
@@ -55,6 +64,44 @@ const Navbar = () => {
                   Projects
                 </Link>
               )}
+              <div className="relative">
+                <button
+                  onClick={() => setLegalDropdownOpen(!legalDropdownOpen)}
+                  onBlur={() => setTimeout(() => setLegalDropdownOpen(false), 200)}
+                  className="text-gray-600 hover:text-primary px-3 py-2 text-sm font-medium transition-colors flex items-center gap-1"
+                >
+                  Legal
+                  <ChevronDown className={`w-4 h-4 transition-transform ${legalDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {legalDropdownOpen && (
+                  <div className="absolute top-full left-0 mt-2 w-48 glass rounded-xl border border-white shadow-xl py-2 z-50">
+                    <Link
+                      href="/contact"
+                      className="block px-4 py-2 text-sm text-gray-600 hover:text-primary hover:bg-white/50 transition-colors"
+                    >
+                      Contact Us
+                    </Link>
+                    <Link
+                      href="/terms"
+                      className="block px-4 py-2 text-sm text-gray-600 hover:text-primary hover:bg-white/50 transition-colors"
+                    >
+                      Terms & Conditions
+                    </Link>
+                    <Link
+                      href="/privacy"
+                      className="block px-4 py-2 text-sm text-gray-600 hover:text-primary hover:bg-white/50 transition-colors"
+                    >
+                      Privacy Policy
+                    </Link>
+                    <Link
+                      href="/refund"
+                      className="block px-4 py-2 text-sm text-gray-600 hover:text-primary hover:bg-white/50 transition-colors"
+                    >
+                      Refund Policy
+                    </Link>
+                  </div>
+                )}
+              </div>
               {isAstrologer && (
                 <Link
                   href="/astrologer/dashboard"

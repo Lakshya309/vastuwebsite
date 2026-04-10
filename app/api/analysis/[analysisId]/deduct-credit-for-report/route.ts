@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase";
 import { prisma } from "@/lib/db";
+import { deductCredit, checkPaymentAccess } from "@/lib/auth";
 
 export async function POST(
   req: NextRequest,
@@ -41,19 +42,10 @@ export async function POST(
         { status: 500 }
       );
     }
-    const userRole = profile.role;
-    const validFrom = profile.valid_from ? new Date(profile.valid_from) : null;
-    const validTo = profile.valid_to ? new Date(profile.valid_to) : null;
-    const currentDate = new Date();
 
-    let isAstrologerSubscriptionActive = false;
-    if (userRole === "astrologer" && validFrom && validTo) {
-      if (currentDate >= validFrom && currentDate <= validTo) {
-        isAstrologerSubscriptionActive = true;
-      }
-    }
-
-    if (userRole === "admin" || isAstrologerSubscriptionActive) {
+    const paymentAccess = await checkPaymentAccess(uid);
+    
+    if (profile.role === "admin" || paymentAccess.hasAccess) {
       const analysisData = await prisma.analyses.findUnique({
         where: { id: analysisId },
         select: { id: true, status: true }
@@ -72,71 +64,69 @@ export async function POST(
       });
 
       return NextResponse.json(
-        { message: `Report access granted (no credit deduction for ${userRole === "admin" ? "admin" : "active astrologer subscription"}).` },
+        { 
+          message: "Report access granted.",
+          no_credit_deduction: true 
+        },
         { status: 200 }
       );
     }
 
-    if (userRole === "user" || (userRole === "astrologer" && !isAstrologerSubscriptionActive)) {
-      const existingAnalysis = await prisma.analyses.findUnique({
+    const existingAnalysis = await prisma.analyses.findUnique({
+      where: { id: analysisId },
+      select: { id: true, status: true, report_paid: true, project_id: true }
+    });
+
+    if (!existingAnalysis) {
+      return NextResponse.json({ message: "Analysis not found." }, { status: 404 });
+    }
+    if (existingAnalysis.status === "failed") {
+      return NextResponse.json({ message: "Analysis has failed and cannot be viewed." }, { status: 403 });
+    }
+    if (existingAnalysis.report_paid) {
+      return NextResponse.json({ message: "Report already paid for." }, { status: 200 });
+    }
+
+    const deducted = await deductCredit(uid, 1);
+    
+    if (!deducted) {
+      return NextResponse.json(
+        { 
+          message: "Insufficient credits to view report. Please purchase more credits or subscribe.",
+          needs_payment: true 
+        },
+        { status: 403 }
+      );
+    }
+
+    try {
+      await prisma.analyses.update({
         where: { id: analysisId },
-        select: { id: true, status: true, report_paid: true, project_id: true }
+        data: { report_paid: true }
       });
-
-      if (!existingAnalysis) {
-        return NextResponse.json({ message: "Analysis not found." }, { status: 404 });
-      }
-      if (existingAnalysis.status === "failed") {
-        return NextResponse.json({ message: "Analysis has failed and cannot be viewed." }, { status: 403 });
-      }
-      if (existingAnalysis.report_paid) {
-        return NextResponse.json({ message: "Report already paid for." }, { status: 200 });
-      }
+    } catch (updateError: any) {
+      console.error(`[deduct-credit-for-report] Failed to unlock report ${analysisId} for user ${uid}. Initiating refund.`, updateError);
 
       try {
-        await prisma.$executeRaw`SELECT deduct_credit(${uid}::uuid)`;
-      } catch (deductError: any) {
-        console.error("Prisma deduct_credit error:", deductError);
-        let errorMessage = "Failed to deduct credit due to an internal error.";
-        if (deductError.message && deductError.message.includes("insufficient credits")) {
-          errorMessage = "Insufficient credits to view report. Please upgrade or contact support.";
-        }
-        return NextResponse.json(
-          { message: errorMessage },
-          { status: 403 }
-        );
-      }
-
-      try {
-        await prisma.analyses.update({
-          where: { id: analysisId },
-          data: { report_paid: true }
+        await prisma.user_credits.upsert({
+          where: { user_id: uid },
+          update: { credits: { increment: 1 } },
+          create: { user_id: uid, credits: 1 }
         });
-      } catch (updateError: any) {
-        console.error(`[deduct-credit-for-report] Failed to unlock report ${analysisId} for user ${uid}. Initiating refund.`, updateError);
-
-        try {
-          await prisma.$executeRaw`SELECT admin_adjust_user_credits(${uid}::uuid, 1)`;
-          console.log(`[deduct-credit-for-report] Successfully refunded 1 credit to user ${uid}.`);
-        } catch (refundError: any) {
-          console.error(`[CRITICAL] Failed to refund credit for user ${uid} after report unlock error!`, refundError);
-        }
-
-        return NextResponse.json(
-          { message: "Failed to unlock report due to a database error. Your credit has been restored." },
-          { status: 500 }
-        );
+        console.log(`[deduct-credit-for-report] Successfully refunded 1 credit to user ${uid}.`);
+      } catch (refundError: any) {
+        console.error(`[CRITICAL] Failed to refund credit for user ${uid} after report unlock error!`, refundError);
       }
 
       return NextResponse.json(
-        { message: "Credit deducted and report access granted." },
-        { status: 200 }
+        { message: "Failed to unlock report due to a database error. Your credit has been restored." },
+        { status: 500 }
       );
     }
 
     return NextResponse.json(
-      { message: "Unsupported user role for this operation." },
-      { status: 403 }
+      { message: "Credit deducted and report access granted." },
+      { status: 200 }
     );
 
   } catch (error: any) {
