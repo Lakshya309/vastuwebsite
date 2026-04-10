@@ -3,7 +3,7 @@ name: Deploy Manglam App
 on:
   push:
     branches:
-      - main
+      - perimeter-based-devtas  # Deploy only when this branch is updated
 
 jobs:
   deploy:
@@ -16,9 +16,27 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          # This helps bypass the "Host key verification failed" error on new servers
+          script_stop: true 
           script: |
+            # 1. Load the environment paths (Crucial for Ubuntu 24.04)
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            export PATH=$PATH:/usr/local/bin:/usr/bin:/bin
+
+            # 2. Navigate to the project directory
             cd ${{ secrets.VPS_PATH }}
-            git pull origin main
+
+            # 3. Clean up and switch to the correct branch
+            git fetch origin perimeter-based-devtas
+            git checkout perimeter-based-devtas
+            git pull origin perimeter-based-devtas
+
+            # 4. Install dependencies and Build
+            # We use --frozen-lockfile or --package-lock-only if you want more stability
             npm install
             npm run build
-            pm2 restart manglam-app
+
+            # 5. Restart the app using PM2
+            # The '||' acts as a backup: if restart fails (app not running), it will start it
+            pm2 restart manglam-app || pm2 start npm --name "manglam-app" -- start
