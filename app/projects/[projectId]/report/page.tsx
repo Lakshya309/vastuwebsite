@@ -17,8 +17,7 @@ import {
   Legend,
   Tooltip,
 } from "recharts";
-import html2canvas from 'html2canvas';
-import jsPDF from "jspdf";
+
 import { Point, PlacedObject } from "../../../../lib/floorPlanInterfaces";
 import { calculateBoundaryDistribution } from "../../../utils/calculateBoundaryDistribution";
 import { calculateAreaDistribution } from "../../../utils/calculateAreaDistribution";
@@ -27,6 +26,8 @@ import { DevtaBarChart } from "../../../../components/DevtaBarChart";
 import { FloorPlanCanvas } from "../../../../components/floor-plan/FloorPlanCanvas";
 import { motion, AnimatePresence } from "framer-motion";
 import { Download, LayoutDashboard, FileText, ChevronRight, Share2, Printer } from "lucide-react";
+import { toPng } from 'dom-to-image-more';
+import { jsPDF } from 'jspdf';
 
 // --- INTERFACES ---
 
@@ -156,28 +157,49 @@ export default function ReportPage() {
 
   const handleExportPdf = async () => {
     if (!reportContentRef.current) return;
+    
     setLoading(true);
-    const canvas = await html2canvas(reportContentRef.current, { backgroundColor: '#ffffff' });
-    const dataUrl = canvas.toDataURL('image/png');
-    const pdf = new jsPDF("p", "mm", "a4");
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = pdf.internal.pageSize.getHeight();
-    const imgProps = pdf.getImageProperties(dataUrl);
-    const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
-    let heightLeft = imgHeight;
-    let position = 0;
-
-    pdf.addImage(dataUrl, 'PNG', 0, position, pdfWidth, imgHeight);
-    heightLeft -= pdfHeight;
-
-    while (heightLeft > 0) {
-      position = heightLeft - imgHeight;
-      pdf.addPage();
-      pdf.addImage(dataUrl, 'PNG', 0, position, pdfWidth, imgHeight);
-      heightLeft -= pdfHeight;
+    
+    try {
+      const element = reportContentRef.current;
+      
+      const dataUrl = await toPng(element, {
+        backgroundColor: '#ffffff',
+        pixelRatio: 2,
+        filter: (node) => {
+          if (node.classList && node.classList.contains) {
+            return !node.classList.contains('no-print');
+          }
+          return true;
+        }
+      });
+      
+      const img = new Image();
+      img.src = dataUrl;
+      
+      await new Promise<void>((resolve) => {
+        img.onload = () => resolve();
+      });
+      
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+      
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      
+      pdf.addImage(dataUrl, 'PNG', 0, 0, pageWidth, pageHeight);
+      
+      pdf.save(`Vastu_Report_${project?.name || projectId}.pdf`);
+      
+    } catch (error: any) {
+      console.error("PDF export failed:", error);
+      window.print();
+    } finally {
+      setLoading(false);
     }
-    pdf.save(`Vastu_Report_${project?.name || projectId}.pdf`);
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -262,7 +284,7 @@ export default function ReportPage() {
 
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: "easeOut" } }
+    visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: "easeOut" as const } }
   };
 
   return (
@@ -294,7 +316,7 @@ export default function ReportPage() {
             className="flex items-center gap-3 px-6 py-4 bg-primary text-white rounded-2xl text-[10px] font-bold uppercase tracking-widest shadow-2xl shadow-primary/20 hover:scale-[1.03] transition-all disabled:opacity-50"
           >
             <Download size={14} />
-            {loading ? "Calibrating..." : "Export Record"}
+            {loading ? "Generating..." : "Export PDF"}
           </button>
           <div className="glass px-4 py-2 rounded-2xl border border-white hidden md:flex items-center gap-6">
             <Link href={`/projects/${projectId}/floor-plan`} className="text-[10px] font-bold text-gray-400 hover:text-primary uppercase tracking-widest transition-colors flex items-center gap-2">
@@ -652,21 +674,87 @@ export default function ReportPage() {
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 10px; }
         
         @media print {
+          @page {
+            size: A4 portrait;
+            margin: 8mm;
+          }
+          
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          
+          html, body {
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #fff !important;
+            font-size: 9pt !important;
+          }
+          
           .no-print { display: none !important; }
           .organic-gradient { background: #fff !important; }
-          .glass { border: 1px solid #eee !important; box-shadow: none !important; backdrop-filter: none !important; background: #fff !important; }
-          .min-h-screen { padding: 0 !important; margin: 0 !important; }
-          .max-w-7xl { max-width: 100% !important; padding: 0 !important; }
-          body { font-size: 10pt !important; color: #000 !important; }
-          h1, h2, h3 { color: #000 !important; page-break-after: avoid; }
-          .overflow-x-auto { overflow: visible !important; }
-          table { page-break-inside: auto; width: 100% !important; border-collapse: collapse !important; }
-          tr { page-break-inside: avoid; page-break-after: auto; }
-          thead { display: table-header-group; }
           
-          /* Visual adjustments for PDF/Print */
-          . radial-bar-chart { max-width: 150mm !important; }
-          .recharts-responsive-container { width: 100% !important; height: auto !important; max-height: 80mm; }
+          .glass { 
+            background: #fff !important; 
+            border: 1px solid #ddd !important;
+            box-shadow: none !important;
+            border-radius: 6px !important;
+          }
+          
+          .min-h-screen { 
+            min-height: auto !important;
+            padding: 8px !important;
+          }
+          .max-w-7xl { 
+            max-width: 100% !important;
+            padding: 8px !important;
+          }
+          
+          h1 { font-size: 16pt !important; color: #13547a !important; }
+          h2 { font-size: 12pt !important; color: #13547a !important; }
+          h3 { font-size: 10pt !important; color: #13547a !important; }
+          h1, h2, h3 { page-break-after: avoid; }
+          
+          p, span, td, th, li { color: #000 !important; }
+          .text-gray-400, .text-gray-500 { color: #444 !important; }
+          .text-primary { color: #13547a !important; }
+          
+          .absolute { display: none !important; }
+          
+          .recharts-wrapper { 
+            display: block !important;
+            width: 100% !important;
+            height: auto !important;
+          }
+          .recharts-responsive-container {
+            width: 100% !important;
+            height: 160px !important;
+          }
+          .recharts-text { fill: #000 !important; }
+          .recharts-cartesian-axis-tick-value { fill: #333 !important; }
+          .recharts-legend-item-text { color: #000 !important; }
+          
+          .text-7xl { font-size: 28pt !important; }
+          .text-2xl { font-size: 10pt !important; }
+          
+          .overflow-x-auto { overflow: visible !important; }
+          table { page-break-inside: auto; width: 100% !important; }
+          tr { page-break-inside: avoid; }
+          thead { display: table-header-group; }
+          td, th { padding: 2px 4px !important; }
+          
+          .glass { page-break-inside: avoid; }
+          
+          .grid { page-break-inside: avoid; }
+          .space-y-12 > * { margin-bottom: 6pt !important; }
+          
+          .w-\\[80vw\\].max-w-\\[600px\\] {
+            width: 100% !important;
+            max-width: 140mm !important;
+            height: auto !important;
+          }
         }
       `}</style>
     </div>

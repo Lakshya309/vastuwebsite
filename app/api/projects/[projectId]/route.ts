@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase'
+import { validateAuth } from '@/lib/supabase-server-api'
 import { prisma } from '@/lib/db'
 import { r2Client, BUCKET_NAME } from '@/lib/r2'
 import { GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
@@ -9,8 +9,10 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ projectId: string }> }
 ) {
-  // Authorization check (optional, but good practice since Supabase was initialized)
-  const supabase = await createServerSupabaseClient()
+  const authResult = await validateAuth(request)
+  if (authResult.error) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  }
   const { projectId } = await params
 
   if (!projectId) {
@@ -21,15 +23,10 @@ export async function GET(
   }
 
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const project = await prisma.projects.findFirst({
       where: {
         id: projectId,
-        user_id: user.id
+        user_id: authResult.user!.id
       },
       include: {
         project_objects: {
@@ -111,6 +108,10 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ projectId: string }> }
 ) {
+  const authResult = await validateAuth(request)
+  if (authResult.error) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  }
   const { projectId } = await params
   const body = await request.json()
   const updates: Record<string, any> = {}
@@ -188,6 +189,10 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ projectId: string }> }
 ) {
+  const authResult = await validateAuth(request)
+  if (authResult.error) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  }
   const { projectId } = await params
 
   if (!projectId) {
@@ -200,8 +205,15 @@ export async function DELETE(
   try {
     const projectToDelete = await prisma.projects.findUnique({
       where: { id: projectId },
-      select: { video_path: true }
+      select: { video_path: true, user_id: true }
     });
+
+    if (!projectToDelete || projectToDelete.user_id !== authResult.user!.id) {
+      return NextResponse.json(
+        { error: 'Project not found or access denied' },
+        { status: 404 }
+      );
+    }
 
     // 1. Fetch all map plots to delete their files from Cloudflare R2
     const mapPlots = await prisma.map_plots.findMany({

@@ -13,6 +13,11 @@ import { ControlPanel } from "@/components/floor-plan/ControlPanel";
 import { DevtaInfoCard } from "@/components/floor-plan/DevtaInfoCard";
 
 import { PlacedObject, DevtaRegion, Point, Wall } from "@/lib/floorPlanInterfaces";
+import {
+  autoDiagonalFromSides,
+  buildIrregularQuadrilateral,
+  dist2D,
+} from "@/lib/plotGeometry";
 import { OBJECT_ICONS } from "@/lib/objectIcons";
 import { TutorialOverlay, TutorialStep } from "@/components/floor-plan/TutorialOverlay";
 import { ResizableLayout } from "@/components/floor-plan/ResizableLayout";
@@ -250,46 +255,67 @@ export default function FloorPlanPage() {
       let totalPxH = 0;
 
       if (isIrregular) {
-        // 1. Calculate geometry in REAL units (meters) first
-        const a = project.plot_side_front! * unitFactor; // Front
-        const b = project.plot_side_back! * unitFactor;  // Back
-        const c = project.plot_side_left! * unitFactor;  // Left
-        const d = project.plot_side_right! * unitFactor; // Right
+        // Real units (meters): a=Front, b=Back, c=Left, d=Right; diagonal FL–BR = e
+        const a = project.plot_side_front! * unitFactor;
+        const b = project.plot_side_back! * unitFactor;
+        const c = project.plot_side_left! * unitFactor;
+        const d = project.plot_side_right! * unitFactor;
 
-        let e;
-        if (project.plot_diagonal) {
+        let e: number | null = null;
+        if (project.plot_diagonal != null && project.plot_diagonal > 0) {
           e = project.plot_diagonal * unitFactor;
         } else {
-          // Auto-calculate diagonal using Cyclic Quadrilateral formula (most regular shape)
-          // e is the diagonal between Front (a) and Right (d) corner, i.e., from Front-Left to Back-Right
-          e = Math.sqrt(((a * d + b * c) * (a * b + c * d)) / (a * c + b * d));
+          e = autoDiagonalFromSides(a, b, c, d);
         }
 
-        // Law of Cosines on Triangle 1 (Side Front, Side Right, Diagonal)
-        // Cosine of angle at Front-Right vertex
-        const cosAngleFR = (a * a + d * d - e * e) / (2 * a * d);
-        const sinAngleFR = Math.sqrt(Math.max(0, 1 - cosAngleFR * cosAngleFR));
+        if (e === null) {
+          if (process.env.NODE_ENV === "development") {
+            console.warn(
+              "[floor-plan] Irregular plot: no feasible diagonal interval for these sides."
+            );
+          }
+          return;
+        }
 
-        // Let Front-Left be (0,0) and Front-Right be (a, 0)
-        const p0 = { x: 0, y: 0 };
-        const p1 = { x: a, y: 0 };
-        // Back-Right vertex
-        const p2 = { x: a - d * cosAngleFR, y: d * sinAngleFR };
+        const quad = buildIrregularQuadrilateral(a, b, c, d, e);
+        if (!quad) {
+          if (process.env.NODE_ENV === "development") {
+            console.warn(
+              "[floor-plan] Irregular plot: could not build a simple quadrilateral for these sides/diagonal."
+            );
+          }
+          return;
+        }
 
-        // Law of Cosines on Triangle 2 (Side Left, Side Back, Diagonal)
-        // Cosine of angle at Front-Left vertex relative to Diagonal
-        const cosAngleFL = (c * c + e * e - b * b) / (2 * c * e);
-        const angleFL = Math.acos(Math.max(-1, Math.min(1, cosAngleFL)));
+        const { fl: p0, fr: p1, br: p3, bl: p2 } = quad;
+        // Perimeter order FL → FR → BR → BL (edges: front, right, back, left)
 
-        // Angle of Diagonal vector (FL to BR)
-        const angleDiag = Math.atan2(p2.y, p2.x);
+        if (process.env.NODE_ENV === "development") {
+          const actualFront = dist2D(p0, p1);
+          const actualRight = dist2D(p1, p3);
+          const actualBack = dist2D(p3, p2);
+          const actualLeft = dist2D(p2, p0);
+          const actualDiag = dist2D(p0, p3);
+          const tol = 0.01 * unitFactor;
+          const ok =
+            Math.abs(actualFront - a) < tol &&
+            Math.abs(actualRight - d) < tol &&
+            Math.abs(actualBack - b) < tol &&
+            Math.abs(actualLeft - c) < tol &&
+            Math.abs(actualDiag - e) < tol;
+          if (!ok) {
+            console.warn("[floor-plan] Irregular plot edge check (m):", {
+              front: actualFront,
+              right: actualRight,
+              back: actualBack,
+              left: actualLeft,
+              diagonal: actualDiag,
+              ok,
+            });
+          }
+        }
 
-        // Back-Left vertex
-        const p3 = {
-          x: c * Math.cos(angleDiag + angleFL),
-          y: c * Math.sin(angleDiag + angleFL)
-        };
-
+        // Calculate bounding box dimensions
         const minX = Math.min(p0.x, p1.x, p2.x, p3.x);
         const minY = Math.min(p0.y, p1.y, p2.y, p3.y);
         const maxX = Math.max(p0.x, p1.x, p2.x, p3.x);
@@ -316,8 +342,8 @@ export default function FloorPlanPage() {
           setReferenceWallLength(project.plot_side_front!);
         }
 
-        // 3. Normalize points
-        pts = [p0, p1, p2, p3].map(p => ({
+        // 3. Scale points to pixels (normalize to positive quadrant first, then scale)
+        pts = [p0, p1, p3, p2].map((p) => ({
           x: (p.x - minX) / currentScale,
           y: (p.y - minY) / currentScale
         }));

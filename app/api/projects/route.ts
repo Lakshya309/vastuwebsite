@@ -1,24 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "../../../lib/supabase";
+import { validateAuth } from "../../../lib/supabase-server-api";
 import { prisma } from "../../../lib/db";
+import { feasibleDiagonalInterval } from "../../../lib/plotGeometry";
 
 export async function POST(req: NextRequest) {
-  const supabase = await createServerSupabaseClient();
+  const authResult = await validateAuth(req as Request);
+  if (authResult.error) {
+    return NextResponse.json({ message: authResult.error }, { status: authResult.status });
+  }
+  const uid = authResult.user!.id;
+  const user = authResult.user!;
 
   try {
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { message: "Unauthorized: Invalid token" },
-        { status: 401 }
-      );
-    }
-    const uid = user.id;
-
     let profile = await prisma.profiles.findUnique({
       where: { id: uid }
     });
@@ -50,8 +43,11 @@ export async function POST(req: NextRequest) {
       plot_side_left,
       plot_side_right,
       plot_diagonal,
-      astrologer_code
+      astrologer_code,
+      expert_code
     } = await req.json();
+
+    const expertCode = astrologer_code || expert_code;
 
     if (!name) {
       return NextResponse.json(
@@ -60,10 +56,47 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Server-side validation for irregular plots
+    const a = plot_side_front ? parseFloat(plot_side_front.toString()) : null;
+    const b = plot_side_back ? parseFloat(plot_side_back.toString()) : null;
+    const c = plot_side_left ? parseFloat(plot_side_left.toString()) : null;
+    const d = plot_side_right ? parseFloat(plot_side_right.toString()) : null;
+    const e = plot_diagonal ? parseFloat(plot_diagonal.toString()) : null;
+
+    if (a && b && c && d) {
+      if (a <= 0 || b <= 0 || c <= 0 || d <= 0) {
+        return NextResponse.json(
+          { message: "All sides must be positive numbers" },
+          { status: 400 }
+        );
+      }
+
+      const interval = feasibleDiagonalInterval(a, b, c, d);
+      if (!interval) {
+        return NextResponse.json(
+          {
+            message:
+              "Invalid plot: these four sides cannot form a quadrilateral. Adjust the side lengths.",
+          },
+          { status: 400 }
+        );
+      }
+      if (e) {
+        if (e <= interval.min || e >= interval.max) {
+          return NextResponse.json(
+            {
+              message: `Invalid diagonal: must be strictly between ${interval.min.toFixed(2)} and ${interval.max.toFixed(2)} (FL–BR diagonal).`,
+            },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     let assigned_astrologer_id = null;
-    if (astrologer_code) {
+    if (expertCode) {
       const astrologerProfile = await prisma.profiles.findUnique({
-        where: { unique_code: astrologer_code }
+        where: { expert_code: expertCode }
       });
       if (astrologerProfile) {
         assigned_astrologer_id = astrologerProfile.id;
@@ -78,11 +111,11 @@ export async function POST(req: NextRequest) {
         report_for: report_for,
         plot_width: plot_width ? parseFloat((plot_width as any).toString()) : null,
         plot_height: plot_height ? parseFloat((plot_height as any).toString()) : null,
-        plot_side_front: plot_side_front ? parseFloat((plot_side_front as any).toString()) : null,
-        plot_side_back: plot_side_back ? parseFloat((plot_side_back as any).toString()) : null,
-        plot_side_left: plot_side_left ? parseFloat((plot_side_left as any).toString()) : null,
-        plot_side_right: plot_side_right ? parseFloat((plot_side_right as any).toString()) : null,
-        plot_diagonal: plot_diagonal ? parseFloat((plot_diagonal as any).toString()) : null,
+        plot_side_front: a,
+        plot_side_back: b,
+        plot_side_left: c,
+        plot_side_right: d,
+        plot_diagonal: e,
         assigned_astrologer_id: assigned_astrologer_id
       }
     });
@@ -101,23 +134,20 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  const supabase = await createServerSupabaseClient();
+  console.log("=== DEBUG ===");
+  console.log("Auth header:", req.headers.get('Authorization')?.substring(0, 20) + "...");
+  
+  const authResult = await validateAuth(req as Request);
+  console.log("Auth result:", authResult.error ? `Error: ${authResult.error}` : `Success: ${authResult.user?.id}`);
+  
+  if (authResult.error) {
+    return NextResponse.json({ message: authResult.error }, { status: authResult.status });
+  }
   try {
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { message: "Unauthorized: Invalid token" },
-        { status: 401 }
-      );
-    }
 
     const projectsList = await prisma.projects.findMany({
       where: {
-        user_id: user.id, // Explicitly enforce user isolation (RLS substitute)
+        user_id: authResult.user!.id, // Explicitly enforce user isolation (RLS substitute)
         deleted_at: null,
       },
       orderBy: {

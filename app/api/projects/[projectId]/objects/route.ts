@@ -1,19 +1,16 @@
 import { NextResponse } from 'next/server';
-import { createServerSupabaseClient } from '../../../../../lib/supabase';
+import { validateAuth } from '../../../../../lib/supabase-server-api';
 import { prisma } from '../../../../../lib/db';
 
 export async function GET(
   request: Request,
   context: { params: Promise<{ projectId: string }> }
 ) {
-  const { projectId } = await context.params;
-
-  // Verify auth (optional if route is public, but keeping original logic)
-  const supabase = await createServerSupabaseClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const authResult = await validateAuth(request);
+  if (authResult.error) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status });
   }
+  const { projectId } = await context.params;
 
   if (!projectId) {
     return NextResponse.json(
@@ -41,14 +38,11 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ projectId: string }> }
 ) {
-  const { projectId } = await context.params;
-
-  // Verify auth
-  const supabase = await createServerSupabaseClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const authResult = await validateAuth(request);
+  if (authResult.error) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status });
   }
+  const { projectId } = await context.params;
 
   if (!projectId) {
     return NextResponse.json(

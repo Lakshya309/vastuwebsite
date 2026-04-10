@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     // Verify if the user has the 'astrologer' role
     const profile = await prisma.profiles.findUnique({
       where: { id: user.id },
-      select: { role: true, unique_code: true, email: true }
+      select: { role: true, expert_code: true, email: true }
     });
 
     if (!profile || profile.role !== 'astrologer') {

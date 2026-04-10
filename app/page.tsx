@@ -242,9 +242,28 @@ export default function Home() {
             height={54}
             className="opacity-80 contrast-125"
           />
-          <p className="text-gray-400 text-sm tracking-widest uppercase font-medium">
-            © 2026 Manglam Vastu — Excellence in Sacred Design.
-          </p>
+          <div className="flex flex-col md:flex-row items-center gap-6 md:gap-8">
+            <p className="text-gray-400 text-sm tracking-widest uppercase font-medium">
+              © 2026 Mangalam Vastu — Excellence in Sacred Design.
+            </p>
+            <div className="flex items-center gap-6 text-xs">
+              <Link href="/contact" className="text-gray-400 hover:text-primary transition-colors font-medium">
+                Contact
+              </Link>
+              <span className="text-gray-300">|</span>
+              <Link href="/terms" className="text-gray-400 hover:text-primary transition-colors font-medium">
+                Terms
+              </Link>
+              <span className="text-gray-300">|</span>
+              <Link href="/privacy" className="text-gray-400 hover:text-primary transition-colors font-medium">
+                Privacy
+              </Link>
+              <span className="text-gray-300">|</span>
+              <Link href="/refund" className="text-gray-400 hover:text-primary transition-colors font-medium">
+                Refund Policy
+              </Link>
+            </div>
+          </div>
         </div>
       </footer>
     </div>

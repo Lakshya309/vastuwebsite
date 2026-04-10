@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
@@ -9,23 +9,31 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createSupabaseBrowserClient()
   const { refresh } = useAuth();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setIsLoading(true);
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
       if (error) throw error
+      
       await refresh();
-      router.push("/projects"); // Redirect to dashboard on successful login
+      await new Promise(resolve => setTimeout(resolve, 150));
+      
+      const redirectTo = searchParams.get('redirectedFrom') || '/projects';
+      router.push(redirectTo);
     } catch (err: any) {
       setError(err.message);
+      setIsLoading(false);
     }
   };
 
@@ -94,9 +102,10 @@ export default function LoginPage() {
 
               <button
                 type="submit"
-                className="w-full py-5 bg-primary text-white rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all duration-300"
+                disabled={isLoading}
+                className="w-full py-5 bg-primary text-white rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed"
               >
-                Establish Linkage
+                {isLoading ? "Establishing Linkage..." : "Establish Linkage"}
               </button>
             </form>
 

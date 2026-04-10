@@ -1,17 +1,15 @@
-import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase";
+import { NextRequest, NextResponse } from "next/server";
+import { validateAuth } from "@/lib/supabase-server-api";
 import { prisma } from "@/lib/db";
 
-export async function GET() {
-  const supabase = await createServerSupabaseClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+export async function GET(req: NextRequest) {
+  const authResult = await validateAuth(req as unknown as Request);
+  
+  if (authResult.error || !authResult.user) {
     return NextResponse.json({ user: null });
   }
+
+  const user = authResult.user;
 
   try {
     const profile = await prisma.profiles.findUnique({

@@ -14,7 +14,6 @@ import {
   X,
   ChevronDown,
   Expand,
-  Compress,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -141,6 +140,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
   }, []);
 
+  const skipBackward = useCallback(() => skip(-10), [skip]);
+  const skipForward = useCallback(() => skip(10), [skip]);
+
   const replay = useCallback(() => {
     if (videoRef.current) {
       videoRef.current.currentTime = 0;
@@ -204,235 +206,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
-
-  // Full Screen Modal Component
-  const FullScreenModal = () => (
-    <AnimatePresence>
-      {isModalFullScreen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-sm flex items-center justify-center"
-          onClick={() => setIsModalFullScreen(false)}
-        >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
-            className="relative w-full max-w-7xl mx-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Video Container */}
-            <div
-              className="relative bg-black rounded-2xl overflow-hidden shadow-2xl"
-              onMouseMove={showControlsTemporarily}
-              onMouseLeave={handleMouseLeave}
-            >
-              <video
-                ref={videoRef}
-                src={url}
-                className="w-full aspect-video object-contain bg-black"
-                onClick={togglePlay}
-              />
-
-              {/* Modal Controls */}
-              <AnimatePresence>
-                {showControls && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 20 }}
-                    transition={{ duration: 0.2 }}
-                    className="absolute bottom-0 left-0 right-0"
-                  >
-                    {/* Gradient Background */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent" />
-
-                    {/* Controls Content */}
-                    <div className="relative p-6 space-y-4">
-                      {/* Progress Bar */}
-                      <div
-                        ref={progressRef}
-                        className="relative h-1.5 group/progress cursor-pointer"
-                        onClick={handleSeek}
-                        onMouseMove={handleProgressHover}
-                        onMouseEnter={() => setIsHoveringProgress(true)}
-                        onMouseLeave={() => setIsHoveringProgress(false)}
-                      >
-                        {isHoveringProgress && hoverTime !== null && (
-                          <div
-                            className="absolute -top-10 transform -translate-x-1/2 bg-gray-900/95 backdrop-blur-sm text-white text-sm px-3 py-1.5 rounded-lg"
-                            style={{ left: `${hoverPosition}%` }}
-                          >
-                            {formatTime(hoverTime)}
-                          </div>
-                        )}
-                        <div className="absolute inset-0 bg-white/20 rounded-full overflow-hidden">
-                          <motion.div
-                            className="h-full bg-gradient-to-r from-teal-400 to-blue-500 rounded-full"
-                            style={{ width: `${progress}%` }}
-                          />
-                        </div>
-                        <motion.div
-                          className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-lg opacity-0 group-hover/progress:opacity-100 transition-opacity"
-                          style={{ left: `calc(${progress}% - 8px)` }}
-                        />
-                      </div>
-
-                      {/* Controls Row */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <button
-                            onClick={togglePlay}
-                            className="p-2 hover:bg-white/10 rounded-xl transition-colors"
-                          >
-                            {isPlaying ? (
-                              <Pause size={28} className="text-white fill-white" />
-                            ) : (
-                              <Play size={28} className="text-white fill-white ml-1" />
-                            )}
-                          </button>
-
-                          <button
-                            onClick={() => skip(-10)}
-                            className="text-white/80 hover:text-white p-2 hover:bg-white/10 rounded-lg transition-colors"
-                          >
-                            <Rewind size={22} />
-                          </button>
-                          <button
-                            onClick={() => skip(10)}
-                            className="text-white/80 hover:text-white p-2 hover:bg-white/10 rounded-lg transition-colors"
-                          >
-                            <FastForward size={22} />
-                          </button>
-                          <button
-                            onClick={replay}
-                            className="text-white/80 hover:text-white p-2 hover:bg-white/10 rounded-lg transition-colors"
-                          >
-                            <RotateCcw size={22} />
-                          </button>
-
-                          {/* Volume */}
-                          <div
-                            className="flex items-center gap-2 group/volume relative"
-                            onMouseEnter={() => setShowVolumeSlider(true)}
-                            onMouseLeave={() => setShowVolumeSlider(false)}
-                          >
-                            <button
-                              onClick={toggleMute}
-                              className="text-white/80 hover:text-white p-2 hover:bg-white/10 rounded-lg transition-colors"
-                            >
-                              {isMuted || volume === 0 ? (
-                                <VolumeX size={24} />
-                              ) : (
-                                <Volume2 size={24} />
-                              )}
-                            </button>
-                            <div
-                              className={`overflow-hidden transition-all duration-300 ${
-                                showVolumeSlider ? "w-24 opacity-100" : "w-0 opacity-0"
-                              }`}
-                            >
-                              <input
-                                type="range"
-                                min="0"
-                                max="1"
-                                step="0.05"
-                                value={isMuted ? 0 : volume}
-                                onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
-                                className="w-full h-1 accent-teal-400 cursor-pointer"
-                              />
-                            </div>
-                          </div>
-
-                          {/* Time */}
-                          <span className="text-white/80 text-sm font-mono tabular-nums ml-2">
-                            {formatTime(currentTime)} / {formatTime(duration)}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                          {/* Speed */}
-                          <div className="relative">
-                            <button
-                              onClick={() => setShowSpeedMenu(!showSpeedMenu)}
-                              className="flex items-center gap-1 text-white/80 hover:text-white px-3 py-1.5 hover:bg-white/10 rounded-lg text-sm font-medium transition-colors border border-white/20 hover:border-white/40"
-                            >
-                              {playbackRate}x
-                              <ChevronDown size={14} />
-                            </button>
-                            <AnimatePresence>
-                              {showSpeedMenu && (
-                                <motion.div
-                                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                                  className="absolute bottom-full right-0 mb-2 bg-gray-900/95 backdrop-blur-md border border-white/20 rounded-xl shadow-xl overflow-hidden min-w-[90px]"
-                                >
-                                  {PLAYBACK_RATES.map((rate) => (
-                                    <button
-                                      key={rate}
-                                      onClick={() => handlePlaybackRateChange(rate)}
-                                      className={`w-full px-4 py-2.5 text-sm text-left hover:bg-white/10 transition-colors ${
-                                        playbackRate === rate
-                                          ? "text-teal-400 bg-white/5"
-                                          : "text-white/80"
-                                      }`}
-                                    >
-                                      {rate}x
-                                    </button>
-                                  ))}
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
-                          </div>
-
-                          {/* Close Modal */}
-                          <button
-                            onClick={() => setIsModalFullScreen(false)}
-                            className="text-white/80 hover:text-white p-2 hover:bg-white/10 rounded-lg transition-colors"
-                          >
-                            <X size={24} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* Center Play Button */}
-              <AnimatePresence>
-                {!isPlaying && (
-                  <motion.button
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
-                    onClick={togglePlay}
-                    className="absolute inset-0 flex items-center justify-center cursor-pointer bg-black/20"
-                  >
-                    <motion.div
-                      whileHover={{ scale: 1.1 }}
-                      className="bg-teal-500/90 backdrop-blur-sm p-8 rounded-full shadow-2xl border border-white/20"
-                    >
-                      <Play size={56} className="text-white fill-current ml-2" />
-                    </motion.div>
-                  </motion.button>
-                )}
-              </AnimatePresence>
-            </div>
-
-            {/* Modal Title */}
-            <div className="text-center mt-4">
-              <h3 className="text-white text-lg font-medium">{title || "Video Analysis"}</h3>
-              <p className="text-white/60 text-sm mt-1">Press ESC or click outside to close</p>
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
 
   // Inline Video Player (for side panel)
   return (
@@ -629,7 +402,73 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       </div>
 
       {/* Full Screen Modal */}
-      <FullScreenModal />
+      {isModalFullScreen && (
+        <AnimatePresence>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-sm flex items-center justify-center"
+            onClick={() => setIsModalFullScreen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="relative w-full max-w-7xl mx-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div
+                className="relative bg-black rounded-2xl overflow-hidden shadow-2xl"
+                onMouseMove={showControlsTemporarily}
+                onMouseLeave={handleMouseLeave}
+              >
+                <video
+                  ref={videoRef}
+                  src={url}
+                  className="w-full aspect-video object-contain bg-black"
+                  onClick={togglePlay}
+                />
+                <AnimatePresence>
+                  {showControls && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 20 }}
+                      transition={{ duration: 0.2 }}
+                      className="absolute bottom-0 left-0 right-0"
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent" />
+                      <div className="relative p-4 space-y-3">
+                        <div className="flex items-center gap-3">
+                          <button onClick={togglePlay} className="text-white hover:text-primary transition-colors">
+                            {isPlaying ? <Pause size={24} /> : <Play size={24} />}
+                          </button>
+                          <button onClick={skipBackward} className="text-white/80 hover:text-white transition-colors">
+                            <Rewind size={20} />
+                          </button>
+                          <button onClick={skipForward} className="text-white/80 hover:text-white transition-colors">
+                            <FastForward size={20} />
+                          </button>
+                          <span className="text-white text-sm font-mono">{formatTime(currentTime)}</span>
+                          <div className="flex-1 h-1 bg-white/20 rounded-full cursor-pointer" onClick={handleSeek}>
+                            <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${progress}%` }} />
+                          </div>
+                          <span className="text-white/60 text-sm font-mono">{formatTime(duration)}</span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+              <div className="text-center mt-4">
+                <h3 className="text-white text-lg font-medium">{title || "Video Analysis"}</h3>
+                <p className="text-white/60 text-sm mt-1">Press ESC or click outside to close</p>
+              </div>
+            </motion.div>
+          </motion.div>
+        </AnimatePresence>
+      )}
     </>
   );
 };

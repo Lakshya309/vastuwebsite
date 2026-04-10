@@ -114,7 +114,7 @@ export default function AstrologerDashboard() {
         </div>
 
         {/* Unique Code Section - Premium V1 Glass */}
-        {astrologer?.unique_code && (
+        {astrologer?.expert_code && (
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -131,10 +131,10 @@ export default function AstrologerDashboard() {
                 </p>
                 
                 <div className="inline-flex items-center gap-4 glass px-8 py-4 rounded-2xl border border-teal-100 shadow-inner group/code">
-                  <span className="text-3xl font-bold tracking-widest text-primary leading-none">{astrologer.unique_code}</span>
+                  <span className="text-3xl font-bold tracking-widest text-primary leading-none">{astrologer.expert_code}</span>
                   <button 
                     onClick={() => {
-                      navigator.clipboard.writeText(astrologer.unique_code);
+                      navigator.clipboard.writeText(astrologer.expert_code);
                       setCopied(true);
                       setTimeout(() => setCopied(false), 2000);
                     }}

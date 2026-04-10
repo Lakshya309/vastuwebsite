@@ -1,26 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "../../../../../../lib/supabase";
+import { validateAuth } from "../../../../../../lib/supabase-server-api";
 import { prisma } from "../../../../../../lib/db";
 
 export async function PUT(
   req: NextRequest,
   context: { params: Promise<{ projectId: string; objectId: string }> }
 ) {
-  const supabase = await createServerSupabaseClient();
+  const authResult = await validateAuth(req as Request);
+  if (authResult.error) {
+    return NextResponse.json({ message: authResult.error }, { status: authResult.status });
+  }
 
   try {
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { message: "Unauthorized: Invalid token" },
-        { status: 401 }
-      );
-    }
-    const uid = user.id;
+    const uid = authResult.user!.id;
     const { projectId, objectId } = await context.params;
 
     // First, verify that the user has access to the project
@@ -75,20 +67,13 @@ export async function DELETE(
   req: NextRequest,
   context: { params: Promise<{ projectId: string; objectId: string }> }
 ) {
-  const supabase = await createServerSupabaseClient();
-  try {
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
+  const authResult = await validateAuth(req as Request);
+  if (authResult.error) {
+    return NextResponse.json({ message: authResult.error }, { status: authResult.status });
+  }
 
-    if (authError || !user) {
-      return NextResponse.json(
-        { message: "Unauthorized: Invalid token" },
-        { status: 401 }
-      );
-    }
-    const uid = user.id;
+  try {
+    const uid = authResult.user!.id;
     const { projectId, objectId } = await context.params;
 
     // First, verify that the user has access to the project

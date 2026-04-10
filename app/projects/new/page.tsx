@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { feasibleDiagonalInterval } from "@/lib/plotGeometry";
 
 export default function NewProjectPage() {
   const [projectName, setProjectName] = useState("");
@@ -27,6 +28,33 @@ export default function NewProjectPage() {
     setError(null);
 
     try {
+      // Client-side validation for irregular plots
+      if (plotType === "manual" && isIrregular) {
+        const a = parseFloat(sideFront);
+        const b = parseFloat(sideBack);
+        const c = parseFloat(sideLeft);
+        const d = parseFloat(sideRight);
+        const e = diagonal ? parseFloat(diagonal) : null;
+
+        if (!a || !b || !c || !d || a <= 0 || b <= 0 || c <= 0 || d <= 0) {
+          throw new Error("All four sides must be positive numbers");
+        }
+
+        const interval = feasibleDiagonalInterval(a, b, c, d);
+        if (!interval) {
+          throw new Error(
+            "Invalid plot: these four sides cannot form a quadrilateral. Adjust the side lengths."
+          );
+        }
+        if (e) {
+          if (e <= interval.min || e >= interval.max) {
+            throw new Error(
+              `Invalid diagonal: must be strictly between ${interval.min.toFixed(2)} and ${interval.max.toFixed(2)} (FL–BR diagonal).`
+            );
+          }
+        }
+      }
+
       const response = await fetch("/api/projects", {
         method: "POST",
         headers: {
@@ -42,8 +70,8 @@ export default function NewProjectPage() {
           plot_side_back: plotType === "manual" && isIrregular ? parseFloat(sideBack) : null,
           plot_side_left: plotType === "manual" && isIrregular ? parseFloat(sideLeft) : null,
           plot_side_right: plotType === "manual" && isIrregular ? parseFloat(sideRight) : null,
-          plot_diagonal: plotType === "manual" && isIrregular ? parseFloat(diagonal) : null,
-          astrologer_code: astrologerCode || null,
+          plot_diagonal: plotType === "manual" && isIrregular && diagonal ? parseFloat(diagonal) : null,
+          expert_code: astrologerCode || null,
         }),
       });
 
@@ -230,9 +258,6 @@ export default function NewProjectPage() {
                       value={diagonal}
                       onChange={(e) => setDiagonal(e.target.value)}
                     />
-                    <p className="text-[10px] text-gray-400">
-                      *Optional. Leave blank to auto-calculate the most regular shape.
-                    </p>
                   </div>
                 )}
               </div>
