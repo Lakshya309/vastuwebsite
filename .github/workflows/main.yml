@@ -3,7 +3,7 @@ name: Deploy Manglam App
 on:
   push:
     branches:
-      - perimeter-based-devtas  # Deploy only when this branch is updated
+      - main2  # Deploy only when this branch is updated
 
 jobs:
   deploy:
