@@ -72,6 +72,7 @@ interface VastuAnalysisResult {
   zones8?: any[];
   devtas45?: any[];
   analysis_id?: string;
+  plot_centroid?: Point | null;
 }
 
 const ZONES_DEFINITION = [
@@ -730,6 +731,7 @@ export default function ReportPage() {
                     zone8Regions={vastuAnalysisResult.zones8}
                     highlightedZones={[]}
                     onObjectClick={() => {}}
+                    plotCentroid={vastuAnalysisResult.plot_centroid}
                   />
                 </div>
               </div>
@@ -772,6 +774,7 @@ export default function ReportPage() {
                     zone16Regions={vastuAnalysisResult.zones16}
                     highlightedZones={highlightedZones}
                     onObjectClick={handleObjectClick}
+                    plotCentroid={vastuAnalysisResult.plot_centroid}
                   />
                 </div>
               </div>
@@ -799,6 +802,7 @@ export default function ReportPage() {
                     devtaRegions={vastuAnalysisResult.devtas45}
                     highlightedZones={[]}
                     onObjectClick={() => {}}
+                    plotCentroid={vastuAnalysisResult.plot_centroid}
                   />
                 </div>
               </div>

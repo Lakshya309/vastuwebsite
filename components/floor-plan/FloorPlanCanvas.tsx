@@ -640,14 +640,19 @@ const drawCanvasContent = (
     ctx.strokeStyle = "#2563EB";
     ctx.stroke();
   }
-
   // Draw North Indicator
   if (boundary.length > 0) {
     ctx.save();
 
-    // Center the compass vertically and horizontally on the canvas
-    const xCenter = width / 2;
-    const yCenter = height / 2;
+    let anchorPoint = plotCentroid;
+
+    if (!anchorPoint && boundary.length > 0) {
+      anchorPoint = getCentroid(boundary);
+    }
+    
+    const pxCentroid = anchorPoint ? toPx(anchorPoint) : { x: width / 2, y: height / 2 };
+    const xCenter = pxCentroid.x;
+    const yCenter = pxCentroid.y;
 
     ctx.translate(xCenter, yCenter);
     ctx.rotate(-(northDirection * Math.PI) / 180);
