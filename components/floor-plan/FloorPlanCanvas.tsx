@@ -199,7 +199,8 @@ const drawCanvasContent = (
   measureEnd?: Point | null,
   measureCurrent?: Point | null,
   hoverPoint?: Point | null,
-  isStatic?: boolean
+  isStatic?: boolean,
+  preloadedShaktiChakraImg?: HTMLImageElement | null
 ) => {
   const toPx = (p: Point) => ({ x: p.x * width, y: p.y * height });
 
@@ -543,18 +544,14 @@ const drawCanvasContent = (
     });
   }
 
-  if (shaktiChakra && plotCentroid) {
+  if (shaktiChakra && plotCentroid && preloadedShaktiChakraImg) {
     const centroid = toPx(plotCentroid);
-    const shaktiChakraImg = new Image();
-    shaktiChakraImg.src = shaktiChakraType === "zones" ? "/chakrazones.png" : "/shaktichakra.png";
-    shaktiChakraImg.onload = () => {
-      ctx.save();
-      ctx.translate(centroid.x, centroid.y);
-      ctx.rotate((-northDirection * Math.PI) / 180);
-      const imageSize = Math.min(width, height) * (shaktiChakraSize || 0.8);
-      ctx.drawImage(shaktiChakraImg, -imageSize / 2, -imageSize / 2, imageSize, imageSize);
-      ctx.restore();
-    };
+    ctx.save();
+    ctx.translate(centroid.x, centroid.y);
+    ctx.rotate((-northDirection * Math.PI) / 180);
+    const imageSize = Math.min(width, height) * (shaktiChakraSize || 0.8);
+    ctx.drawImage(preloadedShaktiChakraImg, -imageSize / 2, -imageSize / 2, imageSize, imageSize);
+    ctx.restore();
   }
 
   devtaRegions.forEach((region) => {
@@ -800,8 +797,20 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
+  const [shaktiChakraZonesImg, setShaktiChakraZonesImg] = useState<HTMLImageElement | null>(null);
+  const [shaktiChakraBaseImg, setShaktiChakraBaseImg] = useState<HTMLImageElement | null>(null);
 
   const { width, height } = dimensions;
+
+  useEffect(() => {
+    const img1 = new window.Image();
+    img1.src = "/chakrazones.png";
+    img1.onload = () => setShaktiChakraZonesImg(img1);
+
+    const img2 = new window.Image();
+    img2.src = "/shaktichakra.png";
+    img2.onload = () => setShaktiChakraBaseImg(img2);
+  }, []);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -873,7 +882,8 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
       measureEnd,
       measureCurrent,
       hoverPoint,
-      isStatic
+      isStatic,
+      shaktiChakraType === "zones" ? shaktiChakraZonesImg : shaktiChakraBaseImg
     );
     ctx.restore();
   }, [
@@ -882,7 +892,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     plotCentroid, drawingObjectBoundary, drawingMode, hoveredDevta, innerPolygon,
     middlePolygon, northDirection, wallLengths, referenceWallIndex,
     walls, currentDrawingWall, selectedWall, scale, measureStart, measureEnd, measureCurrent, hoverPoint,
-    imageLoadedTrigger // Inject the trigger into the dependency array!
+    imageLoadedTrigger, shaktiChakraZonesImg, shaktiChakraBaseImg
   ]);
 
   useLayoutEffect(() => {

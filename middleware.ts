@@ -1,6 +1,8 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+import { getSupabaseCookieName } from './lib/supabase-shared'
+
 export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname
@@ -83,6 +85,9 @@ export async function middleware(request: NextRequest) {
           )
         },
       },
+      cookieOptions: {
+        name: getSupabaseCookieName()
+      }
     }
   )
 

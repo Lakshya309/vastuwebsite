@@ -1,4 +1,5 @@
 import { createBrowserClient } from '@supabase/ssr'
+import { getSupabaseCookieName } from './supabase-shared'
 
 export function createSupabaseBrowserClient() {
     const getProxyUrl = () => {
@@ -14,12 +15,7 @@ export function createSupabaseBrowserClient() {
         return 'http://localhost:3001/supabase-proxy'
     }
 
-    // Match the server's expected cookie name (derived from the actual URL)
-    let cookieName = 'sb-auth-token'
-    try {
-        const urlObj = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!)
-        cookieName = `sb-${urlObj.hostname.split('.')[0]}-auth-token`
-    } catch (e) { }
+    const cookieName = getSupabaseCookieName();
 
     return createBrowserClient(
         getProxyUrl(),

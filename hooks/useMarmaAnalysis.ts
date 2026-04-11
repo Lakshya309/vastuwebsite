@@ -1,7 +1,12 @@
 import { useState, useEffect } from "react";
 import { Point } from "@/lib/floorPlanInterfaces";
+import { getMarmaPoints } from "@/lib/marmaAnalysis";
 
-export const useMarmaAnalysis = (analysisId: string | null) => { // Accept analysisId as a prop
+export const useMarmaAnalysis = (
+  analysisId: string | null,
+  boundary: Point[] | null,
+  plotCentroid: Point | null = null
+) => {
   const [marmaData, setMarmaData] = useState<{
     marmaPoints: Point[];
     vanshaLines: Point[][];
@@ -10,40 +15,24 @@ export const useMarmaAnalysis = (analysisId: string | null) => { // Accept analy
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   useEffect(() => {
-    if (!analysisId) { // Only fetch if analysisId is present
+    if (!analysisId || !boundary || boundary.length < 3) {
       setMarmaData(null);
       return;
     }
 
-    const fetchMarmaData = async () => {
+    try {
       setIsLoading(true);
+      const data = getMarmaPoints(boundary, plotCentroid);
+      setMarmaData(data);
       setError(null);
-      try {
-        const response = await fetch(`/api/analysis/marma?analysisId=${analysisId}`, { // Use GET with analysisId
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || "Failed to fetch marma analysis results");
-        }
-
-        const data = await response.json();
-        setMarmaData(data);
-      } catch (err: any) {
-        console.error("Error fetching marma data:", err);
-        setError(err.message);
-        setMarmaData(null);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchMarmaData();
-  }, [analysisId]); // Dependency is analysisId
+    } catch (err: any) {
+      console.error("Error computing marma points:", err);
+      setError(err.message);
+      setMarmaData(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [analysisId, boundary, plotCentroid]);
 
   return { marmaData, isLoading, error };
 };

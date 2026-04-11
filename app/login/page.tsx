@@ -30,7 +30,7 @@ function LoginContent() {
       await new Promise(resolve => setTimeout(resolve, 150));
       
       const redirectTo = searchParams.get('redirectedFrom') || '/projects';
-      router.push(redirectTo);
+      window.location.href = redirectTo;
     } catch (err: any) {
       setError(err.message);
       setIsLoading(false);

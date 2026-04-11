@@ -2,6 +2,8 @@ import { createClient, SupabaseClient, User } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 
+import { getSupabaseCookieName } from './supabase-shared';
+
 export interface AuthResult {
   user: User | null;
   supabase: SupabaseClient | null;
@@ -82,6 +84,9 @@ async function validateCookieAuth(): Promise<AuthResult> {
           }
         },
       },
+      cookieOptions: {
+        name: getSupabaseCookieName()
+      }
     }
   );
   

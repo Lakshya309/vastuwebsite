@@ -220,7 +220,7 @@ export default function FloorPlanPage() {
     currentAnalysisId,
     error: analysisError
   } = useFloorPlanAnalysis();
-  const { marmaData, isLoading: isMarmaAnalyzing, error: marmaError } = useMarmaAnalysis(currentAnalysisId);
+  const { marmaData, isLoading: isMarmaAnalyzing, error: marmaError } = useMarmaAnalysis(currentAnalysisId, boundary, plotCentroid);
 
   const isManualMode = !!(project?.plot_width && project?.plot_height) || 
                      !!(project?.plot_side_front && project?.plot_side_back && 
