@@ -218,10 +218,10 @@ export default function ReportPage() {
           const imgProps = pdf.getImageProperties(imgData);
           
           // Calculate dimensions to fit width while preserving aspect ratio
-          const displayWidth = pdfWidth - 30; // 15mm margins on each side
+          const displayWidth = pdfWidth - 20; // 10mm margins on each side
           const displayHeight = (imgProps.height * displayWidth) / imgProps.width;
 
-          pdf.addImage(imgData, 'JPEG', 15, currentY, displayWidth, displayHeight, undefined, 'FAST');
+          pdf.addImage(imgData, 'JPEG', 10, currentY, displayWidth, displayHeight, undefined, 'FAST');
           currentY += displayHeight + 10; // 10mm gap between sections on same page
         }
       }
@@ -323,7 +323,7 @@ export default function ReportPage() {
   };
 
   return (
-    <div className="min-h-screen organic-gradient pt-32 md:pt-40 p-4 md:p-12 relative overflow-hidden">
+    <div className="min-h-screen organic-gradient pt-32 md:pt-40 p-4 md:p-12 relative overflow-hidden flex flex-col items-center">
       {/* Professional PDF Generation Loading State */}
       {(loading || printing) && (
         <div className="fixed inset-0 z-[500] bg-white/95 backdrop-blur-md flex flex-col items-center justify-center">
@@ -381,7 +381,7 @@ export default function ReportPage() {
       <motion.div
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="max-w-7xl mx-auto mb-12 flex flex-col md:flex-row justify-between items-center gap-6 no-print relative z-10"
+        className="w-full max-w-[1400px] mb-12 flex flex-col md:flex-row justify-between items-center gap-6 no-print relative z-10"
       >
         <div className="flex items-center gap-6">
           <Link href="/dashboard" className="glass p-3 rounded-2xl border border-white hover:bg-white transition-all">
@@ -415,7 +415,7 @@ export default function ReportPage() {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="max-w-7xl mx-auto mb-12 flex flex-wrap gap-3 no-print"
+        className="w-full max-w-[1400px] mb-12 flex flex-wrap gap-3 no-print"
       >
         {Object.keys(reportSections).map(key => (
           <button
@@ -437,23 +437,23 @@ export default function ReportPage() {
         variants={containerVariants}
         initial="hidden"
         animate="visible"
-        className="max-w-7xl mx-auto space-y-4 relative z-10"
+        className="w-full max-w-[1400px] space-y-12 relative z-10"
       >
         {/* PDF-ONLY COVER PAGE */}
         {printing && (
           <div className="mb-12">
-            <div className="bg-slate-900 p-20 rounded-[4rem] text-center min-h-[250mm] flex flex-col justify-center items-center border-[10px] border-teal-500/20">
-              <h1 className="text-7xl font-cormorant font-bold text-white mb-8 tracking-tighter uppercase">Mangalam Vastu</h1>
-              <div className="h-1 w-32 bg-teal-500 mb-12 mx-auto" />
-              <h2 className="text-3xl font-cormorant italic text-teal-400 mb-20">Spectral Alignment & Macro-Symmetry Report</h2>
+            <div className="bg-slate-900 p-20 rounded-[4rem] text-center min-h-[260mm] flex flex-col justify-center items-center border-[12px] border-teal-500/20">
+              <h1 className="text-8xl font-cormorant font-bold text-white mb-10 tracking-tighter uppercase">Mangalam Vastu</h1>
+              <div className="h-2 w-48 bg-teal-500 mb-16 mx-auto" />
+              <h2 className="text-4xl font-cormorant italic text-teal-400 mb-24">Spectral Alignment & Macro-Symmetry Report</h2>
 
-              <div className="space-y-4">
-                <p className="text-white text-4xl font-bold uppercase tracking-widest">{project?.name || "Project Report"}</p>
-                <p className="text-slate-400 text-sm tracking-[0.5em] uppercase">Private Consultation Document</p>
+              <div className="space-y-6">
+                <p className="text-white text-6xl font-bold uppercase tracking-widest">{project?.name || "Project Report"}</p>
+                <p className="text-slate-400 text-lg tracking-[0.5em] uppercase">Private Consultation Document</p>
               </div>
 
-              <div className="mt-32 pt-32 border-t border-slate-800 w-full max-w-md">
-                <div className="flex justify-between text-slate-500 text-[10px] uppercase font-bold tracking-widest">
+              <div className="mt-40 pt-40 border-t border-slate-800 w-full max-w-2xl">
+                <div className="flex justify-between text-slate-500 text-sm uppercase font-bold tracking-widest">
                   <span>Ref: #{vastuAnalysisResult?.analysis_id?.slice(0, 8)}</span>
                   <span>Date: {new Date().toLocaleDateString('en-GB')}</span>
                 </div>
@@ -463,7 +463,7 @@ export default function ReportPage() {
         )}
 
         {/* Cinematic Header Card */}
-        <motion.div id="report-section-overview" variants={itemVariants} className="glass p-12 rounded-[3.5rem] border border-white shadow-2xl relative overflow-hidden">
+        <motion.div id="report-section-overview" variants={itemVariants} className="glass p-16 rounded-[4rem] border border-white shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
           <div className="flex flex-col md:flex-row justify-between items-start gap-12 relative z-10">
             <div className="space-y-6">
@@ -471,8 +471,8 @@ export default function ReportPage() {
                 MV
               </div>
               <div>
-                <h2 className="text-3xl font-cormorant font-bold italic text-primary leading-tight">Manglam Vastu</h2>
-                <p className="text-sm text-gray-500 font-bold uppercase tracking-[0.2em] italic">Vedic Architecture & Sacred Science</p>
+                <h2 className="text-5xl font-cormorant font-bold italic text-primary leading-tight">Manglam Vastu</h2>
+                <p className="text-lg text-gray-500 font-bold uppercase tracking-[0.2em] italic">Vedic Architecture & Sacred Science</p>
               </div>
             </div>
             <div className="md:text-right space-y-6">
@@ -480,8 +480,8 @@ export default function ReportPage() {
                 Analysis Identification: {projectId.slice(0, 8)}
               </div>
               <div className="space-y-2">
-                <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest">Spectral Subject</p>
-                <p className="text-4xl font-cormorant font-bold italic text-primary leading-none">{project.name}</p>
+                <p className="text-gray-400 text-sm font-bold uppercase tracking-widest">Spectral Subject</p>
+                <p className="text-6xl font-cormorant font-bold italic text-primary leading-none">{project.name}</p>
               </div>
               <div className="grid grid-cols-2 gap-8 md:gap-12 mt-8">
                 <div>
@@ -510,15 +510,15 @@ export default function ReportPage() {
         {/* Global Pulse (Overall Compliance & Pie) */}
         <div id="report-section-pulse" className="grid grid-cols-1 lg:grid-cols-12 gap-12">
           {reportSections.overallCompliance && (
-            <motion.div variants={itemVariants} className="lg:col-span-5 glass p-10 rounded-[3rem] border border-white flex flex-col items-center text-center">
-              <h3 className="text-2xl font-cormorant font-bold italic text-primary mb-8 underline underline-offset-8 decoration-primary/10 tracking-tight">Manifestation Score</h3>
+            <motion.div variants={itemVariants} className="lg:col-span-12 glass p-16 rounded-[4rem] border border-white flex flex-col items-center text-center shadow-2xl">
+              <h3 className="text-5xl font-cormorant font-bold italic text-primary mb-12 underline underline-offset-8 decoration-primary/10 tracking-tight">Manifestation Score</h3>
               {!printing ? (
-                <div className="relative w-64 h-64 mb-8">
+                <div className="relative w-80 h-80 mb-10">
                   <ResponsiveContainer width="100%" height="100%">
                     <RadialBarChart
                       innerRadius="85%"
                       outerRadius="75%"
-                      barSize={24}
+                      barSize={32}
                       data={[{ name: "Vastu Score", uv: vastuAnalysisResult.overall_percentage, fill: COLORS[vastuAnalysisResult.overall_verdict] }]}
                       startAngle={90}
                       endAngle={90 - (360 * vastuAnalysisResult.overall_percentage / 100)}
@@ -527,22 +527,22 @@ export default function ReportPage() {
                     </RadialBarChart>
                   </ResponsiveContainer>
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <p className="text-7xl font-cormorant font-bold italic text-primary leading-none -mt-4">
-                      {vastuAnalysisResult.overall_percentage.toFixed(0)}<span className="text-2xl text-primary/40">%</span>
+                    <p className="text-[100px] font-cormorant font-bold italic text-primary leading-none -mt-4">
+                      {vastuAnalysisResult.overall_percentage.toFixed(0)}<span className="text-4xl text-primary/40">%</span>
                     </p>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">{vastuAnalysisResult.total_score} Total Points</p>
+                    <p className="text-lg font-bold text-gray-400 uppercase tracking-[0.3em] mt-6">{vastuAnalysisResult.total_score} Total Points</p>
                   </div>
                 </div>
               ) : (
-                <div className="w-full flex-1 flex flex-col items-center justify-center mb-8 bg-slate-50 border border-slate-200 p-8 rounded-[2rem]">
-                  <div className="text-[100px] font-cormorant font-bold text-primary leading-none">{vastuAnalysisResult.overall_percentage.toFixed(0)}%</div>
-                  <div className="w-full max-w-xs mt-8 bg-gray-200 h-4 rounded-full overflow-hidden">
+                <div className="w-full flex-1 flex flex-col items-center justify-center mb-8 bg-slate-50 border border-slate-200 p-12 rounded-[2rem]">
+                  <div className="text-[120px] font-cormorant font-bold text-primary leading-none">{vastuAnalysisResult.overall_percentage.toFixed(0)}%</div>
+                  <div className="w-full max-w-md mt-10 bg-gray-200 h-6 rounded-full overflow-hidden">
                     <div className="h-full bg-primary" style={{ width: `${vastuAnalysisResult.overall_percentage}%`}} />
                   </div>
-                  <p className="mt-4 text-[12px] font-bold text-gray-500 uppercase tracking-widest">{vastuAnalysisResult.total_score} Total Points Found</p>
+                  <p className="mt-6 text-[14px] font-bold text-gray-500 uppercase tracking-widest">{vastuAnalysisResult.total_score} Total Points Found</p>
                 </div>
               )}
-              <div className={`px-8 py-3 rounded-2xl border text-sm font-bold uppercase tracking-[0.2em] relative overflow-hidden group ${getVerdictBgColor(vastuAnalysisResult.overall_verdict)} border-white transition-all`}>
+              <div className={`px-12 py-4 rounded-3xl border text-lg font-bold uppercase tracking-[0.3em] relative overflow-hidden group ${getVerdictBgColor(vastuAnalysisResult.overall_verdict)} border-white transition-all shadow-lg`}>
                 <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
                 <span className={`relative z-10 ${getVerdictTextColor(vastuAnalysisResult.overall_verdict)}`}>
                   Spectral Alignment: {vastuAnalysisResult.overall_verdict}
@@ -552,10 +552,10 @@ export default function ReportPage() {
           )}
 
           {reportSections.objectDistribution && (
-            <motion.div variants={itemVariants} className="lg:col-span-7 glass p-8 rounded-[3rem] border border-white">
-              <h3 className="text-2xl font-cormorant font-bold italic text-primary mb-6 px-4 tracking-tight">Component Resonance</h3>
+            <motion.div variants={itemVariants} className="lg:col-span-12 glass p-16 rounded-[4rem] border border-white shadow-2xl">
+              <h3 className="text-5xl font-cormorant font-bold italic text-primary mb-12 px-4 tracking-tight">Component Resonance</h3>
               {!printing ? (
-                <div className="h-72 relative">
+                <div className="h-96 relative">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
@@ -567,9 +567,9 @@ export default function ReportPage() {
                         ).map(([name, value]) => ({ name, value }))}
                         cx="50%"
                         cy="50%"
-                        innerRadius={80}
-                        outerRadius={100}
-                        paddingAngle={8}
+                        innerRadius={110}
+                        outerRadius={140}
+                        paddingAngle={10}
                         dataKey="value"
                         isAnimationActive={true}
                       >
@@ -579,22 +579,22 @@ export default function ReportPage() {
                             return acc;
                           }, {} as Record<string, number>)
                         ).map((verdict, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[verdict as keyof typeof COLORS]} className="stroke-[4] stroke-white" />
+                          <Cell key={`cell-${index}`} fill={COLORS[verdict as keyof typeof COLORS]} className="stroke-[6] stroke-white" />
                         ))}
                       </Pie>
-                      <Tooltip contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.1)', fontStyle: 'italic', fontWeight: 'bold' }} />
-                      <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ paddingTop: '20px', textTransform: 'uppercase', fontSize: '10px', fontWeight: 'bold', letterSpacing: '0.2em' }} />
+                      <Tooltip contentStyle={{ borderRadius: '30px', border: 'none', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.15)', padding: '20px' }} />
+                      <Legend verticalAlign="bottom" height={40} iconType="circle" wrapperStyle={{ paddingTop: '30px', textTransform: 'uppercase', fontSize: '11px', fontWeight: 'bold', letterSpacing: '0.3em' }} />
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mb-4">
-                    <p className="text-4xl font-cormorant font-bold italic text-primary leading-none">
+                    <p className="text-[80px] font-cormorant font-bold italic text-primary leading-none">
                       {vastuAnalysisResult.analyzed_objects.length}
                     </p>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Total</p>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.4em] mt-2">Total Manifested Elements</p>
                   </div>
                 </div>
               ) : (
-                <div className="w-full space-y-6 mt-4 p-8 bg-slate-50 border border-slate-200 rounded-[2rem]">
+                <div className="w-full space-y-8 mt-4 p-12 bg-slate-50 border border-slate-200 rounded-[2rem]">
                   {Object.entries(
                       vastuAnalysisResult.analyzed_objects.reduce((acc, obj) => {
                         acc[obj.verdict] = (acc[obj.verdict] || 0) + 1;
@@ -626,14 +626,14 @@ export default function ReportPage() {
 
         {/* Energy Charts (Boundary & Area) */}
         {zoneGraphData.length > 0 && (
-          <div id="report-section-energy" className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div id="report-section-energy" className="grid grid-cols-1 gap-12">
             {reportSections.boundaryDistribution && (
-              <motion.div variants={itemVariants} className="glass p-6 md:p-8 rounded-[3rem] border border-white">
+              <motion.div variants={itemVariants} className="glass p-12 md:p-16 rounded-[4rem] border border-white shadow-2xl">
                 <ZoneBarChart data={zoneGraphData} chartType="boundary" title="Perimeter Dispersion" isAnimationActive={!printing} />
               </motion.div>
             )}
             {reportSections.areaDistribution && (
-              <motion.div variants={itemVariants} className="glass p-6 md:p-8 rounded-[3rem] border border-white">
+              <motion.div variants={itemVariants} className="glass p-12 md:p-16 rounded-[4rem] border border-white shadow-2xl">
                 <ZoneBarChart data={zoneGraphData} chartType="area" title="Spatial Volume Intensity" isAnimationActive={!printing} />
               </motion.div>
             )}
@@ -641,14 +641,14 @@ export default function ReportPage() {
         )}
 
         {/* Devta Distribution */}
-        <div id="report-section-devtas" className="grid grid-cols-1 gap-4">
+        <div id="report-section-devtas" className="grid grid-cols-1 gap-12">
           {reportSections.devta32 && vastuAnalysisResult.devta_areas_32 && (
-            <motion.div variants={itemVariants} className="glass p-6 md:p-8 rounded-[3rem] border border-white">
+            <motion.div variants={itemVariants} className="glass p-12 md:p-16 rounded-[4rem] border border-white shadow-2xl">
               <DevtaBarChart data={vastuAnalysisResult.devta_areas_32} title="Symmetry of the 32 Outer Deities (%)" color="#3b82f6" isAnimationActive={!printing} />
             </motion.div>
           )}
           {reportSections.devta45 && vastuAnalysisResult.devta_areas_45 && (
-            <motion.div variants={itemVariants} className="glass p-6 md:p-8 rounded-[3rem] border border-white">
+            <motion.div variants={itemVariants} className="glass p-12 md:p-16 rounded-[4rem] border border-white shadow-2xl">
               <DevtaBarChart data={vastuAnalysisResult.devta_areas_45} title="Harmonic Balance of the 45 Celestial Masters (%)" color="#10b981" isAnimationActive={!printing} />
             </motion.div>
           )}
@@ -656,31 +656,31 @@ export default function ReportPage() {
 
         {/* Detailed Register (Table) */}
         {reportSections.detailedReport && (
-          <motion.div id="report-section-table" variants={itemVariants} className="glass rounded-[3.5rem] border border-white overflow-hidden">
-            <div className="p-8 border-b border-white/50 bg-white/10">
-              <h3 className="text-3xl font-cormorant font-bold italic text-primary tracking-tight">Universal Component Register</h3>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">Comprehensive audit of all manifested elements within the geometry.</p>
+          <motion.div id="report-section-table" variants={itemVariants} className="glass rounded-[4rem] border border-white overflow-hidden">
+            <div className="p-12 border-b border-white/50 bg-white/10">
+              <h3 className="text-5xl font-cormorant font-bold italic text-primary tracking-tight">Universal Component Register</h3>
+              <p className="text-sm font-bold text-gray-400 uppercase tracking-widest mt-4">Comprehensive audit of all manifested elements within the geometry.</p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-primary/[0.02]">
                   <tr>
                     {['Manifestation', 'Celestial Zone', 'Deity Region', 'Impact', 'Grade', 'Verdict'].map((h) => (
-                      <th key={h} className="px-8 py-6 text-left text-[9px] font-bold text-primary uppercase tracking-[0.2em] italic border-b border-white/50">{h}</th>
+                      <th key={h} className="px-10 py-6 text-left text-xs font-bold text-primary uppercase tracking-[0.2em] italic border-b border-white/50">{h}</th>
                     ))}
-                    <th className="px-8 py-6 text-left text-[9px] font-bold text-primary uppercase tracking-[0.2em] italic border-b border-white/50">Guidance</th>
+                    <th className="px-10 py-6 text-left text-xs font-bold text-primary uppercase tracking-[0.2em] italic border-b border-white/50">Guidance</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/30">
                   {vastuAnalysisResult.analyzed_objects.map((obj) => (
                     <tr key={obj.object_id} className="hover:bg-white/40 transition-colors group">
-                      <td className="px-8 py-8 whitespace-nowrap text-xs font-bold text-gray-700">{obj.object_type}</td>
-                      <td className="px-8 py-8 whitespace-nowrap text-[10px] font-bold text-primary uppercase tracking-widest">{obj.zone16_direction || "Void"}</td>
-                      <td className="px-8 py-8 whitespace-nowrap text-[10px] font-bold text-primary uppercase tracking-widest">{obj.devta_region || "Void"}</td>
-                      <td className="px-8 py-8 whitespace-nowrap text-xs font-bold text-gray-500 italic">{obj.score_impact > 0 ? `+${obj.score_impact}` : obj.score_impact}</td>
+                      <td className="px-10 py-10 whitespace-nowrap text-sm font-bold text-gray-700">{obj.object_type}</td>
+                      <td className="px-10 py-10 whitespace-nowrap text-xs font-bold text-primary uppercase tracking-widest">{obj.zone16_direction || "Void"}</td>
+                      <td className="px-10 py-10 whitespace-nowrap text-xs font-bold text-primary uppercase tracking-widest">{obj.devta_region || "Void"}</td>
+                      <td className="px-10 py-10 whitespace-nowrap text-sm font-bold text-gray-500 italic">{obj.score_impact > 0 ? `+${obj.score_impact}` : obj.score_impact}</td>
                       <td className="px-8 py-8 whitespace-nowrap text-xs">
                         {obj.grade && (
-                          <span className={`w-8 h-8 rounded-full border flex items-center justify-center font-bold text-[10px] ${obj.grade === 'A' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
+                          <span className={`w-10 h-10 rounded-full border flex items-center justify-center font-bold text-xs ${obj.grade === 'A' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
                             obj.grade === 'B' ? 'bg-teal-50 text-teal-700 border-teal-100' :
                               'bg-amber-50 text-amber-700 border-amber-100'
                             }`}>
@@ -693,7 +693,7 @@ export default function ReportPage() {
                           {obj.verdict}
                         </span>
                       </td>
-                      <td className="px-8 py-8 text-[10px] font-medium text-gray-400 group-hover:text-gray-600 leading-relaxed max-w-xs">{obj.message}</td>
+                      <td className="px-10 py-10 text-sm font-medium text-gray-400 group-hover:text-gray-600 leading-relaxed max-w-xs">{obj.message}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -709,9 +709,9 @@ export default function ReportPage() {
             <div className="flex flex-col gap-16 items-center w-full">
               
               {/* 8 Zones */}
-              <div id="report-section-canvas-8" className="flex flex-col items-center gap-4 w-full">
-                <h4 className="font-bold text-[12px] text-gray-500 uppercase tracking-widest glass px-6 py-2.5 rounded-full shadow-sm">8 Basic Zones</h4>
-                <div className="w-full max-w-[700px] aspect-square relative glass rounded-[3rem] shadow-inner overflow-hidden p-8 mx-auto">
+              <div id="report-section-canvas-8" className="flex flex-col items-center gap-6 w-full">
+                <h4 className="font-bold text-xl text-gray-500 uppercase tracking-[0.3em] glass px-12 py-5 rounded-full shadow-lg italic">8 Basic Zones</h4>
+                <div className="w-full relative glass rounded-[4rem] shadow-2xl overflow-hidden p-6 md:p-12 mx-auto border border-white min-h-[600px] flex items-center justify-center bg-white/50">
                   <FloorPlanCanvas
                     isStatic={true}
                     floorPlanImage={project.floor_plan_path || null}
@@ -737,9 +737,9 @@ export default function ReportPage() {
               </div>
 
               {/* 16 Zones - Central Emphasis */}
-              <div id="report-section-canvas-16" className="flex flex-col items-center gap-4 w-full relative">
-                <h4 className="font-bold text-[16px] text-primary uppercase tracking-widest glass px-8 py-3 rounded-full shadow-xl shadow-primary/5">16 Maha Vastu Zones</h4>
-                <div className="w-full max-w-[800px] aspect-square relative glass rounded-[3.5rem] shadow-2xl overflow-hidden p-10 mx-auto z-20">
+              <div id="report-section-canvas-16" className="flex flex-col items-center gap-6 w-full relative">
+                <h4 className="font-bold text-3xl text-primary uppercase tracking-[0.4em] glass px-16 py-6 rounded-full shadow-2xl shadow-primary/10 italic">16 Maha Vastu Zones</h4>
+                <div className="w-full relative glass rounded-[5rem] shadow-[0_50px_100px_-15px_rgba(0,0,0,0.2)] overflow-hidden p-6 md:p-16 mx-auto z-20 border border-white min-h-[800px] flex items-center justify-center bg-white/50">
                   <FloorPlanCanvas
                     isStatic={true}
                     floorPlanImage={project.floor_plan_path || null}
@@ -780,9 +780,9 @@ export default function ReportPage() {
               </div>
 
               {/* 45 Devtas */}
-              <div id="report-section-canvas-45" className="flex flex-col items-center gap-4 w-full">
-                <h4 className="font-bold text-[12px] text-gray-500 uppercase tracking-widest glass px-6 py-2.5 rounded-full shadow-sm">45 Cosmic Masters</h4>
-                <div className="w-full max-w-[700px] aspect-square relative glass rounded-[3rem] shadow-inner overflow-hidden p-8 mx-auto">
+              <div id="report-section-canvas-45" className="flex flex-col items-center gap-6 w-full">
+                <h4 className="font-bold text-xl text-gray-500 uppercase tracking-[0.3em] glass px-12 py-5 rounded-full shadow-lg italic">45 Cosmic Masters</h4>
+                <div className="w-full relative glass rounded-[4rem] shadow-2xl overflow-hidden p-6 md:p-12 mx-auto border border-white min-h-[600px] flex items-center justify-center bg-white/50">
                   <FloorPlanCanvas
                     isStatic={true}
                     floorPlanImage={project.floor_plan_path || null}

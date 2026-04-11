@@ -79,6 +79,7 @@ export default function FloorPlanPage() {
 
   // Tutorial State
   const [showTutorial, setShowTutorial] = useState(false);
+  const [canvasRotation, setCanvasRotation] = useState(0);
 
   useEffect(() => {
     const hasCompletedTutorial = localStorage.getItem("vastu_tutorial_completed");
@@ -896,6 +897,7 @@ export default function FloorPlanPage() {
                       onSelectWall={setSelectedWall}
                       selectedWall={selectedWall}
                       onMoveBoundaryVertex={handleMoveBoundaryVertex}
+                      canvasRotation={canvasRotation}
                     />
 
                     {/* Overlay Status Indicators */}
@@ -1007,6 +1009,8 @@ export default function FloorPlanPage() {
                     onDeleteWall={handleDeleteWall}
                     selectedWall={selectedWall}
                     onSelectWall={setSelectedWall}
+                    canvasRotation={canvasRotation}
+                    setCanvasRotation={setCanvasRotation}
                   />
                 </div>
               </div>
@@ -1057,6 +1061,7 @@ export default function FloorPlanPage() {
                   onSelectWall={setSelectedWall}
                   selectedWall={selectedWall}
                   onMoveBoundaryVertex={handleMoveBoundaryVertex}
+                  canvasRotation={canvasRotation}
                 />
 
                 {/* Overlay Status Indicators */}
@@ -1165,6 +1170,8 @@ export default function FloorPlanPage() {
                 onDeleteWall={handleDeleteWall}
                 selectedWall={selectedWall}
                 onSelectWall={setSelectedWall}
+                canvasRotation={canvasRotation}
+                setCanvasRotation={setCanvasRotation}
               />
             </div>
           </div>

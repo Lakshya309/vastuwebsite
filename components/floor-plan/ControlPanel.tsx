@@ -5,7 +5,7 @@ import { DevtaRegion, PlacedObject, Point, Wall } from "@/lib/floorPlanInterface
 import { isPointInPolygon } from "@/lib/gridUtils";
 import { ObjectPalette } from "./ObjectPalette";
 import { problemZoneMapping } from "@/lib/problemZoneMapping";
-import { Video, Upload } from "lucide-react";
+import { Video, Upload, RotateCcw, RotateCw, Compass } from "lucide-react";
 import { motion } from "framer-motion";
 
 interface ControlPanelProps {
@@ -116,6 +116,8 @@ interface ControlPanelProps {
   onDeleteWall?: (id: string) => void;
   selectedWall?: Wall | null;
   onSelectWall?: (wall: Wall | null) => void;
+  canvasRotation?: number;
+  setCanvasRotation?: (rotation: number | ((prev: number) => number)) => void;
 }
 
 export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
@@ -192,6 +194,33 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
       <div className="p-6 overflow-y-auto custom-scrollbar flex-1 min-h-0">
         <div className="space-y-10"
         >
+          {/* Section: View Controls */}
+          <motion.div variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }} className="mb-8 p-4 bg-white/50 rounded-2xl border border-white shadow-sm">
+            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+              <Compass size={12} className="text-primary" />
+              View Orientation
+            </h3>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => props.setCanvasRotation && props.setCanvasRotation(prev => (prev - 90 + 360) % 360)}
+                className="flex items-center justify-center gap-2 py-3 px-4 bg-white hover:bg-gray-50 text-primary border border-gray-200 rounded-xl transition-all hover:scale-[1.02] shadow-sm group"
+              >
+                <RotateCcw size={16} className="group-hover:-rotate-45 transition-transform" />
+                <span className="text-[10px] font-bold uppercase tracking-wider">Rotate Left</span>
+              </button>
+              <button
+                onClick={() => props.setCanvasRotation && props.setCanvasRotation(prev => (prev + 90) % 360)}
+                className="flex items-center justify-center gap-2 py-3 px-4 bg-white hover:bg-gray-50 text-primary border border-gray-200 rounded-xl transition-all hover:scale-[1.02] shadow-sm group"
+              >
+                <RotateCw size={16} className="group-hover:rotate-45 transition-transform" />
+                <span className="text-[10px] font-bold uppercase tracking-wider">Rotate Right</span>
+              </button>
+            </div>
+            <div className="mt-3 flex justify-center">
+               <span className="text-[9px] font-medium text-gray-400 italic">Current View: {props.canvasRotation || 0}°</span>
+            </div>
+          </motion.div>
+
           {/* Section 1: Upload */}
           {!props.isManualMode && (
             <motion.div variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }}>

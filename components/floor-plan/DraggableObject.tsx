@@ -15,6 +15,8 @@ interface DraggableObjectProps {
   isStatic?: boolean;
   zoom: number;
   offset: { x: number; y: number };
+  viewRotation?: number;
+  computedLayout?: { drawX: number; drawY: number; drawWidth: number; drawHeight: number };
 }
 
 export const DraggableObject: React.FC<DraggableObjectProps> = ({
@@ -29,6 +31,8 @@ export const DraggableObject: React.FC<DraggableObjectProps> = ({
   isStatic,
   zoom,
   offset,
+  viewRotation = 0,
+  computedLayout,
 }) => {
   const objectRef = useRef<HTMLDivElement>(null);
 
@@ -83,11 +87,22 @@ export const DraggableObject: React.FC<DraggableObjectProps> = ({
   };
 
   const onMouseMove = (e: MouseEvent) => {
-    const canvasWidth = dimensions.width;
-    const canvasHeight = dimensions.height;
+    const canvasWidth = computedLayout ? computedLayout.drawWidth : dimensions.width;
+    const canvasHeight = computedLayout ? computedLayout.drawHeight : dimensions.height;
 
-    const dx = (e.clientX - dragState.current.startMouseX) / (canvasWidth * zoom);
-    const dy = (e.clientY - dragState.current.startMouseY) / (canvasHeight * zoom);
+    let dx = (e.clientX - dragState.current.startMouseX) / (canvasWidth * zoom);
+    let dy = (e.clientY - dragState.current.startMouseY) / (canvasHeight * zoom);
+
+    // Un-rotate the delta based on view rotation
+    if (viewRotation !== 0) {
+      const rad = (-viewRotation * Math.PI) / 180;
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+      const rx = dx * cos - dy * sin;
+      const ry = dx * sin + dy * cos;
+      dx = rx;
+      dy = ry;
+    }
 
     if (dragState.current.mode === "drag") {
       onMove(
@@ -120,10 +135,15 @@ export const DraggableObject: React.FC<DraggableObjectProps> = ({
     window.removeEventListener("mouseup", onMouseUp);
   };
 
-  const screenX = object.boundary_normalized[0].x * dimensions.width * zoom + offset.x;
-  const screenY = object.boundary_normalized[0].y * dimensions.height * zoom + offset.y;
-  const screenWidth = (object.boundary_normalized[1].x - object.boundary_normalized[0].x) * dimensions.width * zoom;
-  const screenHeight = (object.boundary_normalized[3].y - object.boundary_normalized[0].y) * dimensions.height * zoom;
+  const drawX = computedLayout ? computedLayout.drawX : 0;
+  const drawY = computedLayout ? computedLayout.drawY : 0;
+  const drawWidth = computedLayout ? computedLayout.drawWidth : dimensions.width;
+  const drawHeight = computedLayout ? computedLayout.drawHeight : dimensions.height;
+
+  const screenX = drawX + (object.boundary_normalized[0].x * drawWidth * zoom) + offset.x;
+  const screenY = drawY + (object.boundary_normalized[0].y * drawHeight * zoom) + offset.y;
+  const screenWidth = (object.boundary_normalized[1].x - object.boundary_normalized[0].x) * drawWidth * zoom;
+  const screenHeight = (object.boundary_normalized[3].y - object.boundary_normalized[0].y) * drawHeight * zoom;
 
   const getHighlightColor = () => {
     if (highlight === "CRITICAL") return "red";

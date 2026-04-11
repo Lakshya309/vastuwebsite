@@ -57,6 +57,7 @@ interface FloorPlanCanvasProps {
   onSelectWall?: (wall: Wall | null) => void;
   selectedWall?: Wall | null;
   onMoveBoundaryVertex?: (index: number, newPoint: Point) => void;
+  canvasRotation?: number;
 }
 
 const ZONE_NAMES_16 = [
@@ -200,28 +201,27 @@ const drawCanvasContent = (
   measureCurrent?: Point | null,
   hoverPoint?: Point | null,
   isStatic?: boolean,
-  preloadedShaktiChakraImg?: HTMLImageElement | null
+  preloadedShaktiChakraImg?: HTMLImageElement | null,
+  computedLayout?: { drawX: number; drawY: number; drawWidth: number; drawHeight: number }
 ) => {
-  const toPx = (p: Point) => ({ x: p.x * width, y: p.y * height });
-
-  if (floorPlanImage && imageRef.current) {
-    const imgAspect = imageRef.current.naturalWidth / imageRef.current.naturalHeight;
-    const canvasAspect = width / height;
-    let drawWidth, drawHeight, drawX, drawY;
-
-    if (imgAspect > canvasAspect) {
-      drawWidth = width;
-      drawHeight = width / imgAspect;
-      drawX = 0;
-      drawY = (height - drawHeight) / 2;
-    } else {
-      drawHeight = height;
-      drawWidth = height * imgAspect;
-      drawX = (width - drawWidth) / 2;
-      drawY = 0;
+  const toPx = (p: Point) => {
+    if (computedLayout) {
+      return { 
+        x: computedLayout.drawX + p.x * computedLayout.drawWidth, 
+        y: computedLayout.drawY + p.y * computedLayout.drawHeight 
+      };
     }
+    return { x: p.x * width, y: p.y * height };
+  };
 
-    ctx.drawImage(imageRef.current, drawX, drawY, drawWidth, drawHeight);
+  if (floorPlanImage && imageRef.current && computedLayout) {
+    ctx.drawImage(
+      imageRef.current, 
+      computedLayout.drawX, 
+      computedLayout.drawY, 
+      computedLayout.drawWidth, 
+      computedLayout.drawHeight
+    );
     if (
       devtaRegions.length > 0 ||
       zone16Regions.length > 0 ||
@@ -780,6 +780,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
   onSelectWall,
   selectedWall,
   onMoveBoundaryVertex,
+  canvasRotation = 0,
 }) => {
   const [hoveredDevta, setHoveredDevta] = useState<DevtaRegion | null>(null);
   const [currentDrawingWall, setCurrentDrawingWall] = useState<{ start: Point; end: Point } | null>(null);
@@ -820,18 +821,72 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     }
   }, []);
 
-  const toPx = (p: Point) => ({ x: p.x * width, y: p.y * height });
+  // Compute Layout Logic
+  const computedLayout = React.useMemo(() => {
+    if (!imageRef.current || !floorPlanImage) {
+      return { drawX: 0, drawY: 0, drawWidth: width, drawHeight: height };
+    }
+    const imgAspect = imageRef.current.naturalWidth / imageRef.current.naturalHeight;
+    const canvasAspect = width / height;
+    let drawWidth, drawHeight, drawX, drawY;
+
+    if (imgAspect > canvasAspect) {
+      drawWidth = width;
+      drawHeight = width / imgAspect;
+      drawX = 0;
+      drawY = (height - drawHeight) / 2;
+    } else {
+      drawHeight = height;
+      drawWidth = height * imgAspect;
+      drawX = (width - drawWidth) / 2;
+      drawY = 0;
+    }
+    return { drawX, drawY, drawWidth, drawHeight };
+  }, [width, height, floorPlanImage, imageLoadedTrigger]);
+
+  const toPx = (p: Point) => ({ 
+    x: computedLayout.drawX + p.x * computedLayout.drawWidth, 
+    y: computedLayout.drawY + p.y * computedLayout.drawHeight 
+  });
 
   const getTransformedPoint = (x: number, y: number): Point => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
+    
+    let localX = x - rect.left;
+    let localY = y - rect.top;
+
+    // Handle View Rotation for Mouse Events
+    if (canvasRotation !== 0) {
+      const centerX = rect.width / 2;
+      const centerY = rect.height / 2;
+      const rad = (-canvasRotation * Math.PI) / 180;
+      
+      const relX = localX - centerX;
+      const relY = localY - centerY;
+      
+      const rotatedX = relX * Math.cos(rad) - relY * Math.sin(rad);
+      const rotatedY = relX * Math.sin(rad) + relY * Math.cos(rad);
+      
+      localX = rotatedX + centerX;
+      localY = rotatedY + centerY;
+    }
+
     const invertedZoom = 1 / zoom;
+    const transformedX = (localX - offset.x) * invertedZoom;
+    const transformedY = (localY - offset.y) * invertedZoom;
+
     return {
-      x: (x - rect.left - offset.x) * invertedZoom,
-      y: (y - rect.top - offset.y) * invertedZoom,
+      x: transformedX,
+      y: transformedY,
     };
   };
+
+  const toNormalized = (p: Point) => ({
+    x: (p.x - computedLayout.drawX) / computedLayout.drawWidth,
+    y: (p.y - computedLayout.drawY) / computedLayout.drawHeight,
+  });
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -883,7 +938,8 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
       measureCurrent,
       hoverPoint,
       isStatic,
-      shaktiChakraType === "zones" ? shaktiChakraZonesImg : shaktiChakraBaseImg
+      shaktiChakraType === "zones" ? shaktiChakraZonesImg : shaktiChakraBaseImg,
+      computedLayout
     );
     ctx.restore();
   }, [
@@ -1023,7 +1079,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     }
 
     const point = getTransformedPoint(e.clientX, e.clientY);
-    const normalizedPoint = { x: point.x / width, y: point.y / height };
+    const normalizedPoint = toNormalized(point);
     setHoverPoint(normalizedPoint);
 
     if (draggingVertexIndex !== null && onMoveBoundaryVertex) {
@@ -1033,11 +1089,11 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     }
 
     if (drawingMode === "measure" && measureStart && !measureEnd) {
-      setMeasureCurrent({ x: point.x / width, y: point.y / height });
+      setMeasureCurrent(toNormalized(point));
     }
 
     if (drawingMode === "wall" && currentDrawingWall) {
-      const snappedPoint = getSnappedPoint({ x: point.x / width, y: point.y / height });
+      const snappedPoint = getSnappedPoint(toNormalized(point));
       setCurrentDrawingWall({
         start: currentDrawingWall.start,
         end: snappedPoint,
@@ -1080,7 +1136,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     if (isPanning) return;
 
     const point = getTransformedPoint(e.clientX, e.clientY);
-    const normalizedPoint = { x: point.x / width, y: point.y / height };
+    const normalizedPoint = toNormalized(point);
 
     if (!isStatic) {
       if (drawingMode === "measure") {
@@ -1205,48 +1261,63 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
       ref={containerRef}
       className={'relative w-full h-full flex justify-center items-center bg-gray-100 overflow-hidden'}
     >
-      {floorPlanImage && (
-        <img
-          ref={imageRef}
-          src={floorPlanImage}
-          alt="Floor Plan Source"
-          className="hidden"
-          crossOrigin="anonymous"
-          onLoad={() => setImageLoadedTrigger(prev => prev + 1)}
-        />
-      )}
-      <canvas
-        ref={canvasRef}
-        width={width}
-        height={height}
-        className="bg-white shadow-lg"
-        onWheel={!isStatic ? handleWheel : undefined}
-        onMouseDown={!isStatic ? handleMouseDown : undefined}
-        onMouseMove={!isStatic ? handleMouseMove : undefined}
-        onMouseUp={!isStatic ? handleMouseUp : undefined}
-        onMouseLeave={handleMouseLeave}
-        onClick={handleClick}
-        tabIndex={0}
-      />
-      <div
-        className="absolute top-0 left-0 w-full h-full pointer-events-none"
+      <div 
+        style={{ 
+          transform: `rotate(${canvasRotation}deg)`,
+          transition: 'transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          position: 'relative'
+        }}
       >
-        {placedObjects.map((obj) => (
-          <DraggableObject
-            key={obj.id}
-            object={obj}
-            onMove={onMoveObject}
-            onResize={onResizeObject}
-            onRotate={onRotateObject}
-            onDelete={onDeleteObject}
-            objectSvgMap={objectSvgMap}
-            canvasRef={containerRef}
-            highlight={obj.highlight}
-            isStatic={isStatic}
-            zoom={zoom}
-            offset={offset}
+        {floorPlanImage && (
+          <img
+            ref={imageRef}
+            src={floorPlanImage}
+            alt="Floor Plan Source"
+            className="hidden"
+            crossOrigin="anonymous"
+            onLoad={() => setImageLoadedTrigger(prev => prev + 1)}
           />
-        ))}
+        )}
+        <canvas
+          ref={canvasRef}
+          width={width}
+          height={height}
+          className="bg-white shadow-lg"
+          onWheel={!isStatic ? handleWheel : undefined}
+          onMouseDown={!isStatic ? handleMouseDown : undefined}
+          onMouseMove={!isStatic ? handleMouseMove : undefined}
+          onMouseUp={!isStatic ? handleMouseUp : undefined}
+          onMouseLeave={handleMouseLeave}
+          onClick={handleClick}
+          tabIndex={0}
+        />
+        <div
+          className="absolute top-0 left-0 w-full h-full pointer-events-none"
+        >
+          {placedObjects.map((obj) => (
+            <DraggableObject
+              key={obj.id}
+              object={obj}
+              onMove={onMoveObject}
+              onResize={onResizeObject}
+              onRotate={onRotateObject}
+              onDelete={onDeleteObject}
+              objectSvgMap={objectSvgMap}
+              canvasRef={containerRef}
+              highlight={obj.highlight}
+              isStatic={isStatic}
+              zoom={zoom}
+              offset={offset}
+              viewRotation={canvasRotation}
+              computedLayout={computedLayout}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
