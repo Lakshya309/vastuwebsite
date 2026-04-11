@@ -3,7 +3,7 @@ name: Deploy Manglam App
 on:
   push:
     branches:
-      - main2  # Deploy only when this branch is updated
+      - main2  # The workflow triggers ONLY when you push to this branch
 
 jobs:
   deploy:
@@ -16,27 +16,26 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          # This helps bypass the "Host key verification failed" error on new servers
           script_stop: true 
           script: |
-            # 1. Load the environment paths (Crucial for Ubuntu 24.04)
+            # 1. Setup the environment (Ubuntu 24.04 fix)
+            export PATH=$PATH:/usr/local/bin:/usr/bin:/bin
+            # If using NVM, this helps find 'npm'
             export NVM_DIR="$HOME/.nvm"
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-            export PATH=$PATH:/usr/local/bin:/usr/bin:/bin
 
-            # 2. Navigate to the project directory
-            cd ${{ secrets.VPS_PATH }}
+            # 2. Go to your app folder
+            cd /var/www/nextapp
 
-            # 3. Clean up and switch to the correct branch
-            git fetch origin perimeter-based-devtas
-            git checkout perimeter-based-devtas
-            git pull origin perimeter-based-devtas
+            # 3. Pull the specific 'main2' branch
+            git fetch origin main2
+            git checkout main2
+            git pull origin main2
 
-            # 4. Install dependencies and Build
-            # We use --frozen-lockfile or --package-lock-only if you want more stability
+            # 4. Install and Build
             npm install
             npm run build
 
-            # 5. Restart the app using PM2
-            # The '||' acts as a backup: if restart fails (app not running), it will start it
-            pm2 restart manglam-app || pm2 start npm --name "manglam-app" -- start
+            # 5. Restart with PM2
+            # (Make sure 'manglam-app' is the name you gave it in PM2)
+            pm2 restart nextapp || pm2 start npm --name "nextapp" -- start
