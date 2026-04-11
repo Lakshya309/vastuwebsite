@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { last } from "lodash";
 
 const LAST_UPDATED = "April 8, 2026";
 const BUSINESS_NAME = "Mangalam Vastu";
