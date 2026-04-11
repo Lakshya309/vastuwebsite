@@ -645,19 +645,15 @@ const drawCanvasContent = (
   if (boundary.length > 0) {
     ctx.save();
 
-    // Determine centroid: use plotCentroid if available, else calculate from boundary
-    let targetCentroid = plotCentroid;
-    if (!targetCentroid && boundary.length > 0) {
-      targetCentroid = getCentroid(boundary);
-    }
+    // Center the compass vertically and horizontally on the canvas
+    const xCenter = width / 2;
+    const yCenter = height / 2;
 
-    if (targetCentroid) {
-      const centroidPx = toPx(targetCentroid);
-      ctx.translate(centroidPx.x, centroidPx.y);
-      ctx.rotate(-(northDirection * Math.PI) / 180);
+    ctx.translate(xCenter, yCenter);
+    ctx.rotate(-(northDirection * Math.PI) / 180);
 
-      const compassSize = 40;
-      const compassWidth = 10;
+    const compassSize = 40;
+    const compassWidth = 10;
 
       // Draw arrow
       ctx.beginPath();
@@ -733,7 +729,6 @@ const drawCanvasContent = (
       ctx.shadowColor = "transparent"; // remove text shadow
       ctx.fillText("N", 0, 1);
       ctx.restore();
-    }
     ctx.restore();
   }
 };

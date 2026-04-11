@@ -28,6 +28,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Download, LayoutDashboard, FileText, ChevronRight, Share2, Printer } from "lucide-react";
 import { toPng } from 'dom-to-image-more';
 import { jsPDF } from 'jspdf';
+// html2pdf will be imported dynamically to avoid SSR 'self is not defined' error
 
 // --- INTERFACES ---
 
@@ -69,6 +70,9 @@ interface VastuAnalysisResult {
   zone_areas_16: DevtaArea[];
   zone_boundary_16: DevtaArea[];
   zones16: any[];
+  zones8?: any[];
+  devtas45?: any[];
+  analysis_id?: string;
 }
 
 const ZONES_DEFINITION = [
@@ -129,6 +133,7 @@ export default function ReportPage() {
   const [error, setError] = useState<string | null>(null);
   const [zoneGraphData, setZoneGraphData] = useState<any[]>([]);
   const [highlightedZones, setHighlightedZones] = useState<string[]>([]);
+  const [printing, setPrinting] = useState(false);
   const [reportSections, setReportSections] = useState({
     overallCompliance: true,
     objectDistribution: true,
@@ -156,49 +161,43 @@ export default function ReportPage() {
   };
 
   const handleExportPdf = async () => {
-    if (!reportContentRef.current) return;
-    
+    const element = reportContentRef.current;
+    if (!element) return;
+
+    setPrinting(true);
     setLoading(true);
-    
+
     try {
-      const element = reportContentRef.current;
-      
-      const dataUrl = await toPng(element, {
-        backgroundColor: '#ffffff',
-        pixelRatio: 2,
-        filter: (node) => {
-          if (node.classList && node.classList.contains) {
-            return !node.classList.contains('no-print');
-          }
-          return true;
-        }
-      });
-      
-      const img = new Image();
-      img.src = dataUrl;
-      
-      await new Promise<void>((resolve) => {
-        img.onload = () => resolve();
-      });
-      
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-      });
-      
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      
-      pdf.addImage(dataUrl, 'PNG', 0, 0, pageWidth, pageHeight);
-      
-      pdf.save(`Vastu_Report_${project?.name || projectId}.pdf`);
-      
+      // @ts-ignore
+      const html2pdf = (await import('html2pdf.js')).default;
+
+      // Wait for the CSS-override and animations to settle
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      const opt = {
+        margin: 10,
+        filename: `Vastu_Report_${project?.name || "Analysis"}.pdf`,
+        image: { type: 'jpeg' as const, quality: 0.98 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          letterRendering: true,
+          logging: false,
+          backgroundColor: '#ffffff'
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+      };
+
+      const worker = html2pdf().from(element).set(opt);
+      await worker.save();
     } catch (error: any) {
-      console.error("PDF export failed:", error);
+      console.error("Professional PDF generation ritual failed:", error);
+      alert("Enhanced generation failed due to a browser layout limitation. Using system print instead.");
       window.print();
     } finally {
       setLoading(false);
+      setPrinting(false);
     }
   };
 
@@ -218,6 +217,7 @@ export default function ReportPage() {
       try {
         const analysisResponse = await fetch(`/api/analysis/full-report?analysisId=${analysisId}`);
         const vastuData: VastuAnalysisResult = await analysisResponse.json();
+        vastuData.analysis_id = analysisId; // Manually attach for PDF generation
         setVastuAnalysisResult(vastuData);
 
         const badZones = vastuData.analyzed_objects
@@ -256,7 +256,7 @@ export default function ReportPage() {
   if (loading && !vastuAnalysisResult) {
     return (
       <div className="min-h-screen organic-gradient flex items-center justify-center">
-        <motion.div 
+        <motion.div
           animate={{ rotate: 360 }}
           transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
           className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full"
@@ -288,13 +288,43 @@ export default function ReportPage() {
   };
 
   return (
-    <div className="min-h-screen organic-gradient p-4 md:p-12 relative overflow-hidden">
+    <div className="min-h-screen organic-gradient pt-32 md:pt-40 p-4 md:p-12 relative overflow-hidden">
+      {/* PDF Generation CSS Override */}
+      {printing && (
+        <style dangerouslySetInnerHTML={{
+          __html: `
+          * {
+            animation: none !important;
+            transition: none !important;
+            color-scheme: light !important;
+          }
+          /* Eliminate modern color functions that crash html2canvas */
+          .glass {
+            background: rgba(255, 255, 255, 0.95) !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+            border-color: rgba(0, 0, 0, 0.1) !important;
+            box-shadow: none !important;
+          }
+          /* Fix text colors */
+          .text-primary { color: #13547a !important; }
+          .text-gray-400, .text-gray-500 { color: #6b7280 !important; }
+          /* Reset backgrounds */
+          .organic-gradient { background: #ffffff !important; }
+          /* Ensure charts are visible */
+          .recharts-cartesian-grid-horizontal line,
+          .recharts-cartesian-grid-vertical line {
+            stroke: #e5e7eb !important;
+          }
+        `}} />
+      )}
+
       {/* Background Decor */}
       <div className="absolute top-0 right-0 w-[50vw] h-[50vw] bg-primary/5 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/3" />
       <div className="absolute bottom-0 left-0 w-[40vw] h-[40vw] bg-teal-500/5 rounded-full blur-[100px] translate-y-1/3 -translate-x-1/4" />
 
       {/* Navigation Header */}
-      <motion.div 
+      <motion.div
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         className="max-w-7xl mx-auto mb-12 flex flex-col md:flex-row justify-between items-center gap-6 no-print relative z-10"
@@ -328,7 +358,7 @@ export default function ReportPage() {
       </motion.div>
 
       {/* Report Customization (Dashboard Style) */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         className="max-w-7xl mx-auto mb-12 flex flex-wrap gap-3 no-print"
@@ -337,11 +367,10 @@ export default function ReportPage() {
           <button
             key={key}
             onClick={() => handleSectionChange(key as keyof typeof reportSections)}
-            className={`px-4 py-2.5 rounded-xl border text-[9px] font-bold uppercase tracking-widest transition-all ${
-              reportSections[key as keyof typeof reportSections]
-                ? "bg-primary text-white border-primary shadow-lg shadow-primary/20"
-                : "glass text-gray-400 border-white hover:border-primary/30"
-            }`}
+            className={`px-4 py-2.5 rounded-xl border text-[9px] font-bold uppercase tracking-widest transition-all ${reportSections[key as keyof typeof reportSections]
+              ? "bg-primary text-white border-primary shadow-lg shadow-primary/20"
+              : "glass text-gray-400 border-white hover:border-primary/30"
+              }`}
           >
             {key.replace(/([A-Z])/g, ' $1').trim()}
           </button>
@@ -349,15 +378,39 @@ export default function ReportPage() {
       </motion.div>
 
       {/* MAIN REPORT AREA */}
-      <motion.div 
+      <motion.div
         ref={reportContentRef}
         variants={containerVariants}
         initial="hidden"
         animate="visible"
-        className="max-w-7xl mx-auto space-y-12 relative z-10"
+        className="max-w-7xl mx-auto space-y-4 relative z-10"
       >
+        {/* PDF-ONLY COVER PAGE */}
+        {printing && (
+          <div className="mb-12">
+            <div className="bg-slate-900 p-20 rounded-[4rem] text-center min-h-[250mm] flex flex-col justify-center items-center border-[10px] border-teal-500/20">
+              <h1 className="text-7xl font-cormorant font-bold text-white mb-8 tracking-tighter uppercase">Mangalam Vastu</h1>
+              <div className="h-1 w-32 bg-teal-500 mb-12 mx-auto" />
+              <h2 className="text-3xl font-cormorant italic text-teal-400 mb-20">Spectral Alignment & Macro-Symmetry Report</h2>
+
+              <div className="space-y-4">
+                <p className="text-white text-4xl font-bold uppercase tracking-widest">{project?.name || "Project Report"}</p>
+                <p className="text-slate-400 text-sm tracking-[0.5em] uppercase">Private Consultation Document</p>
+              </div>
+
+              <div className="mt-32 pt-32 border-t border-slate-800 w-full max-w-md">
+                <div className="flex justify-between text-slate-500 text-[10px] uppercase font-bold tracking-widest">
+                  <span>Ref: #{vastuAnalysisResult?.analysis_id?.slice(0, 8)}</span>
+                  <span>Date: {new Date().toLocaleDateString('en-GB')}</span>
+                </div>
+              </div>
+            </div>
+            <div className="html2pdf__page-break" />
+          </div>
+        )}
+
         {/* Cinematic Header Card */}
-        <motion.div variants={itemVariants} className="glass p-12 rounded-[3.5rem] border border-white shadow-2xl relative overflow-hidden">
+        <motion.div id="report-section-overview" variants={itemVariants} className="glass p-12 rounded-[3.5rem] border border-white shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
           <div className="flex flex-col md:flex-row justify-between items-start gap-12 relative z-10">
             <div className="space-y-6">
@@ -402,30 +455,40 @@ export default function ReportPage() {
         </motion.div>
 
         {/* Global Pulse (Overall Compliance & Pie) */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+        <div id="report-section-pulse" className="grid grid-cols-1 lg:grid-cols-12 gap-12">
           {reportSections.overallCompliance && (
             <motion.div variants={itemVariants} className="lg:col-span-5 glass p-10 rounded-[3rem] border border-white flex flex-col items-center text-center">
               <h3 className="text-2xl font-cormorant font-bold italic text-primary mb-8 underline underline-offset-8 decoration-primary/10 tracking-tight">Manifestation Score</h3>
-              <div className="relative w-64 h-64 mb-8">
-                <ResponsiveContainer width="100%" height="100%">
-                  <RadialBarChart
-                    innerRadius="85%"
-                    outerRadius="75%"
-                    barSize={24}
-                    data={[{ name: "Vastu Score", uv: vastuAnalysisResult.overall_percentage, fill: COLORS[vastuAnalysisResult.overall_verdict] }]}
-                    startAngle={90}
-                    endAngle={90 - (360 * vastuAnalysisResult.overall_percentage / 100)}
-                  >
-                    <RadialBar cornerRadius={20} background={{ fill: 'rgba(0,0,0,0.03)' }} dataKey="uv" />
-                  </RadialBarChart>
-                </ResponsiveContainer>
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <p className="text-7xl font-cormorant font-bold italic text-primary leading-none -mt-4">
-                    {vastuAnalysisResult.overall_percentage.toFixed(0)}<span className="text-2xl text-primary/40">%</span>
-                  </p>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">{vastuAnalysisResult.total_score} Total Points</p>
+              {!printing ? (
+                <div className="relative w-64 h-64 mb-8">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RadialBarChart
+                      innerRadius="85%"
+                      outerRadius="75%"
+                      barSize={24}
+                      data={[{ name: "Vastu Score", uv: vastuAnalysisResult.overall_percentage, fill: COLORS[vastuAnalysisResult.overall_verdict] }]}
+                      startAngle={90}
+                      endAngle={90 - (360 * vastuAnalysisResult.overall_percentage / 100)}
+                    >
+                      <RadialBar cornerRadius={20} background={{ fill: 'rgba(0,0,0,0.03)' }} dataKey="uv" />
+                    </RadialBarChart>
+                  </ResponsiveContainer>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <p className="text-7xl font-cormorant font-bold italic text-primary leading-none -mt-4">
+                      {vastuAnalysisResult.overall_percentage.toFixed(0)}<span className="text-2xl text-primary/40">%</span>
+                    </p>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">{vastuAnalysisResult.total_score} Total Points</p>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="w-full flex-1 flex flex-col items-center justify-center mb-8 bg-slate-50 border border-slate-200 p-8 rounded-[2rem]">
+                  <div className="text-[100px] font-cormorant font-bold text-primary leading-none">{vastuAnalysisResult.overall_percentage.toFixed(0)}%</div>
+                  <div className="w-full max-w-xs mt-8 bg-gray-200 h-4 rounded-full overflow-hidden">
+                    <div className="h-full bg-primary" style={{ width: `${vastuAnalysisResult.overall_percentage}%`}} />
+                  </div>
+                  <p className="mt-4 text-[12px] font-bold text-gray-500 uppercase tracking-widest">{vastuAnalysisResult.total_score} Total Points Found</p>
+                </div>
+              )}
               <div className={`px-8 py-3 rounded-2xl border text-sm font-bold uppercase tracking-[0.2em] relative overflow-hidden group ${getVerdictBgColor(vastuAnalysisResult.overall_verdict)} border-white transition-all`}>
                 <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
                 <span className={`relative z-10 ${getVerdictTextColor(vastuAnalysisResult.overall_verdict)}`}>
@@ -436,49 +499,71 @@ export default function ReportPage() {
           )}
 
           {reportSections.objectDistribution && (
-            <motion.div variants={itemVariants} className="lg:col-span-7 glass p-10 rounded-[3rem] border border-white">
-              <h3 className="text-2xl font-cormorant font-bold italic text-primary mb-8 px-4 tracking-tight">Component Resonance</h3>
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={Object.values(
-                        vastuAnalysisResult.analyzed_objects.reduce((acc, obj) => {
-                          acc[obj.verdict] = (acc[obj.verdict] || 0) + 1;
-                          return acc;
-                        }, {} as Record<string, number>)
-                      ).map((count, i) => ({
-                        name: Object.keys(
+            <motion.div variants={itemVariants} className="lg:col-span-7 glass p-8 rounded-[3rem] border border-white">
+              <h3 className="text-2xl font-cormorant font-bold italic text-primary mb-6 px-4 tracking-tight">Component Resonance</h3>
+              {!printing ? (
+                <div className="h-72 relative">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={Object.entries(
                           vastuAnalysisResult.analyzed_objects.reduce((acc, obj) => {
                             acc[obj.verdict] = (acc[obj.verdict] || 0) + 1;
                             return acc;
                           }, {} as Record<string, number>)
-                        )[i],
-                        value: count,
-                      }))}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={80}
-                      outerRadius={100}
-                      paddingAngle={8}
-                      dataKey="value"
-                    >
-                      {Object.keys(
-                        vastuAnalysisResult.analyzed_objects.reduce((acc, obj) => {
-                          acc[obj.verdict] = (acc[obj.verdict] || 0) + 1;
-                          return acc;
-                        }, {} as Record<string, number>)
-                      ).map((verdict, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[verdict as keyof typeof COLORS]} className="stroke-[4] stroke-white" />
-                      ))}
-                    </Pie>
-                    <Tooltip 
-                      contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.1)', fontStyle: 'italic', fontWeight: 'bold' }}
-                    />
-                    <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ paddingTop: '20px', textTransform: 'uppercase', fontSize: '8px', fontWeight: 'bold', letterSpacing: '0.2em' }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
+                        ).map(([name, value]) => ({ name, value }))}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={80}
+                        outerRadius={100}
+                        paddingAngle={8}
+                        dataKey="value"
+                        isAnimationActive={true}
+                      >
+                        {Object.keys(
+                          vastuAnalysisResult.analyzed_objects.reduce((acc, obj) => {
+                            acc[obj.verdict] = (acc[obj.verdict] || 0) + 1;
+                            return acc;
+                          }, {} as Record<string, number>)
+                        ).map((verdict, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[verdict as keyof typeof COLORS]} className="stroke-[4] stroke-white" />
+                        ))}
+                      </Pie>
+                      <Tooltip contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.1)', fontStyle: 'italic', fontWeight: 'bold' }} />
+                      <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ paddingTop: '20px', textTransform: 'uppercase', fontSize: '10px', fontWeight: 'bold', letterSpacing: '0.2em' }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mb-4">
+                    <p className="text-4xl font-cormorant font-bold italic text-primary leading-none">
+                      {vastuAnalysisResult.analyzed_objects.length}
+                    </p>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Total</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="w-full space-y-6 mt-4 p-8 bg-slate-50 border border-slate-200 rounded-[2rem]">
+                  {Object.entries(
+                      vastuAnalysisResult.analyzed_objects.reduce((acc, obj) => {
+                        acc[obj.verdict] = (acc[obj.verdict] || 0) + 1;
+                        return acc;
+                      }, {} as Record<string, number>)
+                    ).map(([verdict, count]) => {
+                      const total = vastuAnalysisResult.analyzed_objects.length;
+                      const pct = (count / total) * 100;
+                      return (
+                        <div key={verdict} className="w-full">
+                          <div className="flex justify-between text-xs font-bold mb-2">
+                            <span className="text-primary tracking-widest uppercase">{verdict}</span>
+                            <span className="text-gray-600">{count} Objects ({pct.toFixed(0)}%)</span>
+                          </div>
+                          <div className="w-full h-4 bg-gray-200 rounded-full overflow-hidden">
+                             <div className="h-full" style={{ width: `${pct}%`, backgroundColor: COLORS[verdict as keyof typeof COLORS] }} />
+                          </div>
+                        </div>
+                      )
+                  })}
+                </div>
+              )}
               <p className="text-center text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-8 italic leading-relaxed">
                 Distribution of objects across the spectral spectrum of Vastu compliance.
               </p>
@@ -488,105 +573,40 @@ export default function ReportPage() {
 
         {/* Energy Charts (Boundary & Area) */}
         {zoneGraphData.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+          <div id="report-section-energy" className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {reportSections.boundaryDistribution && (
-              <motion.div variants={itemVariants} className="glass p-10 rounded-[3rem] border border-white">
-                <ZoneBarChart
-                  data={zoneGraphData}
-                  chartType="boundary"
-                  title="Perimeter Dispersion"
-                />
+              <motion.div variants={itemVariants} className="glass p-6 md:p-8 rounded-[3rem] border border-white">
+                <ZoneBarChart data={zoneGraphData} chartType="boundary" title="Perimeter Dispersion" isAnimationActive={!printing} />
               </motion.div>
             )}
             {reportSections.areaDistribution && (
-              <motion.div variants={itemVariants} className="glass p-10 rounded-[3rem] border border-white">
-                <ZoneBarChart
-                  data={zoneGraphData}
-                  chartType="area"
-                  title="Spatial Volume Intensity"
-                />
+              <motion.div variants={itemVariants} className="glass p-6 md:p-8 rounded-[3rem] border border-white">
+                <ZoneBarChart data={zoneGraphData} chartType="area" title="Spatial Volume Intensity" isAnimationActive={!printing} />
               </motion.div>
             )}
           </div>
         )}
 
         {/* Devta Distribution */}
-        <div className="grid grid-cols-1 gap-12">
+        <div id="report-section-devtas" className="grid grid-cols-1 gap-4">
           {reportSections.devta32 && vastuAnalysisResult.devta_areas_32 && (
-            <motion.div variants={itemVariants} className="glass p-10 rounded-[3rem] border border-white">
-              <DevtaBarChart
-                data={vastuAnalysisResult.devta_areas_32}
-                title="Symmetry of the 32 Outer Deities (%)"
-                color="#3b82f6"
-              />
+            <motion.div variants={itemVariants} className="glass p-6 md:p-8 rounded-[3rem] border border-white">
+              <DevtaBarChart data={vastuAnalysisResult.devta_areas_32} title="Symmetry of the 32 Outer Deities (%)" color="#3b82f6" isAnimationActive={!printing} />
             </motion.div>
           )}
           {reportSections.devta45 && vastuAnalysisResult.devta_areas_45 && (
-            <motion.div variants={itemVariants} className="glass p-10 rounded-[3rem] border border-white">
-              <DevtaBarChart
-                data={vastuAnalysisResult.devta_areas_45}
-                title="Harmonic Balance of the 45 Celestial Masters (%)"
-                color="#10b981"
-              />
+            <motion.div variants={itemVariants} className="glass p-6 md:p-8 rounded-[3rem] border border-white">
+              <DevtaBarChart data={vastuAnalysisResult.devta_areas_45} title="Harmonic Balance of the 45 Celestial Masters (%)" color="#10b981" isAnimationActive={!printing} />
             </motion.div>
           )}
         </div>
 
-        {/* Floor Plan Visualization */}
-        {reportSections.floorPlan && (
-          <motion.div variants={itemVariants} className="glass p-12 rounded-[3.5rem] border border-white">
-            <h3 className="text-3xl font-cormorant font-bold italic text-primary text-center mb-12 tracking-tight">Spectral Geometry Overview</h3>
-            <div className="flex justify-center bg-white/20 p-8 rounded-[3rem] border border-white/50 shadow-inner">
-              <div className="w-[80vw] max-w-[600px] h-[80vw] max-h-[600px]">
-                <FloorPlanCanvas
-                  isStatic={true}
-                  floorPlanImage={project.floor_plan_path || null}
-                  boundary={project.boundary_normalized || []}
-                  placedObjects={(project.placed_objects || []).map(obj => {
-                    const analysis = vastuAnalysisResult.analyzed_objects.find(ao => ao.object_id === obj.id);
-                    return {
-                      ...obj,
-                      highlight: analysis ? analysis.verdict : null,
-                    }
-                  })}
-                  objectSvgMap={new Proxy(OBJECT_ICONS, {
-                    get: (target: Record<string, string>, prop: string | symbol) => {
-                      if (typeof prop === 'string') {
-                        if (target[prop]) return target[prop];
-                        const titleCase = prop.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-                        if (target[titleCase]) return target[titleCase];
-                      }
-                      return "/objects/generic.svg";
-                    }
-                  })}
-                  northDirection={project.north_direction || 0}
-                  onMoveObject={() => { }}
-                  onResizeObject={() => { }}
-                  onRotateObject={() => { }}
-                  onDeleteObject={() => { }}
-                  scale={null}
-                  wallLengths={[]}
-                  setReferenceWallIndex={() => { }}
-                  referenceWallIndex={null}
-                  wallColors={[]}
-                  zone16Regions={vastuAnalysisResult.zones16}
-                  highlightedZones={highlightedZones}
-                  onObjectClick={handleObjectClick}
-                />
-              </div>
-            </div>
-            <p className="text-center text-[10px] font-bold text-gray-400 uppercase tracking-[0.3em] mt-8 italic px-12 leading-relaxed">
-              Interaction permitted. Click any element to reveal its karmic solution or spectral status relative to the grid.
-            </p>
-          </motion.div>
-        )}
-
         {/* Detailed Register (Table) */}
         {reportSections.detailedReport && (
-          <motion.div variants={itemVariants} className="glass rounded-[3.5rem] border border-white overflow-hidden">
-            <div className="p-12 border-b border-white/50">
+          <motion.div id="report-section-table" variants={itemVariants} className="glass rounded-[3.5rem] border border-white overflow-hidden">
+            <div className="p-8 border-b border-white/50 bg-white/10">
               <h3 className="text-3xl font-cormorant font-bold italic text-primary tracking-tight">Universal Component Register</h3>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2 mt-2">Comprehensive audit of all manifested elements within the geometry.</p>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">Comprehensive audit of all manifested elements within the geometry.</p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -607,11 +627,10 @@ export default function ReportPage() {
                       <td className="px-8 py-8 whitespace-nowrap text-xs font-bold text-gray-500 italic">{obj.score_impact > 0 ? `+${obj.score_impact}` : obj.score_impact}</td>
                       <td className="px-8 py-8 whitespace-nowrap text-xs">
                         {obj.grade && (
-                          <span className={`w-8 h-8 rounded-full border flex items-center justify-center font-bold text-[10px] ${
-                            obj.grade === 'A' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 
+                          <span className={`w-8 h-8 rounded-full border flex items-center justify-center font-bold text-[10px] ${obj.grade === 'A' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
                             obj.grade === 'B' ? 'bg-teal-50 text-teal-700 border-teal-100' :
-                            'bg-amber-50 text-amber-700 border-amber-100'
-                          }`}>
+                              'bg-amber-50 text-amber-700 border-amber-100'
+                            }`}>
                             {obj.grade}
                           </span>
                         )}
@@ -629,24 +648,130 @@ export default function ReportPage() {
             </div>
           </motion.div>
         )}
+
+        {/* Floor Plan Visualization (Moved to bottom) */}
+        {reportSections.floorPlan && (project.floor_plan_path || (project.boundary_normalized && project.boundary_normalized.length > 0)) && (
+          <motion.div id="report-section-geometry" variants={itemVariants} className="glass p-8 md:p-12 rounded-[3.5rem] border border-white">
+            <h3 className="text-4xl font-cormorant font-bold italic text-primary text-center mb-12 tracking-tight">Spectral Geometry Overview</h3>
+            <div className="flex flex-col gap-16 items-center w-full">
+              
+              {/* 8 Zones */}
+              <div className="flex flex-col items-center gap-4 w-full">
+                <h4 className="font-bold text-[12px] text-gray-500 uppercase tracking-widest glass px-6 py-2.5 rounded-full shadow-sm">8 Basic Zones</h4>
+                <div className="w-full max-w-[700px] aspect-square relative glass rounded-[3rem] shadow-inner overflow-hidden p-8 mx-auto">
+                  <FloorPlanCanvas
+                    isStatic={true}
+                    floorPlanImage={project.floor_plan_path || null}
+                    boundary={project.boundary_normalized || []}
+                    placedObjects={[]}
+                    objectSvgMap={{}}
+                    northDirection={project.north_direction || 0}
+                    onMoveObject={() => { }}
+                    onResizeObject={() => { }}
+                    onRotateObject={() => { }}
+                    onDeleteObject={() => { }}
+                    scale={null}
+                    wallLengths={[]}
+                    setReferenceWallIndex={() => { }}
+                    referenceWallIndex={null}
+                    wallColors={[]}
+                    zone8Regions={vastuAnalysisResult.zones8}
+                    highlightedZones={[]}
+                    onObjectClick={() => {}}
+                  />
+                </div>
+              </div>
+
+              {/* 16 Zones - Central Emphasis */}
+              <div className="flex flex-col items-center gap-4 w-full relative">
+                <h4 className="font-bold text-[16px] text-primary uppercase tracking-widest glass px-8 py-3 rounded-full shadow-xl shadow-primary/5">16 Maha Vastu Zones</h4>
+                <div className="w-full max-w-[800px] aspect-square relative glass rounded-[3.5rem] shadow-2xl overflow-hidden p-10 mx-auto z-20">
+                  <FloorPlanCanvas
+                    isStatic={true}
+                    floorPlanImage={project.floor_plan_path || null}
+                    boundary={project.boundary_normalized || []}
+                    placedObjects={(project.placed_objects || []).map(obj => {
+                      const analysis = vastuAnalysisResult.analyzed_objects.find(ao => ao.object_id === obj.id);
+                      return {
+                        ...obj,
+                        highlight: analysis ? analysis.verdict : null,
+                      }
+                    })}
+                    objectSvgMap={new Proxy(OBJECT_ICONS, {
+                      get: (target: Record<string, string>, prop: string | symbol) => {
+                        if (typeof prop === 'string') {
+                          if (target[prop]) return target[prop];
+                          const titleCase = prop.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+                          if (target[titleCase]) return target[titleCase];
+                        }
+                        return "/objects/generic.svg";
+                      }
+                    })}
+                    northDirection={project.north_direction || 0}
+                    onMoveObject={() => { }}
+                    onResizeObject={() => { }}
+                    onRotateObject={() => { }}
+                    onDeleteObject={() => { }}
+                    scale={null}
+                    wallLengths={[]}
+                    setReferenceWallIndex={() => { }}
+                    referenceWallIndex={null}
+                    wallColors={[]}
+                    zone16Regions={vastuAnalysisResult.zones16}
+                    highlightedZones={highlightedZones}
+                    onObjectClick={handleObjectClick}
+                  />
+                </div>
+              </div>
+
+              {/* 45 Devtas */}
+              <div className="flex flex-col items-center gap-4 w-full">
+                <h4 className="font-bold text-[12px] text-gray-500 uppercase tracking-widest glass px-6 py-2.5 rounded-full shadow-sm">45 Cosmic Masters</h4>
+                <div className="w-full max-w-[700px] aspect-square relative glass rounded-[3rem] shadow-inner overflow-hidden p-8 mx-auto">
+                  <FloorPlanCanvas
+                    isStatic={true}
+                    floorPlanImage={project.floor_plan_path || null}
+                    boundary={project.boundary_normalized || []}
+                    placedObjects={[]}
+                    objectSvgMap={{}}
+                    northDirection={project.north_direction || 0}
+                    onMoveObject={() => { }}
+                    onResizeObject={() => { }}
+                    onRotateObject={() => { }}
+                    onDeleteObject={() => { }}
+                    scale={null}
+                    wallLengths={[]}
+                    setReferenceWallIndex={() => { }}
+                    referenceWallIndex={null}
+                    wallColors={[]}
+                    devtaRegions={vastuAnalysisResult.devtas45}
+                    highlightedZones={[]}
+                    onObjectClick={() => {}}
+                  />
+                </div>
+              </div>
+
+            </div>
+          </motion.div>
+        )}
       </motion.div>
 
       {/* Solution Overlay (Spectral) */}
       <AnimatePresence>
         {solution && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-primary/20 backdrop-blur-md flex items-center justify-center z-[100] p-6"
           >
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
               className="glass max-w-lg w-full p-10 rounded-[3rem] border border-white shadow-[0_50px_100px_-20px_rgba(0,0,0,0.2)] text-center relative"
             >
-              <button 
+              <button
                 onClick={() => setSolution(null)}
                 className="absolute top-6 right-6 w-10 h-10 rounded-full glass border border-white flex items-center justify-center text-gray-400 hover:text-primary transition-colors"
               >

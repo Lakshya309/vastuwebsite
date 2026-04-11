@@ -23,14 +23,15 @@ interface DevtaBarChartProps {
   data: DevtaArea[];
   title: string;
   color?: string;
+  isAnimationActive?: boolean;
 }
 
-export const DevtaBarChart: React.FC<DevtaBarChartProps> = ({ data, title, color = "#8884d8" }) => {
+export const DevtaBarChart: React.FC<DevtaBarChartProps> = ({ data, title, color = "#8884d8", isAnimationActive = true }) => {
   if (!data || data.length === 0) return null;
 
   return (
-    <div className="bg-white p-6 rounded-2xl shadow-lg">
-      <h2 className="text-2xl font-bold mb-4 text-gray-800">{title}</h2>
+    <div className="w-full h-full">
+      <h2 className="text-xl font-bold mb-6 text-primary italic px-4">{title}</h2>
       <ResponsiveContainer width="100%" height={400}>
         <BarChart data={data} margin={{ bottom: 70 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#eeeeee" />
@@ -52,7 +53,7 @@ export const DevtaBarChart: React.FC<DevtaBarChartProps> = ({ data, title, color
             itemStyle={{ color: '#000000' }}
             formatter={(value: any) => [`${Number(value).toFixed(2)}%`, 'Area Percentage']} 
           />
-          <Bar dataKey="percentage" fill={color} name="Area %">
+          <Bar dataKey="percentage" fill={color} name="Area %" isAnimationActive={isAnimationActive}>
             {data.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={color} opacity={0.8} />
             ))}
