@@ -26,9 +26,8 @@ import { DevtaBarChart } from "../../../../components/DevtaBarChart";
 import { FloorPlanCanvas } from "../../../../components/floor-plan/FloorPlanCanvas";
 import { motion, AnimatePresence } from "framer-motion";
 import { Download, LayoutDashboard, FileText, ChevronRight, Share2, Printer } from "lucide-react";
-import { toPng } from 'dom-to-image-more';
+import html2canvas from 'html2canvas-pro';
 import { jsPDF } from 'jspdf';
-// html2pdf will be imported dynamically to avoid SSR 'self is not defined' error
 
 // --- INTERFACES ---
 
@@ -165,38 +164,73 @@ export default function ReportPage() {
     if (!element) return;
 
     setPrinting(true);
-    setLoading(true);
-
+    // Loading is already set by the component's state watcher for 'printing' or 'loading'
+    
     try {
-      // @ts-ignore
-      const html2pdf = (await import('html2pdf.js')).default;
+      // Extended wait for all charts and canvases to stabilize
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
-      // Wait for the CSS-override and animations to settle
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      const opt = {
-        margin: 10,
-        filename: `Vastu_Report_${project?.name || "Analysis"}.pdf`,
-        image: { type: 'jpeg' as const, quality: 0.98 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          letterRendering: true,
-          logging: false,
-          backgroundColor: '#ffffff'
-        },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const },
-        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      
+      const captureOptions = {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
       };
 
-      const worker = html2pdf().from(element).set(opt);
-      await worker.save();
+      // Define page sections
+      const sections = [
+        { ids: ['report-section-overview', 'report-section-pulse'] },
+        { ids: ['report-section-energy'] },
+        { ids: ['report-section-devtas'] },
+        { ids: ['report-section-table'] },
+        { ids: ['report-section-canvas-8'] },
+        { ids: ['report-section-canvas-16'] },
+        { ids: ['report-section-canvas-45'] },
+      ];
+
+      let pageStarted = false;
+
+      for (let i = 0; i < sections.length; i++) {
+        const { ids } = sections[i];
+        
+        // Filter out IDs that don't exist in DOM (e.g. disabled via toggle)
+        const visibleIds = ids.filter(id => document.getElementById(id));
+        if (visibleIds.length === 0) continue;
+
+        if (pageStarted) {
+          pdf.addPage();
+        }
+        pageStarted = true;
+        
+        let currentY = 15; // Starting top margin
+
+        for (const id of visibleIds) {
+          const sectionEl = document.getElementById(id);
+          if (!sectionEl) continue;
+
+          const canvas = await html2canvas(sectionEl, captureOptions);
+          const imgData = canvas.toDataURL('image/jpeg', 0.95);
+          const imgProps = pdf.getImageProperties(imgData);
+          
+          // Calculate dimensions to fit width while preserving aspect ratio
+          const displayWidth = pdfWidth - 30; // 15mm margins on each side
+          const displayHeight = (imgProps.height * displayWidth) / imgProps.width;
+
+          pdf.addImage(imgData, 'JPEG', 15, currentY, displayWidth, displayHeight, undefined, 'FAST');
+          currentY += displayHeight + 10; // 10mm gap between sections on same page
+        }
+      }
+
+      pdf.save(`Vastu_Report_${project?.name || "Analysis"}.pdf`);
     } catch (error: any) {
       console.error("Professional PDF generation ritual failed:", error);
-      alert("Enhanced generation failed due to a browser layout limitation. Using system print instead.");
+      alert("Enhanced generation failed. Using system print instead.");
       window.print();
     } finally {
-      setLoading(false);
       setPrinting(false);
     }
   };
@@ -289,6 +323,25 @@ export default function ReportPage() {
 
   return (
     <div className="min-h-screen organic-gradient pt-32 md:pt-40 p-4 md:p-12 relative overflow-hidden">
+      {/* Professional PDF Generation Loading State */}
+      {(loading || printing) && (
+        <div className="fixed inset-0 z-[500] bg-white/95 backdrop-blur-md flex flex-col items-center justify-center">
+          <motion.div 
+            animate={{ 
+              scale: [1, 1.1, 1],
+              rotate: [0, 5, -5, 0]
+            }}
+            transition={{ duration: 3, repeat: Infinity }}
+            className="w-32 h-32 bg-primary/10 rounded-[3rem] border border-primary/20 flex items-center justify-center mb-8"
+          >
+            <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          </motion.div>
+          <h2 className="text-3xl font-cormorant font-bold italic text-primary mb-2">Architecting Your Spectral Report</h2>
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.4em] animate-pulse">
+            Aligning Sacred Geometry • Please Wait
+          </p>
+        </div>
+      )}
       {/* PDF Generation CSS Override */}
       {printing && (
         <style dangerouslySetInnerHTML={{
@@ -405,7 +458,6 @@ export default function ReportPage() {
                 </div>
               </div>
             </div>
-            <div className="html2pdf__page-break" />
           </div>
         )}
 
@@ -656,7 +708,7 @@ export default function ReportPage() {
             <div className="flex flex-col gap-16 items-center w-full">
               
               {/* 8 Zones */}
-              <div className="flex flex-col items-center gap-4 w-full">
+              <div id="report-section-canvas-8" className="flex flex-col items-center gap-4 w-full">
                 <h4 className="font-bold text-[12px] text-gray-500 uppercase tracking-widest glass px-6 py-2.5 rounded-full shadow-sm">8 Basic Zones</h4>
                 <div className="w-full max-w-[700px] aspect-square relative glass rounded-[3rem] shadow-inner overflow-hidden p-8 mx-auto">
                   <FloorPlanCanvas
@@ -683,7 +735,7 @@ export default function ReportPage() {
               </div>
 
               {/* 16 Zones - Central Emphasis */}
-              <div className="flex flex-col items-center gap-4 w-full relative">
+              <div id="report-section-canvas-16" className="flex flex-col items-center gap-4 w-full relative">
                 <h4 className="font-bold text-[16px] text-primary uppercase tracking-widest glass px-8 py-3 rounded-full shadow-xl shadow-primary/5">16 Maha Vastu Zones</h4>
                 <div className="w-full max-w-[800px] aspect-square relative glass rounded-[3.5rem] shadow-2xl overflow-hidden p-10 mx-auto z-20">
                   <FloorPlanCanvas
@@ -725,7 +777,7 @@ export default function ReportPage() {
               </div>
 
               {/* 45 Devtas */}
-              <div className="flex flex-col items-center gap-4 w-full">
+              <div id="report-section-canvas-45" className="flex flex-col items-center gap-4 w-full">
                 <h4 className="font-bold text-[12px] text-gray-500 uppercase tracking-widest glass px-6 py-2.5 rounded-full shadow-sm">45 Cosmic Masters</h4>
                 <div className="w-full max-w-[700px] aspect-square relative glass rounded-[3rem] shadow-inner overflow-hidden p-8 mx-auto">
                   <FloorPlanCanvas
