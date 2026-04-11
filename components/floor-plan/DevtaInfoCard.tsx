@@ -33,7 +33,7 @@ export const DevtaInfoCard: React.FC<DevtaInfoCardProps> = ({ devta, onClose }) 
         {objectData ? (
           <>
             <div className="mb-4">
-              <h4 className="font-bold text-green-600 text-sm mb-2">Best Placement:</h4>
+              <h4 className="font-bold text-green-600 text-sm mb-2">Ideal Bhog:</h4>
               <ul className="list-disc list-inside">
                 {objectData.ideal.map((item) => (
                   <li key={item} className="text-sm text-gray-700">{item}</li>
