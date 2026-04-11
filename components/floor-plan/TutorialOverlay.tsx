@@ -44,18 +44,31 @@ export const TutorialOverlay: React.FC<TutorialOverlayProps> = ({
     }, [currentStep, steps]);
 
     useEffect(() => {
-        // Small delay to ensure DOM is ready
+        // Scroll target into view when step changes
+        const step = steps[currentStep];
+        if (step.targetId !== "viewport" && step.position !== "center") {
+            const element = document.getElementById(step.targetId);
+            if (element) {
+                element.scrollIntoView({ behavior: "smooth", block: "center" });
+            }
+        }
+
+        // Small delay to ensure DOM is ready/scrolled
         const timer = setTimeout(() => {
             updateHighlight();
             setIsVisible(true);
         }, 500);
 
+        // Update highlight on scroll and resize
         window.addEventListener("resize", updateHighlight);
+        window.addEventListener("scroll", updateHighlight, true); 
+        
         return () => {
             clearTimeout(timer);
             window.removeEventListener("resize", updateHighlight);
+            window.removeEventListener("scroll", updateHighlight, true);
         };
-    }, [updateHighlight]);
+    }, [updateHighlight, currentStep, steps]);
 
     const nextStep = () => {
         if (currentStep < steps.length - 1) {

@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Video, VideoOff } from "lucide-react";
+import { Video, VideoOff, HelpCircle } from "lucide-react";
 import { useFloorPlanData } from "@/hooks/useFloorPlanData";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useFloorPlanAnalysis } from "@/hooks/useFloorPlanAnalysis";
@@ -95,33 +95,39 @@ export default function FloorPlanPage() {
       position: "center"
     },
     {
-      targetId: "tutorial-dimensions",
-      title: "Set Your Plot Size",
-      content: "Enter your plot's Width and Length to get accurate measurements.",
+      targetId: "tutorial-boundary",
+      title: "1. Draw Your Plot",
+      content: "Use 'Start Drawing' to mark the corners of your plot boundary.",
       position: "left"
     },
     {
       targetId: "tutorial-north",
-      title: "Set North Direction",
-      content: "Use this slider to set which direction your plot faces using a compass.",
+      title: "2. Set North",
+      content: "Use the slider to set the North direction for accurate placement.",
+      position: "left"
+    },
+    {
+      targetId: "tutorial-dimensions",
+      title: "3. Scale Layout",
+      content: "Select a wall and enter its length to set the real-world scale.",
       position: "left"
     },
     {
       targetId: "tutorial-objects",
-      title: "Place Room Items",
-      content: "Click items from the list to place them on your floor plan. Each item has an ideal direction in Vastu.",
+      title: "4. Place Items",
+      content: "Click objects to place them on the map and check their Vastu position.",
       position: "left"
     },
     {
       targetId: "tutorial-layers",
-      title: "View Energy Grids",
-      content: "Toggle different grids to see how energy flows through your plan.",
+      title: "5. Energy Grids",
+      content: "Toggle different grids to visualize energy zones and directions.",
       position: "left"
     },
     {
       targetId: "tutorial-analyze",
-      title: "Get Your Report",
-      content: "Click here to generate a detailed Vastu analysis report for your floor plan.",
+      title: "6. Get Report",
+      content: "Generate a detailed analysis report for your design.",
       position: "left"
     }
   ];
@@ -802,6 +808,13 @@ export default function FloorPlanPage() {
               {showVideo ? 'Close Video' : 'Open Video'}
             </button>
           )}
+          <button
+            onClick={() => setShowTutorial(true)}
+            className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-2xl transition-all flex items-center gap-2 border shadow-sm bg-white/70 text-primary border-white hover:bg-white"
+          >
+            <HelpCircle size={14} />
+            Tutorial / Help
+          </button>
           <button className="px-6 py-2.5 text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-primary transition-colors">
             Save Draft
           </button>
@@ -1157,6 +1170,13 @@ export default function FloorPlanPage() {
           </div>
         )}
       </div>
+      {showTutorial && (
+        <TutorialOverlay
+          steps={tutorialSteps}
+          onComplete={handleTutorialComplete}
+          onSkip={() => setShowTutorial(false)}
+        />
+      )}
     </div>
   );
 }

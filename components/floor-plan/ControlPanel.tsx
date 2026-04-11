@@ -220,7 +220,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
 
           {/* Section 2: Boundary */}
           <motion.div variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }} className="pt-2">
-            <h3 className="text-xl font-cormorant font-bold italic text-primary mb-4 flex items-center gap-2">
+            <h3 id="tutorial-boundary" className="text-xl font-cormorant font-bold italic text-primary mb-4 flex items-center gap-2">
               <span className="text-xs font-sans not-italic bg-primary/10 text-primary w-6 h-6 rounded-full flex items-center justify-center">2</span>
               Draw Your Plot
             </h3>
@@ -421,7 +421,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-6 leading-relaxed">
               Set which way your plot faces using a compass.
             </p>
-            <div className="px-2">
+            <div id="tutorial-north" className="px-2">
               <input
                 type="range"
                 min="0"
@@ -442,7 +442,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
           {/* Section 4: Scale */}
           {props.boundary && props.boundary.length > 2 && (
             <motion.div variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }} className="pt-2 border-t border-white/30">
-              <h3 className="text-xl font-cormorant font-bold italic text-primary mb-4 flex items-center gap-2">
+              <h3 id="tutorial-dimensions" className="text-xl font-cormorant font-bold italic text-primary mb-4 flex items-center gap-2">
                 <span className="text-xs font-sans not-italic bg-primary/10 text-primary w-6 h-6 rounded-full flex items-center justify-center">4</span>
                 Set Plot Size
               </h3>
@@ -518,7 +518,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
 
           {/* Energy Grids Container */}
           <motion.div variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }} className="pt-8 border-t border-white/30 space-y-8">
-            <h3 className="text-2xl font-cormorant font-bold italic text-primary leading-none">Energy Grids</h3>
+            <h3 id="tutorial-layers" className="text-2xl font-cormorant font-bold italic text-primary leading-none">Energy Grids</h3>
 
             <div className="glass p-4 rounded-2xl border border-white">
               <label className="block text-[8px] font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">Grid Type</label>
@@ -685,7 +685,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
 
           {/* Objects Palette */}
           <motion.div variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }} className="pt-8 border-t border-white/30">
-            <h3 className="text-2xl font-cormorant font-bold italic text-primary mb-6">Room Items</h3>
+            <h3 id="tutorial-objects" className="text-2xl font-cormorant font-bold italic text-primary mb-6">Room Items</h3>
             <div className="glass p-6 rounded-[2rem] border border-white shadow-inner">
               <ObjectPalette onAddObject={props.handleAddObject} />
             </div>
@@ -694,6 +694,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
           {/* Final Actions */}
           <div className="pt-12 pb-20">
             <button
+              id="tutorial-analyze"
               onClick={() => props.handleSaveObjects && props.handleSaveObjects()}
               className="group relative w-full py-6 bg-primary text-white rounded-[2.5rem] text-sm font-bold uppercase tracking-[0.4em] shadow-2xl shadow-primary/40 hover:scale-[1.03] transition-all duration-700 overflow-hidden"
             >
