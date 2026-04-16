@@ -68,7 +68,7 @@ export function ResizableLayout({
     <div ref={containerRef} className={`flex h-full ${className}`}>
       <div
         className="flex-shrink-0 overflow-hidden transition-[width] duration-75"
-        style={{ width: leftWidth }}
+        style={{ width: typeof window !== 'undefined' && window.innerWidth < 768 ? "100%" : leftWidth }}
       >
         {leftPanel}
       </div>

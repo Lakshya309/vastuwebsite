@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useLayoutEffect, useState, useRef } from "react";
+import React, { useEffect, useLayoutEffect, useState, useRef, useCallback } from "react";
 import {
   Point,
   DevtaRegion,
@@ -797,6 +797,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const [lastPos, setLastPos] = useState({ x: 0, y: 0 });
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [shaktiChakraZonesImg, setShaktiChakraZonesImg] = useState<HTMLImageElement | null>(null);
   const [shaktiChakraBaseImg, setShaktiChakraBaseImg] = useState<HTMLImageElement | null>(null);
@@ -960,58 +961,70 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
   }, [drawingMode]);
 
   const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
-    if (isStatic) return;
-    if (!canvasRef.current) return;
-
-    const rect = canvasRef.current.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-
-    // Detect if this is likely a trackpad vs a standard mouse wheel
-    // Trackpads usually emit small deltaY values, or include deltaX.
-    const isTrackpad = Math.abs(e.deltaX) > 0 || Math.abs(e.deltaY) < 40;
-
-    if (e.ctrlKey || !isTrackpad) {
-      // ZOOM
-      e.preventDefault();
-      // Sensitivity factor
-      const zoomSensitivity = 0.002;
-      const zoomMultiplier = Math.exp(-e.deltaY * zoomSensitivity);
-      const newZoomClamped = Math.max(0.2, Math.min(zoom * zoomMultiplier, 20));
-
-      const mouseBeforeZoom = getTransformedPoint(e.clientX, e.clientY);
-
-      const newOffsetX = mouseX - mouseBeforeZoom.x * newZoomClamped;
-      const newOffsetY = mouseY - mouseBeforeZoom.y * newZoomClamped;
-
-      setZoom(newZoomClamped);
-      setOffset({ x: newOffsetX, y: newOffsetY });
-    } else {
-      // PAN (for trackpad two-finger swipe)
-      e.preventDefault();
-      setOffset(prev => ({
-        x: prev.x - e.deltaX,
-        y: prev.y - e.deltaY
-      }));
-    }
+    // Handled via non-passive native listener in useEffect
   };
+
+  const handleZoom = useCallback((delta: number, centerX: number, centerY: number) => {
+    setZoom((prevZoom) => {
+      const newZoom = Math.min(Math.max(prevZoom * (1 + delta), 0.2), 20);
+      const zoomRatio = newZoom / prevZoom;
+      
+      setOffset((prev) => ({
+        x: centerX - (centerX - prev.x) * zoomRatio,
+        y: centerY - (centerY - prev.y) * zoomRatio,
+      }));
+      
+      return newZoom;
+    });
+  }, []);
+
+  // Native non-passive listener for Ctrl+Wheel (Laptop Zoom)
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const onNativeWheel = (e: WheelEvent) => {
+      if (isStatic) return;
+      if (e.ctrlKey) {
+        e.preventDefault();
+        const delta = -e.deltaY * 0.01;
+        
+        const rect = canvas.getBoundingClientRect();
+        const offsetX = e.clientX - rect.left;
+        const offsetY = e.clientY - rect.top;
+        
+        handleZoom(delta, offsetX, offsetY);
+      } else {
+        // Trackpad panning
+        e.preventDefault();
+        setOffset(prev => ({
+          x: prev.x - e.deltaX,
+          y: prev.y - e.deltaY
+        }));
+      }
+    };
+
+    canvas.addEventListener("wheel", onNativeWheel, { passive: false });
+    return () => canvas.removeEventListener("wheel", onNativeWheel);
+  }, [handleZoom, isStatic]);
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (isStatic) return;
 
-    if (e.button === 1) { // Middle mouse button
-      e.preventDefault(); // Prevent Windows autoscroll cursor
+    if (e.button === 1 || (e.button === 0 && e.altKey)) { // Middle mouse or Alt+Space pan style
+      e.preventDefault();
       setIsPanning(true);
-      setPanStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
+      setPanStart({ x: e.clientX, y: e.clientY });
+      setLastPos({ x: e.clientX, y: e.clientY });
       return;
     }
 
-    if (e.button === 0 && (!drawingMode || drawingMode === "boundary" || drawingMode === "objects" || drawingMode === "select")) {
+    if (e.button === 0 && (!drawingMode || drawingMode === "boundary" || drawingMode === "objects" || drawingMode === "select" || drawingMode === "wall")) {
       // Check if clicking on a vertex hook
       const point = getTransformedPoint(e.clientX, e.clientY);
       const normalizedPoint = { x: point.x / width, y: point.y / height };
 
-      const tolerance = 10 / (Math.min(width, height) * zoom); // screen pixels to normalized space
+      const tolerance = 12 / (Math.min(width, height) * zoom); 
 
       let foundVertex = -1;
       for (let i = 0; i < boundary.length; i++) {
@@ -1025,9 +1038,68 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
 
       if (foundVertex !== -1) {
         setDraggingVertexIndex(foundVertex);
-        return; // Handle dragging
+        return; 
       }
+      
+      // If we are just in "select" or no mode, allow panning with left click if not clicking anything?
+      // For now, let's stick to standard behavior.
     }
+  };
+
+  const [lastTouchDistance, setLastTouchDistance] = useState<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (isStatic) return;
+    if (e.touches.length === 1) {
+      const t = e.touches[0];
+      setLastPos({ x: t.clientX, y: t.clientY });
+      // We don't necessarily want to start "panning" with 1 finger if we are in drawing mode
+      // But we need lastPos for potential pan.
+    } else if (e.touches.length === 2) {
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+      setLastTouchDistance(dist);
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (isStatic) return;
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+      
+      if (lastTouchDistance !== null) {
+        const delta = (dist - lastTouchDistance) * 0.01;
+        const centerX = (t1.clientX + t2.clientX) / 2;
+        const centerY = (t1.clientY + t2.clientY) / 2;
+        
+        const rect = canvasRef.current?.getBoundingClientRect();
+        if (rect) {
+          handleZoom(delta, centerX - rect.left, centerY - rect.top);
+        }
+      }
+      setLastTouchDistance(dist);
+      
+      // Also pan with 2 fingers
+      const currentCenterX = (t1.clientX + t2.clientX) / 2;
+      const currentCenterY = (t1.clientY + t2.clientY) / 2;
+      const dx = currentCenterX - lastPos.x;
+      const dy = currentCenterY - lastPos.y;
+      setOffset(prev => ({ x: prev.x + dx, y: prev.y + dy }));
+      setLastPos({ x: currentCenterX, y: currentCenterY });
+
+    } else if (e.touches.length === 1 && !draggingVertexIndex && !currentDrawingWall && drawingMode !== "boundary") {
+        // Option to pan with 1 finger if NOT in an active drawing/dragging state
+        // But this can clash with "click to place object".
+        // For now, let's only allow 2-finger pan/zoom to be safe on main canvas.
+    }
+  };
+
+  const handleTouchEnd = () => {
+    setLastTouchDistance(null);
   };
 
   const getSnappedPoint = (point: Point): Point => {
@@ -1074,7 +1146,10 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     if (isStatic) return;
 
     if (isPanning) {
-      setOffset({ x: e.clientX - panStart.x, y: e.clientY - panStart.y });
+      const dx = e.clientX - lastPos.x;
+      const dy = e.clientY - lastPos.y;
+      setOffset(prev => ({ x: prev.x + dx, y: prev.y + dy }));
+      setLastPos({ x: e.clientX, y: e.clientY });
       return;
     }
 
@@ -1287,11 +1362,14 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
           ref={canvasRef}
           width={width}
           height={height}
-          className="bg-white shadow-lg"
+          className="bg-white shadow-lg touch-none"
           onWheel={!isStatic ? handleWheel : undefined}
           onMouseDown={!isStatic ? handleMouseDown : undefined}
           onMouseMove={!isStatic ? handleMouseMove : undefined}
           onMouseUp={!isStatic ? handleMouseUp : undefined}
+          onTouchStart={!isStatic ? handleTouchStart : undefined}
+          onTouchMove={!isStatic ? handleTouchMove : undefined}
+          onTouchEnd={!isStatic ? handleTouchEnd : undefined}
           onMouseLeave={handleMouseLeave}
           onClick={handleClick}
           tabIndex={0}

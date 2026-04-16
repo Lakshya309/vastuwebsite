@@ -189,7 +189,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
 
   return (
     <div 
-      className="glass h-full border-l border-white/50 flex flex-col w-96 shadow-2xl backdrop-blur-3xl relative z-20"
+      className="glass h-full border-l border-white/50 flex flex-col w-full max-w-[calc(100vw-40px)] md:w-96 shadow-2xl backdrop-blur-3xl relative z-20"
     >
       <div className="p-6 overflow-y-auto custom-scrollbar flex-1 min-h-0">
         <div className="space-y-10"

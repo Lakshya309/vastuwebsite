@@ -848,9 +848,10 @@ export default function FloorPlanPage() {
       <div className="flex-1 flex overflow-hidden min-h-0">
         {(showVideo && project?.video_url) || (showMobileMap && project?.metadata?.mobile_map) ? (
           <ResizableLayout
-            minLeftWidth={380}
-            maxLeftWidth={700}
-            defaultLeftWidth={500}
+            minLeftWidth={typeof window !== 'undefined' && window.innerWidth < 768 ? 0 : 380}
+            maxLeftWidth={typeof window !== 'undefined' && window.innerWidth < 768 ? window.innerWidth : 700}
+            defaultLeftWidth={typeof window !== 'undefined' && window.innerWidth < 768 ? window.innerWidth : 500}
+            className="flex-col md:flex-row overflow-hidden"
             leftPanel={
               <div className="h-full bg-gray-900 flex flex-col">
                 {showVideo && project?.video_url ? (
@@ -878,6 +879,7 @@ export default function FloorPlanPage() {
                     <MobileMapView 
                       data={project!.metadata!.mobile_map as any} 
                       className="h-full"
+                      northDirection={project?.north_direction}
                     />
                   </div>
                 )}
@@ -1048,7 +1050,7 @@ export default function FloorPlanPage() {
             }
           />
         ) : (
-          <div className="flex-1 flex h-full min-h-0">
+          <div className="flex-1 flex flex-col md:flex-row h-full min-h-0 overflow-hidden">
             <div className="flex-1 bg-gray-50 relative overflow-hidden flex items-center justify-center p-4">
               <div className="bg-white shadow-2xl rounded-lg overflow-hidden relative">
                 <FloorPlanCanvas
