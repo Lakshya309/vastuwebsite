@@ -775,27 +775,30 @@ export default function FloorPlanPage() {
   });
 
   return (
-    <div className="h-screen relative flex flex-col overflow-hidden bg-white/20">
-      {/* BACKGROUND ELEMENTS */}
-      <div className="fixed inset-0 z-0 pointer-events-none organic-gradient opacity-40" />
+    <div className="h-screen relative flex flex-col overflow-hidden organic-gradient pt-20 md:pt-24">
+      {/* Background Elements */}
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        <div className="absolute top-0 right-0 w-[50vw] h-[50vw] bg-primary/5 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/3" />
+        <div className="absolute bottom-0 left-0 w-[40vw] h-[40vw] bg-teal-500/5 rounded-full blur-[100px] translate-y-1/3 -translate-x-1/4" />
+      </div>
 
-      {/* Header */}
+      {/* Navigation Header */}
       <header className="relative z-20 glass border-b border-white/50 h-20 flex items-center justify-between px-8 shrink-0 shadow-lg backdrop-blur-3xl">
         <div className="flex items-center gap-6">
           <Link
             href={`/projects/${projectId}`}
             className="flex items-center justify-center w-10 h-10 bg-white/50 rounded-xl text-primary hover:bg-primary hover:text-white transition-all shadow-sm border border-white"
           >
-            ←
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
           </Link>
           <div className="flex flex-col">
             <h1 className="text-2xl font-cormorant font-bold italic text-primary leading-none">
               {project?.name || "Floor Plan"}
             </h1>
-            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.2em] mt-1 italic">Vastu Analysis</span>
+            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.2em] mt-1 italic">Vastu Studio</span>
           </div>
         </div>
-          <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4">
           {project?.video_url && (
             <button
               onClick={() => setShowVideo(!showVideo)}
@@ -814,10 +817,7 @@ export default function FloorPlanPage() {
             className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-2xl transition-all flex items-center gap-2 border shadow-sm bg-white/70 text-primary border-white hover:bg-white"
           >
             <HelpCircle size={14} />
-            Tutorial / Help
-          </button>
-          <button className="px-6 py-2.5 text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-primary transition-colors">
-            Save Draft
+            Tutorial
           </button>
         </div>
       </header>

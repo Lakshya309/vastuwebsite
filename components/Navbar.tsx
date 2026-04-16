@@ -1,14 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import LogoutButton from "./LogoutButton";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Menu, X } from "lucide-react";
 
 const Navbar = () => {
   const { user, loading } = useAuth();
   const [legalDropdownOpen, setLegalDropdownOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setLegalDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const isAstrologer = user?.profile?.role === 'astrologer';
   const isAdmin = user?.profile?.role === 'admin';
@@ -42,8 +55,9 @@ const Navbar = () => {
               Mangalam Vastu 
             </Link>
           </div>
-          <div className="hidden md:block">
-            <div className="ml-10 flex items-baseline space-x-6">
+          
+          <div className="hidden md:block text-center flex-1">
+            <div className="flex items-center justify-center space-x-6">
               <Link
                 href="/"
                 className="text-gray-600 hover:text-primary px-3 py-2 text-sm font-medium transition-colors"
@@ -64,37 +78,40 @@ const Navbar = () => {
                   Projects
                 </Link>
               )}
-              <div className="relative">
+              <div className="relative" ref={dropdownRef}>
                 <button
                   onClick={() => setLegalDropdownOpen(!legalDropdownOpen)}
-                  onBlur={() => setTimeout(() => setLegalDropdownOpen(false), 200)}
-                  className="text-gray-600 hover:text-primary px-3 py-2 text-sm font-medium transition-colors flex items-center gap-1"
+                  className="text-gray-600 hover:text-primary px-3 py-2 text-sm font-medium transition-colors flex items-center gap-1 outline-none"
                 >
                   Legal
                   <ChevronDown className={`w-4 h-4 transition-transform ${legalDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {legalDropdownOpen && (
-                  <div className="absolute top-full left-0 mt-2 w-48 glass rounded-xl border border-white shadow-xl py-2 z-50">
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 glass rounded-xl border border-white shadow-xl py-2 z-50 overflow-hidden">
                     <Link
                       href="/contact"
+                      onClick={() => setLegalDropdownOpen(false)}
                       className="block px-4 py-2 text-sm text-gray-600 hover:text-primary hover:bg-white/50 transition-colors"
                     >
                       Contact Us
                     </Link>
                     <Link
                       href="/terms"
+                      onClick={() => setLegalDropdownOpen(false)}
                       className="block px-4 py-2 text-sm text-gray-600 hover:text-primary hover:bg-white/50 transition-colors"
                     >
                       Terms & Conditions
                     </Link>
                     <Link
                       href="/privacy"
+                      onClick={() => setLegalDropdownOpen(false)}
                       className="block px-4 py-2 text-sm text-gray-600 hover:text-primary hover:bg-white/50 transition-colors"
                     >
                       Privacy Policy
                     </Link>
                     <Link
                       href="/refund"
+                      onClick={() => setLegalDropdownOpen(false)}
                       className="block px-4 py-2 text-sm text-gray-600 hover:text-primary hover:bg-white/50 transition-colors"
                     >
                       Refund Policy
@@ -102,6 +119,7 @@ const Navbar = () => {
                   </div>
                 )}
               </div>
+              
               {isAstrologer && (
                 <Link
                   href="/astrologer/dashboard"
@@ -128,6 +146,7 @@ const Navbar = () => {
               )}
             </div>
           </div>
+
           <div className="hidden md:block">
             <div className="ml-4 flex items-center md:ml-6">
               {user ? (
@@ -167,33 +186,87 @@ const Navbar = () => {
               )}
             </div>
           </div>
+
           <div className="-mr-2 flex md:hidden">
             <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               type="button"
               className="bg-primary/5 inline-flex items-center justify-center p-2 rounded-xl text-primary hover:bg-primary/10 focus:outline-none"
-              aria-controls="mobile-menu"
-              aria-expanded="false"
             >
               <span className="sr-only">Open main menu</span>
-              <svg
-                className="block h-6 w-6"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M4 6h16M4 12h16m-4 6h16"
-                />
-              </svg>
+              {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </button>
           </div>
         </div>
       </div>
+
+      {/* Mobile Menu */}
+      {mobileMenuOpen && (
+        <div className="md:hidden glass border-t border-white/20 mt-2 rounded-b-2xl overflow-hidden animate-in slide-in-from-top duration-300">
+          <div className="px-4 pt-2 pb-6 space-y-1">
+            <Link
+              href="/"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block text-gray-600 hover:text-primary px-3 py-3 rounded-xl text-base font-medium"
+            >
+              Home
+            </Link>
+            <Link
+              href="/pricing"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block text-gray-600 hover:text-primary px-3 py-3 rounded-xl text-base font-medium"
+            >
+              Pricing
+            </Link>
+            {user && (
+              <Link
+                href="/projects"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block text-gray-600 hover:text-primary px-3 py-3 rounded-xl text-base font-medium"
+              >
+                Projects
+              </Link>
+            )}
+            
+            <div className="space-y-1 pt-2 border-t border-gray-100">
+              <div className="px-3 py-2 text-xs font-bold text-gray-400 uppercase tracking-widest">Legal</div>
+              <Link href="/contact" onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 text-gray-600 text-sm">Contact Us</Link>
+              <Link href="/terms" onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 text-gray-600 text-sm">Terms & Conditions</Link>
+              <Link href="/privacy" onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 text-gray-600 text-sm">Privacy Policy</Link>
+              <Link href="/refund" onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 text-gray-600 text-sm">Refund Policy</Link>
+            </div>
+
+            {user ? (
+               <div className="pt-4 border-t border-gray-100 mt-4">
+                  <div className="px-3 py-3">
+                    <p className="text-sm font-medium text-gray-900">{user.email}</p>
+                    {isUser && <p className="text-xs text-primary font-bold">Credits: {user.profile?.credits}</p>}
+                  </div>
+                  <div className="px-3">
+                    <LogoutButton />
+                  </div>
+               </div>
+            ) : (
+              <div className="pt-4 space-y-2">
+                <Link
+                  href="/login"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="block w-full text-center px-4 py-3 text-gray-600 font-bold border border-gray-200 rounded-xl"
+                >
+                  Login
+                </Link>
+                <Link
+                  href="/signup"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="block w-full text-center px-4 py-3 bg-primary text-white font-bold rounded-xl"
+                >
+                  Get Started
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </nav>
   );
 };
