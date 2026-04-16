@@ -59,6 +59,24 @@ export interface ProjectData {
   profiles?: {
     email: string | null;
   } | null;
+  metadata?: {
+    mobile_map?: {
+      plot_boundary?: {
+        normalizedPoints: Point[];
+        scale: number;
+        position: Point;
+      };
+      rooms?: {
+        id: string;
+        name: string;
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+        doors: Point[];
+      }[];
+    };
+  } | null;
 }
 
 // MarmaPoint - previously problematic

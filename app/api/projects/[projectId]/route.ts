@@ -153,6 +153,10 @@ export async function PATCH(
     }
   }
 
+  if (body.metadata !== undefined) {
+    updates.metadata = body.metadata
+  }
+
   if (!Object.keys(updates).length) {
     return NextResponse.json(
       { error: 'No valid fields to update' },

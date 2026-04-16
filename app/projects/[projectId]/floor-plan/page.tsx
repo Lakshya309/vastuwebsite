@@ -11,6 +11,7 @@ import { useMarmaAnalysis } from "@/hooks/useMarmaAnalysis";
 import { FloorPlanCanvas } from "@/components/floor-plan/FloorPlanCanvas";
 import { ControlPanel } from "@/components/floor-plan/ControlPanel";
 import { DevtaInfoCard } from "@/components/floor-plan/DevtaInfoCard";
+import { MobileMapView } from "@/components/floor-plan/MobileMapView";
 
 import { PlacedObject, DevtaRegion, Point, Wall } from "@/lib/floorPlanInterfaces";
 import {
@@ -54,6 +55,7 @@ export default function FloorPlanPage() {
     shaktiChakra: false,
   });
   const [showVideo, setShowVideo] = useState(false);
+  const [showMobileMap, setShowMobileMap] = useState(false);
   const [selectedObjectType, setSelectedObjectType] = useState("Toilet");
   const [drawingObjectBoundary, setDrawingObjectBoundary] = useState<Point[]>(
     [],
@@ -799,9 +801,29 @@ export default function FloorPlanPage() {
           </div>
         </div>
         <div className="flex items-center gap-4">
+          {project?.metadata?.mobile_map && (
+            <button
+              onClick={() => {
+                setShowMobileMap(!showMobileMap);
+                if (!showMobileMap) setShowVideo(false);
+              }}
+              className={`px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-2xl transition-all flex items-center gap-2 border shadow-sm ${
+                showMobileMap 
+                  ? 'bg-orange-500 text-white border-orange-600 shadow-orange-200' 
+                  : 'bg-white/70 text-primary border-white hover:bg-white'
+              }`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+              {showMobileMap ? 'Close Mobile Map' : 'Open Mobile Map'}
+            </button>
+          )}
+
           {project?.video_url && (
             <button
-              onClick={() => setShowVideo(!showVideo)}
+              onClick={() => {
+                setShowVideo(!showVideo);
+                if (!showVideo) setShowMobileMap(false);
+              }}
               className={`px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-2xl transition-all flex items-center gap-2 border shadow-sm ${
                 showVideo 
                   ? 'bg-teal-500 text-white border-teal-600 shadow-teal-200' 
@@ -824,32 +846,41 @@ export default function FloorPlanPage() {
 
       {/* Main Workspace */}
       <div className="flex-1 flex overflow-hidden min-h-0">
-        {showVideo && project?.video_url ? (
+        {(showVideo && project?.video_url) || (showMobileMap && project?.metadata?.mobile_map) ? (
           <ResizableLayout
             minLeftWidth={380}
             maxLeftWidth={700}
             defaultLeftWidth={500}
             leftPanel={
               <div className="h-full bg-gray-900 flex flex-col">
-                {/* Video Player - fills available space */}
-                <div className="flex-1 min-h-0">
-                  <VideoPlayer
-                    url={project.video_url}
-                    onClose={() => setShowVideo(false)}
-                    title={`Video Analysis - ${project.name}`}
-                    className="h-full"
-                  />
-                </div>
-                {/* Info Panel */}
-                <div className="p-4 bg-gray-800/90 backdrop-blur-sm border-t border-gray-700/50">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="w-2 h-2 bg-teal-400 rounded-full animate-pulse" />
-                    <h4 className="text-white text-xs font-semibold">Video Analysis Mode</h4>
+                {showVideo && project?.video_url ? (
+                  <>
+                    <div className="flex-1 min-h-0">
+                      <VideoPlayer
+                        url={project.video_url}
+                        onClose={() => setShowVideo(false)}
+                        title={`Video Analysis - ${project.name}`}
+                        className="h-full"
+                      />
+                    </div>
+                    <div className="p-4 bg-gray-800/90 backdrop-blur-sm border-t border-gray-700/50">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="w-2 h-2 bg-teal-400 rounded-full animate-pulse" />
+                        <h4 className="text-white text-xs font-semibold">Video Analysis Mode</h4>
+                      </div>
+                      <p className="text-gray-400 text-[10px] leading-relaxed">
+                        Pause the video to place objects on your floor plan. Use it to verify structural elements.
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <div className="h-full p-4 overflow-hidden">
+                    <MobileMapView 
+                      data={project!.metadata!.mobile_map as any} 
+                      className="h-full"
+                    />
                   </div>
-                  <p className="text-gray-400 text-[10px] leading-relaxed">
-                    Pause the video to place objects on your floor plan. Use it to verify structural elements.
-                  </p>
-                </div>
+                )}
               </div>
             }
             rightPanel={
