@@ -87,6 +87,24 @@ export async function GET(request: NextRequest) {
 
     const data = await response.json();
 
+    // --- Premium Filtering ---
+    // Check if the project is premium
+    const paidAnalysis = await prisma.analyses.findFirst({
+      where: {
+        project_id: analysisData.project_id,
+        report_paid: true,
+      },
+    });
+
+    const isPremium = !!paidAnalysis || userRole === 'admin' || userRole === 'astrologer';
+
+    if (!isPremium) {
+      // For non-premium users, lock 45 devtas (return empty array)
+      data.devtas45 = [];
+      // Optionally lock other things here if they are in 'data'
+    }
+    // -------------------------
+
     try {
       await prisma.analyses.update({
         where: { id: analysisId },

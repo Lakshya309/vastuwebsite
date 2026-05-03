@@ -69,6 +69,24 @@ export async function GET(request: NextRequest) {
         );
     }
 
+    // --- Premium Check for Marma ---
+    const paidAnalysis = await prisma.analyses.findFirst({
+      where: {
+        project_id: projectId,
+        report_paid: true,
+      },
+    });
+
+    const isPremium = !!paidAnalysis || userRole === 'admin' || userRole === 'astrologer';
+
+    if (!isPremium) {
+      return NextResponse.json(
+        { message: "Premium credit required for Marma analysis." },
+        { status: 403 }
+      );
+    }
+    // --------------------------------
+
     // Perform in-process marma analysis
     const marmaData = getMarmaPoints(boundary_normalized as any);
 

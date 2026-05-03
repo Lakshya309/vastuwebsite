@@ -85,6 +85,22 @@ export async function GET(
       }
     }
 
+    // Check if the project is premium (any analysis has report_paid: true)
+    // or if the user has a special role (admin/astrologer)
+    const paidAnalysis = await prisma.analyses.findFirst({
+      where: {
+        project_id: projectId,
+        report_paid: true,
+      },
+    })
+
+    const profile = await prisma.profiles.findUnique({
+      where: { id: authResult.user!.id },
+      select: { role: true },
+    })
+
+    const isPremium = !!paidAnalysis || profile?.role === 'admin' || profile?.role === 'astrologer'
+
     return NextResponse.json(
       {
         project: {
@@ -92,6 +108,7 @@ export async function GET(
           floor_plan_path: floor_plan_path,
           video_url: video_url,
           placed_objects: project.project_objects ?? [],
+          is_premium: isPremium,
         },
       },
       { status: 200 }

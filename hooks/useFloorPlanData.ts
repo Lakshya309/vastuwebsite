@@ -58,5 +58,6 @@ export function useFloorPlanData(projectId: string, refreshKey: number) {
     setPlacedObjects,
     liveNorthDirection,
     setLiveNorthDirection,
+    isPremium: project?.is_premium || false,
   };
 }

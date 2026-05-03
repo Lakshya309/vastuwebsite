@@ -5,7 +5,7 @@ import { DevtaRegion, PlacedObject, Point, Wall } from "@/lib/floorPlanInterface
 import { isPointInPolygon } from "@/lib/gridUtils";
 import { ObjectPalette } from "./ObjectPalette";
 import { problemZoneMapping } from "@/lib/problemZoneMapping";
-import { Video, Upload, RotateCcw, RotateCw, Compass } from "lucide-react";
+import { Video, Upload, RotateCcw, RotateCw, Compass, Lock, Crown } from "lucide-react";
 import { motion } from "framer-motion";
 
 interface ControlPanelProps {
@@ -13,6 +13,7 @@ interface ControlPanelProps {
   projectName?: string;
   error: string | null;
   loading: boolean;
+  isPremium: boolean;
 
   showGrid: {
     devta45: boolean;
@@ -120,6 +121,13 @@ interface ControlPanelProps {
   setCanvasRotation?: (rotation: number | ((prev: number) => number)) => void;
 }
 
+const PremiumBadge = () => (
+  <span className="flex items-center gap-1.5 px-2 py-1 bg-amber-400 text-white text-[8px] font-black uppercase tracking-widest rounded-lg shadow-sm border border-amber-500 animate-pulse">
+    <Crown size={8} />
+    Premium
+  </span>
+);
+
 export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
   // Define unit conversions (e.g., to meters as base)
   const UNIT_CONVERSIONS = {
@@ -188,7 +196,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
   // Scale is now calculated explicitly via a button click.
 
   return (
-    <div 
+    <div
       className="glass h-full border-l border-white/50 flex flex-col w-full max-w-[calc(100vw-40px)] md:w-96 shadow-2xl backdrop-blur-3xl relative z-20"
     >
       <div className="p-6 overflow-y-auto custom-scrollbar flex-1 min-h-0">
@@ -217,7 +225,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
               </button>
             </div>
             <div className="mt-3 flex justify-center">
-               <span className="text-[9px] font-medium text-gray-400 italic">Current View: {props.canvasRotation || 0}°</span>
+              <span className="text-[9px] font-medium text-gray-400 italic">Current View: {props.canvasRotation || 0}°</span>
             </div>
           </motion.div>
 
@@ -296,7 +304,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
             {props.isManualMode && (
               <div className="mt-6 p-6 glass rounded-2xl border border-white space-y-4">
                 <h4 className="font-cormorant font-bold italic text-primary text-lg">Plot Dimensions ({props.referenceWallUnit})</h4>
-                
+
                 {(!props.plotSideFront && !props.plotSideBack) ? (
                   <div className="space-y-4">
                     <div className="grid grid-cols-3 gap-3">
@@ -337,8 +345,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                         />
                       </div>
                     </div>
-                    <button 
-                      onClick={() => props.setProject && props.setProject((prev: any) => ({ ...prev, plot_side_front: prev.plot_width, plot_side_back: prev.plot_width, plot_side_left: prev.plot_height, plot_side_right: prev.plot_height, plot_diagonal: Math.sqrt(prev.plot_width**2 + prev.plot_height**2) }))}
+                    <button
+                      onClick={() => props.setProject && props.setProject((prev: any) => ({ ...prev, plot_side_front: prev.plot_width, plot_side_back: prev.plot_width, plot_side_left: prev.plot_height, plot_side_right: prev.plot_height, plot_diagonal: Math.sqrt(prev.plot_width ** 2 + prev.plot_height ** 2) }))}
                       className="text-[9px] font-bold text-primary hover:underline italic uppercase tracking-widest"
                     >
                       Use Different Sides
@@ -375,7 +383,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                         placeholder="Optional"
                       />
                     </div>
-                    <button 
+                    <button
                       onClick={() => props.setProject && props.setProject((prev: any) => ({ ...prev, plot_side_front: null, plot_side_back: null, plot_side_left: null, plot_side_right: null, plot_diagonal: null }))}
                       className="text-[9px] font-bold text-rose-500 hover:underline italic uppercase tracking-widest"
                     >
@@ -397,12 +405,16 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
               Draw walls inside your plot to show room divisions.
             </p>
             <button
-              onClick={() => props.setDrawingMode(props.drawingMode === "wall" ? null : "wall")}
-              className={`w-full py-4 rounded-2xl text-[11px] font-bold uppercase tracking-[0.2em] transition-all shadow-lg ${props.drawingMode === "wall"
+              onClick={() => {
+                if (!props.isPremium) return;
+                props.setDrawingMode(props.drawingMode === "wall" ? null : "wall")
+              }}
+              className={`w-full py-4 rounded-2xl text-[11px] font-bold uppercase tracking-[0.2em] transition-all shadow-lg flex items-center justify-center gap-2 ${props.drawingMode === "wall"
                 ? "bg-amber-600 text-white shadow-amber-900/20"
                 : "bg-white/50 text-gray-600 border border-white hover:bg-white shadow-sm"
-                }`}
+                } ${!props.isPremium ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
+              {!props.isPremium && <PremiumBadge />}
               {props.drawingMode === "wall" ? "Drawing Wall..." : "Draw Wall"}
             </button>
 
@@ -509,15 +521,17 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                       </select>
                     </div>
                     <button
-                      onClick={handleCalculateScale}
-                      className="w-full py-4 bg-primary text-white rounded-2xl text-[11px] font-bold uppercase tracking-[0.2em] shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all"
+                      onClick={() => props.isPremium && handleCalculateScale()}
+                      disabled={!props.isPremium}
+                      className="w-full py-4 bg-primary text-white rounded-2xl text-[11px] font-bold uppercase tracking-[0.2em] shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
+                      {!props.isPremium && <PremiumBadge />}
                       Apply Size
                     </button>
                     {props.scale && (
                       <div className="text-center p-3 bg-primary/5 rounded-xl border border-primary/10">
                         <p className="text-[9px] font-bold text-primary uppercase tracking-widest leading-normal">
-                          Scale:<br/>
+                          Scale:<br />
                           <span className="text-xs">1px = {(props.scale / (UNIT_CONVERSIONS[props.referenceWallUnit] || 1)).toFixed(4)} {props.referenceWallUnit}</span>
                         </p>
                       </div>
@@ -551,14 +565,22 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
 
             <div className="glass p-4 rounded-2xl border border-white">
               <label className="block text-[8px] font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">Grid Type</label>
-              <select
-                value={props.gridType}
-                onChange={(e) => props.onGridTypeChange(e.target.value as any)}
-                className="w-full p-3 bg-white/50 border border-white rounded-xl text-xs font-bold text-primary focus:outline-none"
-              >
-                <option value="81">81 Grid (Detailed)</option>
-                <option value="64">64 Grid (Standard)</option>
-              </select>
+              <div className="relative">
+                <select
+                  disabled={!props.isPremium}
+                  value={props.gridType}
+                  onChange={(e) => props.onGridTypeChange(e.target.value as any)}
+                  className="w-full p-3 bg-white/50 border border-white rounded-xl text-xs font-bold text-primary focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <option value="81">81 Grid (Detailed)</option>
+                  <option value="64">64 Grid (Standard)</option>
+                </select>
+                {!props.isPremium && (
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                    <PremiumBadge />
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="grid gap-3">
@@ -572,8 +594,10 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                 <label key={grid.id} className="relative group flex items-center p-4 glass border border-white rounded-2xl cursor-pointer hover:border-primary/30 transition-all">
                   <input
                     type="checkbox"
+                    disabled={!props.isPremium && (grid.id === 'devta45' || grid.id === 'marma' || grid.id === 'shaktiChakra')}
                     checked={(props.showGrid as any)[grid.id]}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      if (!props.isPremium && (grid.id === 'devta45' || grid.id === 'marma' || grid.id === 'shaktiChakra')) return;
                       props.setShowGrid((p: any) => ({
                         ...p,
                         [grid.id]: e.target.checked,
@@ -582,10 +606,18 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                         ...(grid.id === 'zone8' && e.target.checked ? { devta45: false, zone16: false } : {}),
                       }))
                     }
-                    className="w-5 h-5 rounded-lg border-2 border-primary/20 text-primary focus:ring-primary/10 transition-all"
+                    }
+                    className="w-5 h-5 rounded-lg border-2 border-primary/20 text-primary focus:ring-primary/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   />
-                  <div className="ml-4">
-                    <span className="block text-[10px] font-bold text-primary uppercase tracking-widest">{grid.label}</span>
+                  <div className="ml-4 flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="block text-[10px] font-bold text-primary uppercase tracking-widest">{grid.label}</span>
+                      {!props.isPremium && (grid.id === 'devta45' || grid.id === 'marma' || grid.id === 'shaktiChakra') && (
+                        <div className="scale-75 origin-right">
+                          <PremiumBadge />
+                        </div>
+                      )}
+                    </div>
                     <span className="block text-[8px] font-bold text-gray-400 uppercase tracking-tighter italic">{grid.sub}</span>
                   </div>
                   {(props.showGrid as any)[grid.id] && (
@@ -596,7 +628,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
             </div>
 
             {props.showGrid.shaktiChakra && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 className="pl-4 pt-2 space-y-6"
@@ -606,11 +638,10 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                   <div className="flex gap-6">
                     {['complete', 'zones'].map((type) => (
                       <label key={type} className="flex items-center gap-2 cursor-pointer group">
-                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${
-                          (props.shaktiChakraType === type || (!props.shaktiChakraType && type === 'complete')) 
-                            ? 'border-primary' 
+                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${(props.shaktiChakraType === type || (!props.shaktiChakraType && type === 'complete'))
+                            ? 'border-primary'
                             : 'border-gray-200 group-hover:border-primary/30'
-                        }`}>
+                          }`}>
                           {(props.shaktiChakraType === type || (!props.shaktiChakraType && type === 'complete')) && (
                             <div className="w-2 h-2 rounded-full bg-primary" />
                           )}
@@ -671,12 +702,16 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
           <motion.div variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }} className="pt-8 border-t border-white/30 space-y-4">
             <h3 className="text-xl font-cormorant font-bold italic text-primary">Measure Distance</h3>
             <button
-              onClick={() => props.setDrawingMode(props.drawingMode === "measure" ? null : "measure")}
-              className={`w-full py-4 rounded-2xl text-[11px] font-bold uppercase tracking-[0.2em] transition-all shadow-lg ${props.drawingMode === "measure"
+              onClick={() => {
+                if (!props.isPremium) return;
+                props.setDrawingMode(props.drawingMode === "measure" ? null : "measure")
+              }}
+              className={`w-full py-4 rounded-2xl text-[11px] font-bold uppercase tracking-[0.2em] transition-all shadow-lg flex items-center justify-center gap-2 ${props.drawingMode === "measure"
                 ? "bg-purple-600 text-white shadow-purple-900/20"
                 : "bg-white/50 text-gray-600 border border-white hover:bg-white shadow-sm"
-                }`}
+                } ${!props.isPremium ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
+              {!props.isPremium && <PremiumBadge />}
               {props.drawingMode === "measure" ? "Stop Measuring" : "Measure Distance"}
             </button>
             {props.drawingMode === "measure" && (
@@ -689,8 +724,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
           {/* Problem Zones */}
           <motion.div variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }} className="pt-8 border-t border-white/30 space-y-4">
             <h3 className="text-xl font-cormorant font-bold italic text-primary">Problem Areas</h3>
-            <div className="glass p-2 rounded-2xl border border-white">
+            <div className="glass p-2 rounded-2xl border border-white relative">
               <select
+                disabled={!props.isPremium}
                 value={props.selectedProblem || ""}
                 onChange={(e) => {
                   const problem = e.target.value;
@@ -702,13 +738,18 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                     props.setHighlightedZones([]);
                   }
                 }}
-                className="w-full p-3 bg-white/50 border border-white rounded-xl text-xs font-bold text-primary italic focus:outline-none"
+                className="w-full p-3 bg-white/50 border border-white rounded-xl text-xs font-bold text-primary italic focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <option value="">Select a Problem...</option>
                 {Object.keys(problemZoneMapping).map((problem) => (
                   <option key={problem} value={problem}>{problem}</option>
                 ))}
               </select>
+              {!props.isPremium && (
+                <div className="absolute right-6 top-1/2 -translate-y-1/2">
+                  <PremiumBadge />
+                </div>
+              )}
             </div>
           </motion.div>
 
@@ -716,7 +757,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
           <motion.div variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }} className="pt-8 border-t border-white/30">
             <h3 id="tutorial-objects" className="text-2xl font-cormorant font-bold italic text-primary mb-6">Room Items</h3>
             <div className="glass p-6 rounded-[2rem] border border-white shadow-inner">
-              <ObjectPalette onAddObject={props.handleAddObject} />
+              <ObjectPalette onAddObject={props.handleAddObject} isPremium={props.isPremium} />
             </div>
           </motion.div>
 
@@ -725,9 +766,10 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
             <button
               id="tutorial-analyze"
               onClick={() => props.handleSaveObjects && props.handleSaveObjects()}
-              className="group relative w-full py-6 bg-primary text-white rounded-[2.5rem] text-sm font-bold uppercase tracking-[0.4em] shadow-2xl shadow-primary/40 hover:scale-[1.03] transition-all duration-700 overflow-hidden"
+              className="group relative w-full py-6 bg-primary text-white rounded-[2.5rem] text-sm font-bold uppercase tracking-[0.4em] shadow-2xl shadow-primary/40 hover:scale-[1.03] transition-all duration-700 overflow-hidden flex items-center justify-center gap-4"
             >
               <div className="absolute inset-0 bg-gradient-to-r from-teal-400/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+              {!props.isPremium && <PremiumBadge />}
               Generate Report →
             </button>
             <p className="text-center text-[8px] font-bold text-gray-400 uppercase tracking-[0.3em] mt-4 italic">Save your analysis and view results</p>

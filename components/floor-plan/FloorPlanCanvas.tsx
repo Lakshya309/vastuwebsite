@@ -58,6 +58,7 @@ interface FloorPlanCanvasProps {
   selectedWall?: Wall | null;
   onMoveBoundaryVertex?: (index: number, newPoint: Point) => void;
   canvasRotation?: number;
+  isPremium: boolean;
 }
 
 const ZONE_NAMES_16 = [
@@ -781,6 +782,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
   selectedWall,
   onMoveBoundaryVertex,
   canvasRotation = 0,
+  isPremium,
 }) => {
   const [hoveredDevta, setHoveredDevta] = useState<DevtaRegion | null>(null);
   const [currentDrawingWall, setCurrentDrawingWall] = useState<{ start: Point; end: Point } | null>(null);
@@ -1313,6 +1315,10 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     if (regionClicked) return;
 
     if (!isStatic && (drawingMode === null || drawingMode === "select") && setReferenceWallIndex) {
+      if (!isPremium) {
+        setReferenceWallIndex(null);
+        return;
+      }
       const pxBoundary = boundary.map(toPx);
       let wallClicked = false;
       for (let i = 0; i < pxBoundary.length; i++) {

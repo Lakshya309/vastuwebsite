@@ -27,15 +27,8 @@ export async function POST(req: NextRequest) {
     let allowed_to_analyze = false;
     let blocking_message = "Analysis blocked.";
 
-    if (profile.role === "admin") {
+    if (profile.role === "admin" || profile.role === "astrologer" || profile.role === "user") {
       allowed_to_analyze = true;
-    } else if (profile.role === "astrologer" || profile.role === "user") {
-      const paymentAccess = await checkPaymentAccess(uid);
-      if (paymentAccess.hasAccess) {
-        allowed_to_analyze = true;
-      } else {
-        blocking_message = "No active subscription or credits. Please purchase credits or subscribe.";
-      }
     } else {
       blocking_message = "Unsupported user role. Analysis blocked.";
     }

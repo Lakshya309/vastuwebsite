@@ -12,6 +12,7 @@ import { FloorPlanCanvas } from "@/components/floor-plan/FloorPlanCanvas";
 import { ControlPanel } from "@/components/floor-plan/ControlPanel";
 import { DevtaInfoCard } from "@/components/floor-plan/DevtaInfoCard";
 import { MobileMapView } from "@/components/floor-plan/MobileMapView";
+import { PremiumUpgradeModal } from "@/components/floor-plan/PremiumUpgradeModal";
 
 import { PlacedObject, DevtaRegion, Point, Wall } from "@/lib/floorPlanInterfaces";
 import {
@@ -44,6 +45,7 @@ export default function FloorPlanPage() {
     setPlacedObjects,
     liveNorthDirection,
     setLiveNorthDirection,
+    isPremium,
   } = useFloorPlanData(projectId, refreshKey);
 
   // 2. UI State
@@ -79,8 +81,9 @@ export default function FloorPlanPage() {
   const [plotAngle, setPlotAngle] = useState<number>(90);
   const [gridType, setGridType] = useState<"81" | "64">("81");
 
-  // Tutorial State
   const [showTutorial, setShowTutorial] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [modalConfig, setModalConfig] = useState<{ title?: string; message?: React.ReactNode }>({});
   const [canvasRotation, setCanvasRotation] = useState(0);
 
   useEffect(() => {
@@ -577,6 +580,21 @@ export default function FloorPlanPage() {
 
   const handleCanvasClick = (point: Point) => {
     if (drawingMode === "objects" && selectedObjectType) {
+      if (!isPremium && placedObjects.length >= 3) {
+        setModalConfig({
+          title: "Object Limit Reached",
+          message: (
+            <p className="text-sm text-gray-600 leading-relaxed font-medium italic">
+              Free users can only place up to 3 objects. 
+              <span className="block mt-2 text-primary font-bold">
+                Upgrade to Premium for unlimited item placement and professional insights.
+              </span>
+            </p>
+          )
+        });
+        setShowUpgradeModal(true);
+        return;
+      }
       const newObject: PlacedObject = {
         id: new Date().toISOString(),
         object_type: selectedObjectType,
@@ -735,6 +753,12 @@ export default function FloorPlanPage() {
 
   const handleSaveObjects = async () => {
     try {
+      if (!isPremium) {
+        setModalConfig({}); // Reset to default "Get Report" content
+        setShowUpgradeModal(true);
+        return;
+      }
+
       const response = await fetch(`/api/projects/${projectId}/objects`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -931,6 +955,7 @@ export default function FloorPlanPage() {
                       selectedWall={selectedWall}
                       onMoveBoundaryVertex={handleMoveBoundaryVertex}
                       canvasRotation={canvasRotation}
+                      isPremium={isPremium}
                     />
 
                     {/* Overlay Status Indicators */}
@@ -973,6 +998,7 @@ export default function FloorPlanPage() {
                     projectId={projectId}
                     error={error || analysisError}
                     loading={loading}
+                    isPremium={isPremium}
                     showGrid={showGrid}
                     setShowGrid={setShowGrid}
                     gridType={gridType}
@@ -1095,6 +1121,7 @@ export default function FloorPlanPage() {
                   selectedWall={selectedWall}
                   onMoveBoundaryVertex={handleMoveBoundaryVertex}
                   canvasRotation={canvasRotation}
+                  isPremium={isPremium}
                 />
 
                 {/* Overlay Status Indicators */}
@@ -1135,6 +1162,7 @@ export default function FloorPlanPage() {
                 projectId={projectId}
                 error={error || analysisError}
                 loading={loading}
+                isPremium={isPremium}
                 showGrid={showGrid}
                 setShowGrid={setShowGrid}
                 gridType={gridType}
@@ -1217,6 +1245,12 @@ export default function FloorPlanPage() {
           onSkip={() => setShowTutorial(false)}
         />
       )}
+      <PremiumUpgradeModal 
+        isOpen={showUpgradeModal} 
+        onClose={() => setShowUpgradeModal(false)} 
+        title={modalConfig.title}
+        message={modalConfig.message}
+      />
     </div>
   );
 }
