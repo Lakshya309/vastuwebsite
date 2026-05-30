@@ -829,7 +829,6 @@ export default function FloorPlanPage() {
             <button
               onClick={() => {
                 setShowMobileMap(!showMobileMap);
-                if (!showMobileMap) setShowVideo(false);
               }}
               className={`px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-2xl transition-all flex items-center gap-2 border shadow-sm ${
                 showMobileMap 
@@ -846,7 +845,6 @@ export default function FloorPlanPage() {
             <button
               onClick={() => {
                 setShowVideo(!showVideo);
-                if (!showVideo) setShowMobileMap(false);
               }}
               className={`px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-2xl transition-all flex items-center gap-2 border shadow-sm ${
                 showVideo 
@@ -878,8 +876,8 @@ export default function FloorPlanPage() {
             className="flex-col md:flex-row overflow-hidden"
             leftPanel={
               <div className="h-full bg-gray-900 flex flex-col">
-                {showVideo && project?.video_url ? (
-                  <>
+                {showVideo && project?.video_url && (
+                  <div className={`${showMobileMap && project?.metadata?.mobile_map ? 'h-1/2' : 'flex-1'} min-h-0 border-b border-gray-700/50 flex flex-col`}>
                     <div className="flex-1 min-h-0">
                       <VideoPlayer
                         url={project.video_url}
@@ -888,18 +886,19 @@ export default function FloorPlanPage() {
                         className="h-full"
                       />
                     </div>
-                    <div className="p-4 bg-gray-800/90 backdrop-blur-sm border-t border-gray-700/50">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="w-2 h-2 bg-teal-400 rounded-full animate-pulse" />
-                        <h4 className="text-white text-xs font-semibold">Video Analysis Mode</h4>
+                    <div className="p-3 bg-gray-800/90 backdrop-blur-sm border-t border-gray-700/50">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="w-1.5 h-1.5 bg-teal-400 rounded-full animate-pulse" />
+                        <h4 className="text-white text-[10px] font-semibold">Video Analysis Mode</h4>
                       </div>
-                      <p className="text-gray-400 text-[10px] leading-relaxed">
+                      <p className="text-gray-400 text-[9px] leading-relaxed">
                         Pause the video to place objects on your floor plan. Use it to verify structural elements.
                       </p>
                     </div>
-                  </>
-                ) : (
-                  <div className="h-full p-4 overflow-hidden">
+                  </div>
+                )}
+                {showMobileMap && project?.metadata?.mobile_map && (
+                  <div className={`${showVideo && project?.video_url ? 'h-1/2' : 'flex-1'} p-4 overflow-hidden`}>
                     <MobileMapView 
                       data={project!.metadata!.mobile_map as any} 
                       className="h-full"
