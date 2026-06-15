@@ -47,12 +47,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Get user profile to check role
+    const profile = await prisma.profiles.findUnique({
+      where: { id: uid },
+      select: { role: true }
+    });
+
+    const isAdminOrAstrologer = profile?.role === 'admin' || profile?.role === 'astrologer';
+
     // Validate Re-upload limits (Max 2 uploads per project)
     const uploadCount = await prisma.map_plots.count({
       where: { project_id: projectId }
     });
 
-    if (uploadCount >= 2) {
+    if (uploadCount >= 2 && !isAdminOrAstrologer) {
       return NextResponse.json(
         { message: "Maximum upload limit reached. You can only re-upload once." },
         { status: 403 }

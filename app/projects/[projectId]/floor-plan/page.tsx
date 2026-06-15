@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Video, VideoOff, HelpCircle } from "lucide-react";
 import { useFloorPlanData } from "@/hooks/useFloorPlanData";
+import { useAuth } from "@/contexts/AuthContext";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useFloorPlanAnalysis } from "@/hooks/useFloorPlanAnalysis";
 import { useMarmaAnalysis } from "@/hooks/useMarmaAnalysis";
@@ -48,6 +49,24 @@ export default function FloorPlanPage() {
     isPremium,
   } = useFloorPlanData(projectId, refreshKey);
 
+  const { user } = useAuth();
+  const isAdminOrAstrologer = user?.profile?.role === "admin" || user?.profile?.role === "astrologer";
+  const effectiveIsPremium = isPremium || isAdminOrAstrologer;
+
+  const handleDragEnd = (id: string) => {
+    setPlacedObjects((prev) =>
+      prev.map((obj) => {
+        if (obj.id === id) {
+          return {
+            ...obj,
+            relocation_count: ((obj as any).relocation_count || 0) + 1,
+          };
+        }
+        return obj;
+      })
+    );
+  };
+
   // 2. UI State
   const [showGrid, setShowGrid] = useState({
     devta45: true,
@@ -80,6 +99,36 @@ export default function FloorPlanPage() {
   const [selectedWall, setSelectedWall] = useState<Wall | null>(null);
   const [plotAngle, setPlotAngle] = useState<number>(90);
   const [gridType, setGridType] = useState<"81" | "64">("81");
+
+  const propertyType = (project?.metadata as any)?.property_type || "residential";
+  const commercialType = (project?.metadata as any)?.commercial_type || "general";
+
+  const handlePropertyTypeChange = async (newPropertyType: string, newCommercialType?: string) => {
+    try {
+      const updatedMetadata = {
+        ...(project?.metadata || {}),
+        property_type: newPropertyType,
+        commercial_type: newCommercialType || "general",
+      };
+
+      const response = await fetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          metadata: updatedMetadata,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to save property type changes.");
+      }
+
+      const data = await response.json();
+      setProject(data.project);
+    } catch (error) {
+      console.error("Error updating property type:", error);
+    }
+  };
 
   const [showTutorial, setShowTutorial] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -580,7 +629,7 @@ export default function FloorPlanPage() {
 
   const handleCanvasClick = (point: Point) => {
     if (drawingMode === "objects" && selectedObjectType) {
-      if (!isPremium && placedObjects.length >= 3) {
+      if (!effectiveIsPremium && placedObjects.length >= 3) {
         setModalConfig({
           title: "Object Limit Reached",
           message: (
@@ -753,7 +802,7 @@ export default function FloorPlanPage() {
 
   const handleSaveObjects = async () => {
     try {
-      if (!isPremium) {
+      if (!effectiveIsPremium) {
         setModalConfig({}); // Reset to default "Get Report" content
         setShowUpgradeModal(true);
         return;
@@ -954,7 +1003,9 @@ export default function FloorPlanPage() {
                       selectedWall={selectedWall}
                       onMoveBoundaryVertex={handleMoveBoundaryVertex}
                       canvasRotation={canvasRotation}
-                      isPremium={isPremium}
+                      isPremium={effectiveIsPremium}
+                      isUnlimited={effectiveIsPremium}
+                      onDragEnd={handleDragEnd}
                     />
 
                     {/* Overlay Status Indicators */}
@@ -997,7 +1048,10 @@ export default function FloorPlanPage() {
                     projectId={projectId}
                     error={error || analysisError}
                     loading={loading}
-                    isPremium={isPremium}
+                    isPremium={effectiveIsPremium}
+                    propertyType={propertyType}
+                    commercialType={commercialType}
+                    onPropertyTypeChange={handlePropertyTypeChange}
                     showGrid={showGrid}
                     setShowGrid={setShowGrid}
                     gridType={gridType}
@@ -1120,7 +1174,9 @@ export default function FloorPlanPage() {
                   selectedWall={selectedWall}
                   onMoveBoundaryVertex={handleMoveBoundaryVertex}
                   canvasRotation={canvasRotation}
-                  isPremium={isPremium}
+                  isPremium={effectiveIsPremium}
+                  isUnlimited={effectiveIsPremium}
+                  onDragEnd={handleDragEnd}
                 />
 
                 {/* Overlay Status Indicators */}
@@ -1161,7 +1217,10 @@ export default function FloorPlanPage() {
                 projectId={projectId}
                 error={error || analysisError}
                 loading={loading}
-                isPremium={isPremium}
+                isPremium={effectiveIsPremium}
+                propertyType={propertyType}
+                commercialType={commercialType}
+                onPropertyTypeChange={handlePropertyTypeChange}
                 showGrid={showGrid}
                 setShowGrid={setShowGrid}
                 gridType={gridType}

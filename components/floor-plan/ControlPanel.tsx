@@ -119,6 +119,9 @@ interface ControlPanelProps {
   onSelectWall?: (wall: Wall | null) => void;
   canvasRotation?: number;
   setCanvasRotation?: (rotation: number | ((prev: number) => number)) => void;
+  propertyType?: string;
+  commercialType?: string;
+  onPropertyTypeChange?: (propertyType: string, commercialType?: string) => void;
 }
 
 const PremiumBadge = () => (
@@ -757,7 +760,13 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
           <motion.div variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }} className="pt-8 border-t border-white/30">
             <h3 id="tutorial-objects" className="text-2xl font-cormorant font-bold italic text-primary mb-6">Room Items</h3>
             <div className="glass p-6 rounded-[2rem] border border-white shadow-inner">
-              <ObjectPalette onAddObject={props.handleAddObject} isPremium={props.isPremium} />
+              <ObjectPalette
+                onAddObject={props.handleAddObject}
+                isPremium={props.isPremium}
+                propertyType={props.propertyType}
+                commercialType={props.commercialType}
+                onPropertyTypeChange={props.onPropertyTypeChange}
+              />
             </div>
           </motion.div>
 

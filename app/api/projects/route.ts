@@ -44,7 +44,8 @@ export async function POST(req: NextRequest) {
       plot_side_right,
       plot_diagonal,
       astrologer_code,
-      expert_code
+      expert_code,
+      metadata
     } = await req.json();
 
     const expertCode = astrologer_code || expert_code;
@@ -116,7 +117,8 @@ export async function POST(req: NextRequest) {
         plot_side_left: c,
         plot_side_right: d,
         plot_diagonal: e,
-        assigned_astrologer_id: assigned_astrologer_id
+        assigned_astrologer_id: assigned_astrologer_id,
+        metadata: metadata || null
       }
     });
 

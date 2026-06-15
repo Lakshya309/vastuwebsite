@@ -59,6 +59,8 @@ interface FloorPlanCanvasProps {
   onMoveBoundaryVertex?: (index: number, newPoint: Point) => void;
   canvasRotation?: number;
   isPremium?: boolean;
+  isUnlimited?: boolean;
+  onDragEnd?: (id: string) => void;
 }
 
 const ZONE_NAMES_16 = [
@@ -783,6 +785,8 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
   onMoveBoundaryVertex,
   canvasRotation = 0,
   isPremium = false,
+  isUnlimited = false,
+  onDragEnd,
 }) => {
   const [hoveredDevta, setHoveredDevta] = useState<DevtaRegion | null>(null);
   const [currentDrawingWall, setCurrentDrawingWall] = useState<{ start: Point; end: Point } | null>(null);
@@ -1399,6 +1403,8 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
               offset={offset}
               viewRotation={canvasRotation}
               computedLayout={computedLayout}
+              isUnlimited={isUnlimited}
+              onDragEnd={onDragEnd}
             />
           ))}
         </div>

@@ -17,6 +17,8 @@ interface DraggableObjectProps {
   offset: { x: number; y: number };
   viewRotation?: number;
   computedLayout?: { drawX: number; drawY: number; drawWidth: number; drawHeight: number };
+  isUnlimited?: boolean;
+  onDragEnd?: (id: string) => void;
 }
 
 export const DraggableObject: React.FC<DraggableObjectProps> = ({
@@ -33,6 +35,8 @@ export const DraggableObject: React.FC<DraggableObjectProps> = ({
   offset,
   viewRotation = 0,
   computedLayout,
+  isUnlimited,
+  onDragEnd,
 }) => {
   const objectRef = useRef<HTMLDivElement>(null);
 
@@ -44,6 +48,7 @@ export const DraggableObject: React.FC<DraggableObjectProps> = ({
     startY: 0,
     startWidth: 0,
     startHeight: 0,
+    hasMoved: false,
   });
 
   const [dimensions, setDimensions] = React.useState({ width: 1, height: 1 });
@@ -57,6 +62,14 @@ export const DraggableObject: React.FC<DraggableObjectProps> = ({
 
   const onMouseDown = (e: React.MouseEvent) => {
     if (isStatic) return;
+
+    // Relocation count limit check (Max 5 moves allowed)
+    const relocationCount = (object as any).relocation_count || 0;
+    if (relocationCount >= 5 && !isUnlimited) {
+      alert("This item has reached its limit of 5 relocations/adjustments.");
+      return;
+    }
+
     e.preventDefault();
     e.stopPropagation();
 
@@ -81,6 +94,7 @@ export const DraggableObject: React.FC<DraggableObjectProps> = ({
     dragState.current.startHeight =
       object.boundary_normalized[3].y -
       object.boundary_normalized[0].y;
+    dragState.current.hasMoved = false;
 
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", onMouseUp);
@@ -103,6 +117,8 @@ export const DraggableObject: React.FC<DraggableObjectProps> = ({
       dx = rx;
       dy = ry;
     }
+
+    dragState.current.hasMoved = true;
 
     if (dragState.current.mode === "drag") {
       onMove(
@@ -133,6 +149,10 @@ export const DraggableObject: React.FC<DraggableObjectProps> = ({
   const onMouseUp = () => {
     window.removeEventListener("mousemove", onMouseMove);
     window.removeEventListener("mouseup", onMouseUp);
+
+    if (dragState.current.hasMoved && onDragEnd) {
+      onDragEnd(object.id);
+    }
   };
 
   const drawX = computedLayout ? computedLayout.drawX : 0;
