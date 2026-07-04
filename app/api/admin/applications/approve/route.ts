@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase";
+import { validateAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
 async function generateExpertCode() {
@@ -21,21 +21,14 @@ async function generateExpertCode() {
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = await createServerSupabaseClient();
+  const authResult = await validateAuth();
+  if (authResult.error || !authResult.user) {
+    return NextResponse.json({ message: authResult.error || "Unauthorized" }, { status: 401 });
+  }
+
+  const user = authResult.user;
 
   try {
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { message: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
     const { applicationId } = await req.json();
     if (!applicationId) {
        return NextResponse.json({ message: "Application ID required" }, { status: 400 });

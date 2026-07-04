@@ -1,6 +1,13 @@
-import { createServerSupabaseClient } from './supabase';
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "./auth-options";
 import { prisma } from './db';
-import { User } from '@supabase/supabase-js';
+
+export interface NextAuthUser {
+  id: string;
+  email?: string | null;
+  name?: string | null;
+  image?: string | null;
+}
 
 export interface SubscriptionInfo {
   id: string;
@@ -23,7 +30,7 @@ export interface UserProfileData {
   subscription: SubscriptionInfo | null;
 }
 
-export type UserWithProfileAndCredits = User & {
+export type UserWithProfileAndCredits = NextAuthUser & {
   profile?: UserProfileData;
 };
 
@@ -136,22 +143,42 @@ export async function refundCredit(userId: string, amount: number = 1): Promise<
   });
 }
 
+export async function getUserId(): Promise<string | null> {
+  const session = await getServerSession(authOptions);
+  return (session?.user as any)?.id || null;
+}
+
+export async function validateAuth(): Promise<{ user: { id: string; email?: string | null } | null; error: string | null }> {
+  const session = await getServerSession(authOptions);
+  const userId = (session?.user as any)?.id || null;
+  if (!userId) {
+    return { user: null, error: "Unauthorized" };
+  }
+  return { user: { id: userId, email: session?.user?.email }, error: null };
+}
+
 export async function getUser(): Promise<UserWithProfileAndCredits | null> {
-  const supabase = await createServerSupabaseClient();
+  const session = await getServerSession(authOptions);
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  if (!session || !session.user || !(session.user as any).id) {
     return null;
   }
 
-  let augmentedUser: UserWithProfileAndCredits = { ...user };
+  const userId = (session.user as any).id;
+  const userEmail = session.user.email || null;
+
+  const mockUser: NextAuthUser = {
+    id: userId,
+    email: userEmail,
+    name: session.user.name,
+    image: session.user.image,
+  };
+
+  let augmentedUser: UserWithProfileAndCredits = { ...mockUser };
 
   try {
     const profile = await prisma.profiles.findUnique({
-      where: { id: user.id },
+      where: { id: userId },
       select: {
         id: true,
         email: true,
@@ -167,13 +194,13 @@ export async function getUser(): Promise<UserWithProfileAndCredits | null> {
 
     try {
       const userCredits = await prisma.user_credits.findUnique({
-        where: { user_id: user.id },
+        where: { user_id: userId },
         select: { credits: true }
       });
 
       const activeSubscription = await prisma.user_subscriptions.findFirst({
         where: {
-          user_id: user.id,
+          user_id: userId,
           status: { in: ['active', 'trialing'] },
           expires_at: { gt: new Date() },
         },

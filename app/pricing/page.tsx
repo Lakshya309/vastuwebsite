@@ -1,5 +1,5 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { getServerSession } from "next-auth/next";
+import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/db';
 import PricingClient from './PricingClient';
 
@@ -14,33 +14,14 @@ interface SubscriptionPlan {
 }
 
 async function getUserData() {
-  const cookieStore = await cookies();
-  
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          cookieStore.set({ name, value, ...options });
-        },
-        remove(name: string, options: CookieOptions) {
-          cookieStore.set({ name, value: '', ...options });
-        },
-      },
-    }
-  );
-
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await getServerSession(authOptions);
+  const user = session?.user as any;
 
   let credits = 0;
   let hasActiveSubscription = false;
   let userLoggedIn = false;
 
-  if (user) {
+  if (user && user.id) {
     userLoggedIn = true;
     
     const profile = await prisma.profiles.findUnique({

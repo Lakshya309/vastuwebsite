@@ -1,18 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateAuth } from "../../../../../../lib/supabase-server-api";
+import { validateAuth } from "@/lib/auth";
 import { prisma } from "../../../../../../lib/db";
 
 export async function POST(
   req: NextRequest,
   context: { params: Promise<{ projectId: string }> }
 ) {
-  const authResult = await validateAuth(req as Request);
-  if (authResult.error) {
-    return NextResponse.json({ message: authResult.error }, { status: authResult.status });
+  const authResult = await validateAuth();
+  if (authResult.error || !authResult.user) {
+    return NextResponse.json({ message: authResult.error || "Unauthorized" }, { status: 401 });
   }
 
   try {
-    const uid = authResult.user!.id;
+    const uid = authResult.user.id;
     const { projectId } = await context.params;
 
     // First, verify that the user has access to the project

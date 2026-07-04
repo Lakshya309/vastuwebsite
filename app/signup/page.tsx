@@ -2,31 +2,53 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createSupabaseBrowserClient } from "@/lib/supabase-browser"
+import { signIn } from "next-auth/react";
 import { motion } from "framer-motion";
+import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const supabase = createSupabaseBrowserClient()
   const { refresh } = useAuth();
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setIsLoading(true);
+
     try {
-      const { error } = await supabase.auth.signUp({
+      const response = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to register");
+      }
+
+      // Log in automatically after successful registration
+      const result = await signIn("credentials", {
         email,
         password,
-      })
-      if (error) throw error
+        redirect: false,
+      });
+
+      if (result?.error) {
+        throw new Error(result.error);
+      }
+
       await refresh();
-      router.push("/projects"); // Redirect to dashboard on successful signup
+      router.push("/projects"); // Redirect to dashboard
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || "An unexpected error occurred during signup");
+      setIsLoading(false);
     }
   };
 
@@ -95,18 +117,19 @@ export default function SignupPage() {
 
               <button
                 type="submit"
-                className="w-full py-5 bg-primary text-white rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all duration-300"
+                disabled={isLoading}
+                className="w-full py-5 bg-primary text-white rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all duration-300 disabled:opacity-75 disabled:cursor-not-allowed"
               >
-                Begin Integration
+                {isLoading ? "Integrating..." : "Begin Integration"}
               </button>
             </form>
 
             <div className="mt-12 text-center">
               <p className="text-[10px] text-gray-400 font-medium">
                 Already have an account?{" "}
-                <a href="/login" className="text-primary font-bold hover:underline decoration-teal-500 decoration-2 underline-offset-4">
+                <Link href="/login" className="text-primary font-bold hover:underline decoration-teal-500 decoration-2 underline-offset-4">
                   Establish Linkage
-                </a>
+                </Link>
               </p>
             </div>
 
@@ -124,4 +147,4 @@ export default function SignupPage() {
       </motion.div>
     </div>
   );
-}
+}

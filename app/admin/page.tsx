@@ -1,5 +1,5 @@
-// app/admin/page.tsx
-import { createServerSupabaseClient } from '@/lib/supabase';
+import { getServerSession } from "next-auth/next";
+import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/db';
 import { redirect } from 'next/navigation';
 import AdminUserTable from './AdminUserTable';
@@ -57,11 +57,10 @@ async function fetchAdminData() {
 }
 
 export default async function AdminPage() {
-  const supabase = await createServerSupabaseClient();
+  const session = await getServerSession(authOptions);
+  const user = session?.user as any;
 
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
+  if (!user || !user.id) {
     redirect('/login');
   }
 

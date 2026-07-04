@@ -1,26 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "../../../../../lib/supabase";
+import { validateAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ analysisId: string; }> }
 ) {
-  const supabase = await createServerSupabaseClient();
-
   try {
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { message: "Unauthorized: Invalid token" },
-        { status: 401 }
-      );
+    const authResult = await validateAuth();
+    if (authResult.error || !authResult.user) {
+      return NextResponse.json({ message: authResult.error || "Unauthorized" }, { status: 401 });
     }
-    const uid = user.id;
+    const uid = authResult.user.id;
     const { analysisId } = await params;
 
     const profile = await prisma.profiles.findUnique({

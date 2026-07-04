@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { validateAuth } from '@/lib/supabase-server-api'
+import { validateAuth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { r2Client, BUCKET_NAME } from '@/lib/r2'
 import { GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
@@ -9,9 +9,9 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ projectId: string }> }
 ) {
-  const authResult = await validateAuth(request)
-  if (authResult.error) {
-    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  const authResult = await validateAuth()
+  if (authResult.error || !authResult.user) {
+    return NextResponse.json({ error: authResult.error || 'Unauthorized' }, { status: 401 })
   }
   const { projectId } = await params
 
@@ -125,9 +125,9 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ projectId: string }> }
 ) {
-  const authResult = await validateAuth(request)
-  if (authResult.error) {
-    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  const authResult = await validateAuth()
+  if (authResult.error || !authResult.user) {
+    return NextResponse.json({ error: authResult.error || 'Unauthorized' }, { status: 401 })
   }
   const { projectId } = await params
   const body = await request.json()
@@ -210,9 +210,9 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ projectId: string }> }
 ) {
-  const authResult = await validateAuth(request)
-  if (authResult.error) {
-    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  const authResult = await validateAuth()
+  if (authResult.error || !authResult.user) {
+    return NextResponse.json({ error: authResult.error || 'Unauthorized' }, { status: 401 })
   }
   const { projectId } = await params
 

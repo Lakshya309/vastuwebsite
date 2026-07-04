@@ -2,32 +2,30 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { User, ClipboardCheck, Clock, CheckCircle2, ChevronRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function AstrologerApplyPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [status, setStatus] = useState<"IDLE" | "PENDING" | "APPROVED" | "REJECTED">("IDLE");
-  const [user, setUser] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
-  const supabase = createSupabaseBrowserClient();
+  const { user, loading: authLoading } = useAuth();
 
   useEffect(() => {
-    checkStatus();
-  }, []);
+    if (!authLoading) {
+      checkStatus();
+    }
+  }, [authLoading, user]);
 
   const checkStatus = async () => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
     try {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (!authUser) {
-        setLoading(false);
-        return;
-      }
-      setUser(authUser);
-
       const res = await fetch("/api/astrologer/application-status");
       if (res.ok) {
         const data = await res.json();

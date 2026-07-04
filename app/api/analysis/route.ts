@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateAuth } from "../../../lib/supabase-server-api";
+import { validateAuth, checkPaymentAccess } from "@/lib/auth";
 import { prisma } from "../../../lib/db";
-import { checkPaymentAccess } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
-  const authResult = await validateAuth(req as Request);
-  if (authResult.error) {
-    return NextResponse.json({ message: authResult.error }, { status: authResult.status });
+  const authResult = await validateAuth();
+  if (authResult.error || !authResult.user) {
+    return NextResponse.json({ message: authResult.error || "Unauthorized" }, { status: 401 });
   }
-  const uid = authResult.user!.id;
+  const uid = authResult.user.id;
 
   try {
     const profile = await prisma.profiles.findUnique({

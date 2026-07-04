@@ -3,7 +3,28 @@ import { Pool } from 'pg'
 import { PrismaPg } from '@prisma/adapter-pg'
 
 const prismaClientSingleton = () => {
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+  const dbUrl = process.env.DATABASE_URL;
+  let pool: Pool;
+  
+  if (dbUrl) {
+    try {
+      const parsedUrl = new URL(dbUrl);
+      pool = new Pool({
+        host: parsedUrl.hostname,
+        port: parsedUrl.port ? parseInt(parsedUrl.port) : 5432,
+        database: parsedUrl.pathname.slice(1),
+        user: parsedUrl.username,
+        password: decodeURIComponent(parsedUrl.password),
+        ssl: parsedUrl.searchParams.get("sslmode") !== "disable" ? { rejectUnauthorized: false } : undefined,
+      });
+    } catch (e) {
+      console.warn("Prisma Client Pool fallback: invalid connection string format. Using raw URL.", e);
+      pool = new Pool({ connectionString: dbUrl });
+    }
+  } else {
+    pool = new Pool();
+  }
+
   const adapter = new PrismaPg(pool)
   return new PrismaClient({ adapter })
 }
