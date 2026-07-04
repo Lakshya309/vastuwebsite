@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateAuth } from "../../../lib/supabase-server-api";
+import { validateAuth } from "@/lib/auth";
 import { prisma } from "../../../lib/db";
 import { feasibleDiagonalInterval } from "../../../lib/plotGeometry";
 
 export async function POST(req: NextRequest) {
-  const authResult = await validateAuth(req as Request);
-  if (authResult.error) {
-    return NextResponse.json({ message: authResult.error }, { status: authResult.status });
+  const authResult = await validateAuth();
+  if (authResult.error || !authResult.user) {
+    return NextResponse.json({ message: authResult.error || "Unauthorized" }, { status: 401 });
   }
-  const uid = authResult.user!.id;
-  const user = authResult.user!;
+  const uid = authResult.user.id;
+  const user = authResult.user;
 
   try {
     let profile = await prisma.profiles.findUnique({
@@ -135,13 +135,12 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   console.log("=== DEBUG ===");
-  console.log("Auth header:", req.headers.get('Authorization')?.substring(0, 20) + "...");
   
-  const authResult = await validateAuth(req as Request);
+  const authResult = await validateAuth();
   console.log("Auth result:", authResult.error ? `Error: ${authResult.error}` : `Success: ${authResult.user?.id}`);
   
-  if (authResult.error) {
-    return NextResponse.json({ message: authResult.error }, { status: authResult.status });
+  if (authResult.error || !authResult.user) {
+    return NextResponse.json({ message: authResult.error || "Unauthorized" }, { status: 401 });
   }
   try {
 

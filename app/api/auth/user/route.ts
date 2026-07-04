@@ -1,19 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateAuth } from "@/lib/supabase-server-api";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
-  const authResult = await validateAuth(req as unknown as Request);
+  const session = await getServerSession(authOptions);
   
-  if (authResult.error || !authResult.user) {
+  if (!session || !session.user || !(session.user as any).id) {
     return NextResponse.json({ user: null });
   }
 
-  const user = authResult.user;
+  const userId = (session.user as any).id;
 
   try {
     const profile = await prisma.profiles.findUnique({
-      where: { id: user.id },
+      where: { id: userId },
       select: {
         id: true,
         email: true,
@@ -24,13 +25,14 @@ export async function GET(req: NextRequest) {
     });
 
     const userCredits = await prisma.user_credits.findUnique({
-      where: { user_id: user.id },
+      where: { user_id: userId },
       select: { credits: true }
     });
 
     return NextResponse.json({
       user: {
-        ...user,
+        id: userId,
+        email: session.user.email,
         profile: profile ? {
           ...profile,
           credits: userCredits?.credits ?? 0,

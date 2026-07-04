@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { motion, AnimatePresence } from "framer-motion";
 import { History, LayoutGrid, Plus, Trash2, Calendar, ChevronRight } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -21,7 +20,6 @@ export default function ProjectsPage() {
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
-  const supabase = createSupabaseBrowserClient();
   const router = useRouter();
   const { user } = useAuth();
 
@@ -82,22 +80,7 @@ export default function ProjectsPage() {
     }
 
     fetchProjects();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_IN") {
-        fetchProjects();
-      } else if (event === "SIGNED_OUT") {
-        setProjects([]);
-        router.push("/");
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [user, fetchProjects, supabase.auth, router]);
+  }, [user, fetchProjects]);
 
   if (loading || !user) {
     return (

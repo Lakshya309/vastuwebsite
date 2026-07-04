@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { validateAuth } from '@/lib/supabase-server-api';
+import { validateAuth } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
-    const authResult = await validateAuth(request);
+    const authResult = await validateAuth();
     if (authResult.error || !authResult.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

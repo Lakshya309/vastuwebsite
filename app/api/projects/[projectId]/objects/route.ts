@@ -1,14 +1,14 @@
-import { NextResponse } from 'next/server';
-import { validateAuth } from '../../../../../lib/supabase-server-api';
+import { NextResponse } from "next/server";
+import { validateAuth } from '@/lib/auth';
 import { prisma } from '../../../../../lib/db';
 
 export async function GET(
   request: Request,
   context: { params: Promise<{ projectId: string }> }
 ) {
-  const authResult = await validateAuth(request);
-  if (authResult.error) {
-    return NextResponse.json({ error: authResult.error }, { status: authResult.status });
+  const authResult = await validateAuth();
+  if (authResult.error || !authResult.user) {
+    return NextResponse.json({ error: authResult.error || 'Unauthorized' }, { status: 401 });
   }
   const { projectId } = await context.params;
 
@@ -38,9 +38,9 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ projectId: string }> }
 ) {
-  const authResult = await validateAuth(request);
-  if (authResult.error) {
-    return NextResponse.json({ error: authResult.error }, { status: authResult.status });
+  const authResult = await validateAuth();
+  if (authResult.error || !authResult.user) {
+    return NextResponse.json({ error: authResult.error || 'Unauthorized' }, { status: 401 });
   }
   const { projectId } = await context.params;
 
