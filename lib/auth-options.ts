@@ -18,28 +18,54 @@ export const authOptions: AuthOptions = {
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
+        console.log("[AUTH DEBUG] Starting credentials auth...");
+        console.log("[AUTH DEBUG] Email:", credentials?.email);
+        
+        // Mask the password in DATABASE_URL before logging
+        const dbUrl = process.env.DATABASE_URL || "";
+        const maskedDbUrl = dbUrl.replace(/:([^:@]+)@/, ":****@");
+        console.log("[AUTH DEBUG] DATABASE_URL in use:", maskedDbUrl);
+
         if (!credentials?.email || !credentials?.password) {
+          console.log("[AUTH DEBUG] Missing email or password");
           throw new Error("Missing email or password");
         }
 
-        const profile = await prisma.profiles.findFirst({
-          where: { email: credentials.email }
-        });
+        try {
+          const profile = await prisma.profiles.findFirst({
+            where: { email: credentials.email }
+          });
 
-        if (!profile || !profile.password) {
-          throw new Error("Invalid email or password");
+          console.log("[AUTH DEBUG] Profile query finished. Found profile?", !!profile);
+
+          if (!profile) {
+            console.log("[AUTH DEBUG] No profile found for email:", credentials.email);
+            throw new Error("Invalid email or password");
+          }
+
+          if (!profile.password) {
+            console.log("[AUTH DEBUG] Profile found but has no password hash");
+            throw new Error("This account is linked to Google. Please sign in with Google.");
+          }
+
+          const isValid = verifyPassword(credentials.password, profile.password);
+          console.log("[AUTH DEBUG] Password verification result:", isValid);
+
+          if (!isValid) {
+            console.log("[AUTH DEBUG] Password check failed");
+            throw new Error("Invalid email or password");
+          }
+
+          console.log("[AUTH DEBUG] Auth successful for user id:", profile.id);
+          return {
+            id: profile.id,
+            email: profile.email,
+            name: profile.email ? profile.email.split("@")[0] : "User",
+          };
+        } catch (dbError: any) {
+          console.error("[AUTH DEBUG] Database/Query Error:", dbError);
+          throw new Error(dbError.message || "Database connection error");
         }
-
-        const isValid = verifyPassword(credentials.password, profile.password);
-        if (!isValid) {
-          throw new Error("Invalid email or password");
-        }
-
-        return {
-          id: profile.id,
-          email: profile.email,
-          name: profile.email ? profile.email.split("@")[0] : "User",
-        };
       }
     }),
   ],

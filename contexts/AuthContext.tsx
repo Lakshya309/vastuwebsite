@@ -43,7 +43,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchUser = async () => {
     try {
-      const response = await fetch("/api/auth/user");
+      const response = await fetch("/api/auth/user", { cache: "no-store" });
       const data = await response.json();
       setUser(data.user);
     } catch (error) {

@@ -43,7 +43,7 @@ function LoginContent() {
         throw new Error(result.error || "Invalid email or password");
       }
 
-      router.push(redirectTo);
+      window.location.href = redirectTo;
     } catch (err: any) {
       setError(err.message || "An unexpected error occurred");
       setIsLoading(false);

@@ -27,6 +27,12 @@ export async function POST(req: NextRequest) {
     });
 
     if (existingUser) {
+      if (!existingUser.password) {
+        return NextResponse.json(
+          { error: "This email is registered via Google. Please log in using Google." },
+          { status: 400 }
+        );
+      }
       return NextResponse.json(
         { error: "User already exists with this email address" },
         { status: 400 }
