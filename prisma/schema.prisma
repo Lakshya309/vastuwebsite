@@ -47,7 +47,7 @@ model map_plots {
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model profiles {
   id                      String                    @id @db.Uuid
-  email                   String?
+  email                   String?                   @unique
   password                String?
   role                    String                    @default("user")
   created_at              DateTime?                 @default(now()) @db.Timestamptz(6)
@@ -110,6 +110,8 @@ model projects {
   map_plots_projects_active_map_plot_idTomap_plots map_plots?        @relation("projects_active_map_plot_idTomap_plots", fields: [active_map_plot_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   astrologer                                       profiles?         @relation("ProjectToAstrologer", fields: [assigned_astrologer_id], references: [id], onUpdate: NoAction)
   profiles                                         profiles          @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id, deleted_at, created_at])
 }
 
 model user_credits {

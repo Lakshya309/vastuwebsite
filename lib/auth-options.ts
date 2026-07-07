@@ -51,37 +51,36 @@ export const authOptions: AuthOptions = {
       if (!user.email) return false;
 
       try {
-        // Look up profile by email
-        const existingProfile = await prisma.profiles.findFirst({
-          where: { email: user.email },
+        // Attempt to find the user first
+        let profile = await prisma.profiles.findFirst({
+          where: { email: user.email }
         });
 
-        if (existingProfile) {
-          user.id = existingProfile.id;
-          return true;
+        if (!profile) {
+          const newId = randomUUID();
+          
+          // Use a transaction to do both inserts at exactly the same time
+          await prisma.$transaction([
+            prisma.profiles.create({
+              data: {
+                id: newId,
+                email: user.email,
+                role: "user",
+              },
+            }),
+            prisma.user_credits.create({
+              data: {
+                user_id: newId,
+                credits: 0,
+              },
+            })
+          ]);
+          
+          user.id = newId;
+        } else {
+          user.id = profile.id;
         }
 
-        // If no existing profile, create a new one with a new UUID
-        const newId = randomUUID();
-        await prisma.profiles.create({
-          data: {
-            id: newId,
-            email: user.email,
-            role: "user",
-          },
-        });
-
-        // Ensure user has a credits record
-        await prisma.user_credits.upsert({
-          where: { user_id: newId },
-          update: {},
-          create: {
-            user_id: newId,
-            credits: 0,
-          },
-        });
-
-        user.id = newId;
         return true;
       } catch (error) {
         console.error("Error in signIn callback:", error);
