@@ -22,12 +22,18 @@ export const authOptions: AuthOptions = {
           throw new Error("Missing email or password");
         }
 
+        const email = credentials.email.toLowerCase();
         const profile = await prisma.profiles.findFirst({
-          where: { email: credentials.email }
+          where: { email }
         });
 
-        if (!profile || !profile.password) {
+        if (!profile) {
           throw new Error("Invalid email or password");
+        }
+
+        // If the user signed up with Google, they won't have a password set.
+        if (!profile.password) {
+          throw new Error("This email was registered with Google. Please sign in with Google.");
         }
 
         const isValid = verifyPassword(credentials.password, profile.password);
@@ -47,13 +53,21 @@ export const authOptions: AuthOptions = {
     strategy: "jwt",
   },
   callbacks: {
-    async signIn({ user }) {
+    async signIn({ user, account }) {
       if (!user.email) return false;
 
       try {
-        // Look up profile by email
+        const email = user.email.toLowerCase();
+        
+        // For credentials, we've already validated and created if necessary in authorize
+        // So we don't need to try and create the profile here
+        if (account?.provider === "credentials") {
+          return true;
+        }
+
+        // Look up profile by email for Google/OAuth
         const existingProfile = await prisma.profiles.findFirst({
-          where: { email: user.email },
+          where: { email },
         });
 
         if (existingProfile) {
@@ -66,7 +80,7 @@ export const authOptions: AuthOptions = {
         await prisma.profiles.create({
           data: {
             id: newId,
-            email: user.email,
+            email: email,
             role: "user",
           },
         });
@@ -91,12 +105,20 @@ export const authOptions: AuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        // Fetch role from DB
-        const dbProfile = await prisma.profiles.findUnique({
-          where: { id: user.id },
-          select: { role: true },
-        });
-        token.role = dbProfile?.role || "user";
+      }
+      
+      // Fetch fresh role from DB on every token refresh
+      if (token.id) {
+        try {
+          const dbProfile = await prisma.profiles.findUnique({
+            where: { id: token.id as string },
+            select: { role: true },
+          });
+          token.role = dbProfile?.role || "user";
+        } catch (error) {
+          console.error("Error fetching fresh role in jwt callback:", error);
+          if (!token.role) token.role = "user"; // Fallback
+        }
       }
       return token;
     },

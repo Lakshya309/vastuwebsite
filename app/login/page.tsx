@@ -8,11 +8,20 @@ import Link from "next/link";
 function LoginContent() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  const [error, setError] = useState<string | null>(searchParams.get("error"));
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const searchParams = useSearchParams();
   const router = useRouter();
+
+  React.useEffect(() => {
+    const urlError = searchParams.get("error");
+    if (urlError === "OAuthAccountNotLinked") {
+      setError("This email is registered with Google. Use the 'Sign in with Google' button below.");
+    } else if (urlError) {
+      setError(urlError);
+    }
+  }, [searchParams]);
 
   const handleGoogleLogin = async () => {
     setError(null);

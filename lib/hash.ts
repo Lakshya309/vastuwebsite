@@ -2,13 +2,10 @@ import { pbkdf2Sync, randomBytes } from "crypto";
 import bcrypt from "bcryptjs";
 
 /**
- * Hashes a plain-text password using Node's native pbkdf2.
- * Returns salt:hash format.
+ * Hashes a plain-text password using bcrypt with 12 rounds.
  */
 export function hashPassword(password: string): string {
-  const salt = randomBytes(16).toString("hex");
-  const hash = pbkdf2Sync(password, salt, 1000, 64, "sha512").toString("hex");
-  return `${salt}:${hash}`;
+  return bcrypt.hashSync(password, 12);
 }
 
 /**

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
+import { getSession, SessionProvider } from "next-auth/react";
 
 interface UserProfile {
   id: string;
@@ -14,6 +15,7 @@ interface UserProfile {
 interface User {
   id: string;
   email: string | null;
+  role?: string;
   profile?: UserProfile | null;
 }
 
@@ -21,12 +23,14 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   refresh: () => Promise<void>;
+  fetchProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
   refresh: async () => {},
+  fetchProfile: async () => {},
 });
 
 export const useAuth = () => {
@@ -43,14 +47,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchUser = async () => {
     try {
-      const response = await fetch("/api/auth/user");
-      const data = await response.json();
-      setUser(data.user);
+      setLoading(true);
+      const session = await getSession();
+      if (session?.user) {
+        // Construct base user from session JWT
+        const sessionUser = {
+          id: (session.user as any).id,
+          email: session.user.email || null,
+          role: (session.user as any).role,
+        };
+        setUser(sessionUser);
+      } else {
+        setUser(null);
+      }
     } catch (error) {
-      console.error("Error fetching user:", error);
+      console.error("Error fetching session:", error);
       setUser(null);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchProfile = async () => {
+    if (!user?.id) return;
+    try {
+      const response = await fetch("/api/auth/user");
+      const data = await response.json();
+      if (data.user?.profile) {
+        setUser((prev) => prev ? { ...prev, profile: data.user.profile } : null);
+      }
+    } catch (error) {
+      console.error("Error fetching profile:", error);
     }
   };
 
@@ -59,8 +86,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, refresh: fetchUser }}>
-      {children}
-    </AuthContext.Provider>
+    <SessionProvider>
+      <AuthContext.Provider value={{ user, loading, refresh: fetchUser, fetchProfile }}>
+        {children}
+      </AuthContext.Provider>
+    </SessionProvider>
   );
 };
