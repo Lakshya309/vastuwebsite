@@ -1,6 +1,8 @@
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "./auth-options";
 import { prisma } from './db';
+import { headers } from "next/headers";
+import jwt from "jsonwebtoken";
 
 export interface NextAuthUser {
   id: string;
@@ -143,12 +145,36 @@ export async function refundCredit(userId: string, amount: number = 1): Promise<
   });
 }
 
+async function getMobileUser(): Promise<{ id: string; email: string; role: string } | null> {
+  try {
+    const headersList = await headers();
+    const authHeader = headersList.get("authorization");
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.split(" ")[1];
+      const jwtSecret = process.env.NEXTAUTH_SECRET || "fallback_secret_please_change";
+      const decoded = jwt.verify(token, jwtSecret) as { id: string; email: string; role: string };
+      return decoded;
+    }
+  } catch (error) {
+    // Ignore verification errors and fall through
+  }
+  return null;
+}
+
 export async function getUserId(): Promise<string | null> {
+  const mobileUser = await getMobileUser();
+  if (mobileUser) return mobileUser.id;
+
   const session = await getServerSession(authOptions);
   return (session?.user as any)?.id || null;
 }
 
 export async function validateAuth(): Promise<{ user: { id: string; email?: string | null } | null; error: string | null }> {
+  const mobileUser = await getMobileUser();
+  if (mobileUser) {
+    return { user: { id: mobileUser.id, email: mobileUser.email }, error: null };
+  }
+
   const session = await getServerSession(authOptions);
   const userId = (session?.user as any)?.id || null;
   if (!userId) {
@@ -158,20 +184,32 @@ export async function validateAuth(): Promise<{ user: { id: string; email?: stri
 }
 
 export async function getUser(): Promise<UserWithProfileAndCredits | null> {
-  const session = await getServerSession(authOptions);
+  const mobileUser = await getMobileUser();
+  
+  let userId: string;
+  let userEmail: string | null;
+  let userName: string | null = null;
+  let userImage: string | null = null;
 
-  if (!session || !session.user || !(session.user as any).id) {
-    return null;
+  if (mobileUser) {
+    userId = mobileUser.id;
+    userEmail = mobileUser.email;
+  } else {
+    const session = await getServerSession(authOptions);
+    if (!session || !session.user || !(session.user as any).id) {
+      return null;
+    }
+    userId = (session.user as any).id;
+    userEmail = session.user.email || null;
+    userName = session.user.name || null;
+    userImage = session.user.image || null;
   }
-
-  const userId = (session.user as any).id;
-  const userEmail = session.user.email || null;
 
   const mockUser: NextAuthUser = {
     id: userId,
     email: userEmail,
-    name: session.user.name,
-    image: session.user.image,
+    name: userName,
+    image: userImage,
   };
 
   let augmentedUser: UserWithProfileAndCredits = { ...mockUser };
