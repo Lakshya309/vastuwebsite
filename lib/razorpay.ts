@@ -1,16 +1,46 @@
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
 
+export function getRazorpayKeyId(): string {
+  const isDev = process.env.NODE_ENV !== 'production';
+  if (isDev && process.env.RAZORPAY_KEY_ID_TEST) {
+    return process.env.RAZORPAY_KEY_ID_TEST.trim();
+  }
+  return (process.env.RAZORPAY_KEY_ID || '').trim();
+}
+
+export function getRazorpayKeySecret(): string {
+  const isDev = process.env.NODE_ENV !== 'production';
+  if (isDev && process.env.RAZORPAY_KEY_SECRET_TEST) {
+    return process.env.RAZORPAY_KEY_SECRET_TEST.trim();
+  }
+  return (process.env.RAZORPAY_KEY_SECRET || '').trim();
+}
+
+export function getPublicRazorpayKeyId(): string {
+  const isDev = process.env.NODE_ENV !== 'production';
+  if (isDev && process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID_TEST) {
+    return process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID_TEST.trim();
+  }
+  return (
+    process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ||
+    process.env.RAZORPAY_KEY_ID ||
+    ''
+  ).trim();
+}
+
 let razorpayInstance: Razorpay | null = null;
 
 function getRazorpay(): Razorpay {
+  const keyId = getRazorpayKeyId();
+  const keySecret = getRazorpayKeySecret();
+  if (!keyId || !keySecret) {
+    throw new Error('Razorpay credentials not configured');
+  }
   if (!razorpayInstance) {
-    if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
-      throw new Error('Razorpay credentials not configured');
-    }
     razorpayInstance = new Razorpay({
-      key_id: process.env.RAZORPAY_KEY_ID.trim(),
-      key_secret: process.env.RAZORPAY_KEY_SECRET.trim(),
+      key_id: keyId,
+      key_secret: keySecret,
     });
   }
   return razorpayInstance;
@@ -52,7 +82,9 @@ export async function createRazorpayOrder(params: CreateOrderParams) {
     receipt,
   } = params;
 
-  if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+  const keyId = getRazorpayKeyId();
+  const keySecret = getRazorpayKeySecret();
+  if (!keyId || !keySecret) {
     throw new Error('Razorpay not configured');
   }
 
@@ -76,7 +108,9 @@ export async function createRazorpayOrder(params: CreateOrderParams) {
 export async function createSubscription(params: CreateSubscriptionParams) {
   const { userId, planId, customerId } = params;
 
-  if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+  const keyId = getRazorpayKeyId();
+  const keySecret = getRazorpayKeySecret();
+  if (!keyId || !keySecret) {
     throw new Error('Razorpay not configured');
   }
 
@@ -108,12 +142,13 @@ export function verifyPaymentSignature(
   paymentId: string,
   signature: string
 ): boolean {
-  if (!process.env.RAZORPAY_KEY_SECRET) {
+  const keySecret = getRazorpayKeySecret();
+  if (!keySecret) {
     throw new Error('Razorpay not configured');
   }
   
   const expectedSignature = crypto
-    .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+    .createHmac('sha256', keySecret)
     .update(`${orderId}|${paymentId}`)
     .digest('hex');
 

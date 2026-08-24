@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { validateAuth } from '@/lib/auth';
-import { createRazorpayOrder, CREDIT_PACKAGES } from '@/lib/razorpay';
+import { createRazorpayOrder, CREDIT_PACKAGES, getPublicRazorpayKeyId } from '@/lib/razorpay';
 import { PLAN_PRICES, type PlanTier } from '@/lib/planConfig';
 
 export async function POST(request: NextRequest) {
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
         orderId: order.id,
         amount: order.amount,
         currency: order.currency,
-        keyId: process.env.RAZORPAY_KEY_ID || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        keyId: getPublicRazorpayKeyId(),
         tier,
       });
     }
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
         orderId: order.id,
         amount: order.amount,
         currency: order.currency,
-        keyId: process.env.RAZORPAY_KEY_ID || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        keyId: getPublicRazorpayKeyId(),
         package: creditPackage,
       });
     }
@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
         orderId: order.id,
         amount: order.amount,
         currency: order.currency,
-        keyId: process.env.RAZORPAY_KEY_ID || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        keyId: getPublicRazorpayKeyId(),
         plan,
       });
     }
