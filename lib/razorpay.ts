@@ -9,8 +9,8 @@ function getRazorpay(): Razorpay {
       throw new Error('Razorpay credentials not configured');
     }
     razorpayInstance = new Razorpay({
-      key_id: process.env.RAZORPAY_KEY_ID,
-      key_secret: process.env.RAZORPAY_KEY_SECRET,
+      key_id: process.env.RAZORPAY_KEY_ID.trim(),
+      key_secret: process.env.RAZORPAY_KEY_SECRET.trim(),
     });
   }
   return razorpayInstance;
