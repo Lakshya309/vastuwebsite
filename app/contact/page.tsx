@@ -1,11 +1,10 @@
 import Link from "next/link";
-import { Mail, Phone, MapPin, Clock, MessageCircle } from "lucide-react";
+import { Mail, MapPin, Clock, MessageCircle } from "lucide-react";
 
 const CONTACT_INFO = {
   businessName: "Mangalam Vastu",
-  address: "[YOUR BUSINESS ADDRESS]",
-  email: "[YOUR SUPPORT EMAIL]",
-  phone: "[YOUR PHONE NUMBER]",
+  address: "India",
+  email: "Manglamvastu.lfe@gmail.com",
   hours: "Monday - Saturday: 9:00 AM - 6:00 PM IST",
 };
 
@@ -58,22 +57,22 @@ export default function ContactPage() {
             </p>
           </div>
 
-          {/* Phone */}
+          {/* Email Support */}
           <div className="glass p-8 rounded-[2rem] border border-white">
             <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center mb-6">
-              <Phone className="w-7 h-7 text-primary" />
+              <Mail className="w-7 h-7 text-primary" />
             </div>
             <h3 className="text-xl font-cormorant font-bold italic text-primary mb-2">
-              Phone
+              Email Support
             </h3>
-            <a 
-              href={`tel:${CONTACT_INFO.phone}`}
-              className="text-gray-600 hover:text-primary transition-colors"
+            <a
+              href={`mailto:${CONTACT_INFO.email}`}
+              className="text-primary hover:underline font-medium break-all"
             >
-              {CONTACT_INFO.phone}
+              {CONTACT_INFO.email}
             </a>
             <p className="text-gray-400 text-sm mt-2">
-              Available during business hours
+              We respond within 24–48 hours
             </p>
           </div>
 

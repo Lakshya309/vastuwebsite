@@ -117,7 +117,14 @@ export function verifyPaymentSignature(
     .update(`${orderId}|${paymentId}`)
     .digest('hex');
 
-  return signature === expectedSignature;
+  const expectedBuffer = Buffer.from(expectedSignature, 'utf-8');
+  const signatureBuffer = Buffer.from(signature, 'utf-8');
+  
+  if (expectedBuffer.length !== signatureBuffer.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(expectedBuffer, signatureBuffer);
 }
 
 export function verifyWebhookSignature(
@@ -133,7 +140,14 @@ export function verifyWebhookSignature(
     .update(payload)
     .digest('hex');
 
-  return signature === expectedSignature;
+  const expectedBuffer = Buffer.from(expectedSignature, 'utf-8');
+  const signatureBuffer = Buffer.from(signature, 'utf-8');
+  
+  if (expectedBuffer.length !== signatureBuffer.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(expectedBuffer, signatureBuffer);
 }
 
 export async function cancelSubscription(subscriptionId: string) {

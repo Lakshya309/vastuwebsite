@@ -5,8 +5,9 @@ import { DevtaRegion, PlacedObject, Point, Wall } from "@/lib/floorPlanInterface
 import { isPointInPolygon } from "@/lib/gridUtils";
 import { ObjectPalette } from "./ObjectPalette";
 import { problemZoneMapping } from "@/lib/problemZoneMapping";
-import { Video, Upload, RotateCcw, RotateCw, Compass, Lock, Crown } from "lucide-react";
+import { Video, Upload, RotateCcw, RotateCw, Compass, Lock, Crown, ShieldCheck } from "lucide-react";
 import { motion } from "framer-motion";
+import type { PlanTier } from "@/lib/planConfig";
 
 interface ControlPanelProps {
   projectId: string;
@@ -122,6 +123,10 @@ interface ControlPanelProps {
   propertyType?: string;
   commercialType?: string;
   onPropertyTypeChange?: (propertyType: string, commercialType?: string) => void;
+  /** Tier-based plan for the current user */
+  userPlan?: PlanTier;
+  /** Whether the boundary has been saved and locked */
+  boundaryLocked?: boolean;
 }
 
 const PremiumBadge = () => (
@@ -264,45 +269,61 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
               <span className="text-xs font-sans not-italic bg-primary/10 text-primary w-6 h-6 rounded-full flex items-center justify-center">2</span>
               Draw Your Plot
             </h3>
-            {props.isManualMode ? (
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-6 leading-relaxed">
-                Your plot dimensions have been set. You can still draw a custom boundary if needed.
-              </p>
+
+            {/* ── Boundary Locked Banner ── */}
+            {props.boundaryLocked ? (
+              <div className="flex flex-col items-center gap-3 py-5 px-4 bg-emerald-50 border border-emerald-200 rounded-2xl mb-3">
+                <ShieldCheck size={22} className="text-emerald-500" />
+                <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest text-center leading-relaxed">
+                  Boundary Saved &amp; Locked
+                </p>
+                <p className="text-[9px] text-emerald-600 text-center leading-relaxed">
+                  Your plot boundary has been saved and cannot be changed. Objects can still be placed and moved.
+                </p>
+              </div>
             ) : (
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-6 leading-relaxed">
-                Click on the image to mark the corners of your plot.
-              </p>
+              <>
+                {props.isManualMode ? (
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-6 leading-relaxed">
+                    Your plot dimensions have been set. You can still draw a custom boundary if needed.
+                  </p>
+                ) : (
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-6 leading-relaxed">
+                    Click on the image to mark the corners of your plot.
+                  </p>
+                )}
+                <button
+                  onClick={props.handleStartDrawingBoundary}
+                  disabled={props.drawingMode === "boundary"}
+                  className="w-full mb-3 py-4 bg-primary text-white rounded-2xl text-[11px] font-bold uppercase tracking-[0.2em] shadow-lg shadow-primary/20 disabled:opacity-50 hover:scale-[1.02] active:scale-95 transition-all"
+                >
+                  {props.drawingMode === "boundary" ? "Drawing..." : "Start Drawing"}
+                </button>
+                {props.drawingMode === "boundary" && (
+                  <button
+                    onClick={props.handleFinishDrawingBoundary}
+                    disabled={(props.boundary?.length || 0) < 3}
+                    className="w-full mb-3 py-4 bg-emerald-600 text-white rounded-2xl text-[11px] font-bold uppercase tracking-[0.2em] shadow-lg shadow-emerald-900/20 disabled:opacity-50 hover:scale-[1.02] transition-all"
+                  >
+                    Finish Drawing
+                  </button>
+                )}
+                <div className="flex gap-3 mb-3">
+                  <button
+                    onClick={props.handleUndoLastPoint}
+                    className="w-full py-3 bg-white/50 hover:bg-white text-gray-500 rounded-xl text-[9px] font-bold uppercase tracking-widest border border-white shadow-sm transition-all"
+                  >
+                    Undo
+                  </button>
+                  <button
+                    onClick={props.handleResetBoundary}
+                    className="w-full py-3 bg-rose-50/50 hover:bg-rose-50 text-rose-500 rounded-xl text-[9px] font-bold uppercase tracking-widest border border-rose-100 shadow-sm transition-all"
+                  >
+                    Clear All
+                  </button>
+                </div>
+              </>
             )}
-            <button
-              onClick={props.handleStartDrawingBoundary}
-              disabled={props.drawingMode === "boundary"}
-              className="w-full mb-3 py-4 bg-primary text-white rounded-2xl text-[11px] font-bold uppercase tracking-[0.2em] shadow-lg shadow-primary/20 disabled:opacity-50 hover:scale-[1.02] active:scale-95 transition-all"
-            >
-              {props.drawingMode === "boundary" ? "Drawing..." : "Start Drawing"}
-            </button>
-            {props.drawingMode === "boundary" && (
-              <button
-                onClick={props.handleFinishDrawingBoundary}
-                disabled={(props.boundary?.length || 0) < 3}
-                className="w-full mb-3 py-4 bg-emerald-600 text-white rounded-2xl text-[11px] font-bold uppercase tracking-[0.2em] shadow-lg shadow-emerald-900/20 disabled:opacity-50 hover:scale-[1.02] transition-all"
-              >
-                Finish Drawing
-              </button>
-            )}
-            <div className="flex gap-3 mb-3">
-              <button
-                onClick={props.handleUndoLastPoint}
-                className="w-full py-3 bg-white/50 hover:bg-white text-gray-500 rounded-xl text-[9px] font-bold uppercase tracking-widest border border-white shadow-sm transition-all"
-              >
-                Undo
-              </button>
-              <button
-                onClick={props.handleResetBoundary}
-                className="w-full py-3 bg-rose-50/50 hover:bg-rose-50 text-rose-500 rounded-xl text-[9px] font-bold uppercase tracking-widest border border-rose-100 shadow-sm transition-all"
-              >
-                Clear All
-              </button>
-            </div>
 
             {props.isManualMode && (
               <div className="mt-6 p-6 glass rounded-2xl border border-white space-y-4">
@@ -762,6 +783,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
             <div className="glass p-6 rounded-[2rem] border border-white shadow-inner">
               <ObjectPalette
                 onAddObject={props.handleAddObject}
+                userPlan={props.userPlan ?? (props.isPremium ? "basic" : "free")}
                 isPremium={props.isPremium}
                 propertyType={props.propertyType}
                 commercialType={props.commercialType}

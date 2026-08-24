@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-const LAST_UPDATED = "April 8, 2026";
+const LAST_UPDATED = "July 15, 2026";
 const BUSINESS_NAME = "Mangalam Vastu";
 const RAZORPAY_COMPLIANCE = "Razorpay is a PCI-DSS (Payment Card Industry Data Security Standard) compliant payment gateway.";
 
@@ -156,7 +156,7 @@ export default function PrivacyPage() {
               <li><strong>Withdraw Consent:</strong> Withdraw consent for data processing where applicable</li>
             </ul>
             <p className="text-gray-600 leading-relaxed">
-              To exercise any of these rights, please contact us at <a href="mailto:[YOUR SUPPORT EMAIL]" className="text-primary hover:underline">[YOUR SUPPORT EMAIL]</a>.
+              To exercise any of these rights, please contact us at <a href="mailto:Manglamvastu.lfe@gmail.com" className="text-primary hover:underline">Manglamvastu.lfe@gmail.com</a>.
             </p>
           </section>
 
@@ -228,9 +228,8 @@ export default function PrivacyPage() {
             </p>
             <div className="bg-white/30 rounded-xl p-6 space-y-2">
               <p className="text-gray-700 font-medium">{BUSINESS_NAME}</p>
-              <p className="text-gray-600 text-sm">[YOUR BUSINESS ADDRESS]</p>
-              <p className="text-gray-600 text-sm">Email: <a href="mailto:[YOUR SUPPORT EMAIL]" className="text-primary hover:underline">[YOUR SUPPORT EMAIL]</a></p>
-              <p className="text-gray-600 text-sm">Phone: [YOUR PHONE NUMBER]</p>
+              <p className="text-gray-600 text-sm">India</p>
+              <p className="text-gray-600 text-sm">Email: <a href="mailto:Manglamvastu.lfe@gmail.com" className="text-primary hover:underline">Manglamvastu.lfe@gmail.com</a></p>
             </div>
           </section>
 

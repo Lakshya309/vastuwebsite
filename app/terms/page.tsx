@@ -1,8 +1,8 @@
 import Link from "next/link";
 
-const LAST_UPDATED = "April 8, 2026";
+const LAST_UPDATED = "July 15, 2026";
 const BUSINESS_NAME = "Mangalam Vastu";
-const STATE = "[STATE]";
+const STATE = "India";
 const COUNTRY = "India";
 
 export default function TermsPage() {
@@ -163,7 +163,7 @@ export default function TermsPage() {
               9. Governing Law
             </h2>
             <p className="text-gray-600 leading-relaxed">
-              These Terms shall be governed by and construed in accordance with the laws of {STATE}, {COUNTRY}. Any disputes arising from these Terms or your use of our services shall be subject to the exclusive jurisdiction of the courts located in {STATE}, {COUNTRY}.
+              These Terms shall be governed by and construed in accordance with the laws of India. Any disputes arising from these Terms or your use of our services shall be subject to the exclusive jurisdiction of the competent courts in India.
             </p>
           </section>
 
@@ -190,9 +190,8 @@ export default function TermsPage() {
             </p>
             <div className="bg-white/30 rounded-xl p-6 space-y-2">
               <p className="text-gray-700 font-medium">{BUSINESS_NAME}</p>
-              <p className="text-gray-600 text-sm">[YOUR BUSINESS ADDRESS]</p>
-              <p className="text-gray-600 text-sm">Email: [YOUR SUPPORT EMAIL]</p>
-              <p className="text-gray-600 text-sm">Phone: [YOUR PHONE NUMBER]</p>
+              <p className="text-gray-600 text-sm">India</p>
+              <p className="text-gray-600 text-sm">Email: <a href="mailto:Manglamvastu.lfe@gmail.com" className="text-primary hover:underline">Manglamvastu.lfe@gmail.com</a></p>
             </div>
           </section>
 

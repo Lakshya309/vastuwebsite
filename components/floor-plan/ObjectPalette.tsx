@@ -2,14 +2,16 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Crown, ChevronDown, ChevronUp, Layers } from "lucide-react";
-import { OBJECT_ICONS, getObjectIcon } from "@/lib/objectIcons";
+import { Crown, ChevronDown, ChevronUp, Layers, Zap } from "lucide-react";
+import { getObjectIcon } from "@/lib/objectIcons";
+import { isObjectAccessible, getRequiredTier, type PlanTier } from "@/lib/planConfig";
 
 interface ObjectPaletteItemProps {
   objectType: string;
   icon: string;
   onAddObject: (objectType: string) => void;
   isLocked: boolean;
+  requiredTier?: PlanTier;
 }
 
 const ObjectPaletteItem: React.FC<ObjectPaletteItemProps> = ({
@@ -17,7 +19,11 @@ const ObjectPaletteItem: React.FC<ObjectPaletteItemProps> = ({
   icon,
   onAddObject,
   isLocked,
+  requiredTier,
 }) => {
+  const isBasicLocked = isLocked && requiredTier === "basic";
+  const isAdvancedLocked = isLocked && requiredTier === "advanced";
+
   return (
     <div
       onClick={() => !isLocked && onAddObject(objectType)}
@@ -29,10 +35,17 @@ const ObjectPaletteItem: React.FC<ObjectPaletteItemProps> = ({
     >
       {isLocked && (
         <div className="absolute top-1 right-1 z-10 scale-[0.6] origin-top-right">
-          <span className="flex items-center gap-1.5 px-2 py-1 bg-amber-400 text-white text-[10px] font-black uppercase tracking-widest rounded-lg shadow-sm">
-            <Crown size={10} />
-            PRO
-          </span>
+          {isBasicLocked ? (
+            <span className="flex items-center gap-1 px-2 py-1 bg-amber-500 text-white text-[10px] font-black uppercase tracking-widest rounded-lg shadow-sm">
+              <Zap size={9} />
+              BASIC
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 px-2 py-1 bg-primary text-white text-[10px] font-black uppercase tracking-widest rounded-lg shadow-sm">
+              <Crown size={9} />
+              PRO
+            </span>
+          )}
         </div>
       )}
       <div className="w-10 h-10 mb-2 flex items-center justify-center">
@@ -45,7 +58,9 @@ const ObjectPaletteItem: React.FC<ObjectPaletteItemProps> = ({
 
 interface ObjectPaletteProps {
   onAddObject: (objectType: string) => void;
-  isPremium: boolean;
+  userPlan: PlanTier;
+  /** @deprecated use userPlan instead */
+  isPremium?: boolean;
   propertyType?: string; // "residential" | "commercial"
   commercialType?: string; // "commercial_kitchen", "factory", etc.
   onPropertyTypeChange?: (propertyType: string, commercialType?: string) => void;
@@ -173,18 +188,18 @@ const ALL_COMMERCIAL_ITEMS = [
   "Entrance", "Exit", "Staircase", "Lift", "Toilet", "Water Tank", "Borewell", "Electrical Panel", "DG Set", "Security Cabin", "Parking"
 ];
 
-const ALLOWED_FREE_OBJECTS = [
-  "TOILET", "KITCHEN", "MASTER BEDROOM", "Toilet", "Kitchen", "Master Bedroom",
-  "Entrance", "Dosa Bhatti", "Heavy Machinery", "Reception"
-];
+// Legacy list kept for reference; actual gating uses planConfig.ts isObjectAccessible()
 
 export const ObjectPalette: React.FC<ObjectPaletteProps> = ({
   onAddObject,
+  userPlan,
   isPremium,
   propertyType = "residential",
   commercialType = "general",
   onPropertyTypeChange,
 }) => {
+  // Resolve effective plan: if legacy isPremium is passed and no userPlan, treat as basic
+  const effectivePlan: PlanTier = userPlan ?? (isPremium ? "basic" : "free");
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
 
   // Auto-set the first category as expanded when propertyType or commercialType changes
@@ -342,14 +357,16 @@ export const ObjectPalette: React.FC<ObjectPaletteProps> = ({
                 <div className="p-3 bg-white/10 border-t border-gray-100/50">
                   <div className="grid grid-cols-3 gap-1.5 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
                     {category.items.map((item) => {
-                      const isLocked = !isPremium && !ALLOWED_FREE_OBJECTS.includes(item);
+                      const accessible = isObjectAccessible(item, effectivePlan);
+                      const reqTier = getRequiredTier(item);
                       return (
                         <ObjectPaletteItem
                           key={item}
                           objectType={item}
                           icon={getObjectIcon(item)}
                           onAddObject={onAddObject}
-                          isLocked={isLocked}
+                          isLocked={!accessible}
+                          requiredTier={reqTier}
                         />
                       );
                     })}

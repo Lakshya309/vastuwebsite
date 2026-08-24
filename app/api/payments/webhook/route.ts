@@ -37,44 +37,72 @@ export async function POST(request: NextRequest) {
         });
 
         if (order && order.status !== 'completed') {
-          if (order.order_type === 'credits' && order.credits_purchased) {
-            await prisma.user_credits.upsert({
-              where: { user_id: order.user_id },
-              update: {
-                credits: { increment: order.credits_purchased },
-              },
-              create: {
-                user_id: order.user_id,
-                credits: order.credits_purchased,
-              },
-            });
+          // Amount verification defense
+          // Razorpay returns amount in paisa (smallest unit). We need to make sure it matches.
+          // In some cases amount can be missing if the event structure changed, so check if it exists.
+          if (paymentEntity.amount && paymentEntity.amount !== order.amount * 100) {
+            console.error(`Webhook amount mismatch for order ${orderId}: Expected ${order.amount * 100}, got ${paymentEntity.amount}`);
+            break;
           }
 
-          if (order.order_type === 'subscription' && order.plan_id) {
-            const plan = await prisma.subscription_plans.findUnique({
-              where: { id: order.plan_id },
-            });
-
-            if (plan) {
-              const expiresAt = new Date();
-              expiresAt.setDate(expiresAt.getDate() + plan.duration_days);
-
-              await prisma.user_subscriptions.create({
-                data: {
-                  user_id: order.user_id,
-                  plan_id: plan.id,
-                  status: 'active',
-                  expires_at: expiresAt,
-                  auto_renew: true,
-                },
-              });
-            }
-          }
-
-          await prisma.razorpay_orders.update({
-            where: { id: order.id },
-            data: { status: 'completed' },
+          // Atomic update to prevent race conditions with verify route
+          const updatedOrderResult = await prisma.razorpay_orders.updateMany({
+            where: {
+              id: order.id,
+              status: 'pending'
+            },
+            data: { status: 'completed' }
           });
+
+          if (updatedOrderResult.count === 0) {
+            // Already processed by another webhook or the verify route
+            break;
+          }
+
+          try {
+            await prisma.$transaction(async (tx) => {
+              if (order.order_type === 'credits' && order.credits_purchased) {
+                await tx.user_credits.upsert({
+                  where: { user_id: order.user_id },
+                  update: {
+                    credits: { increment: order.credits_purchased },
+                  },
+                  create: {
+                    user_id: order.user_id,
+                    credits: order.credits_purchased,
+                  },
+                });
+              }
+
+              if (order.order_type === 'subscription' && order.plan_id) {
+                const plan = await tx.subscription_plans.findUnique({
+                  where: { id: order.plan_id },
+                });
+
+                if (plan) {
+                  const expiresAt = new Date();
+                  expiresAt.setDate(expiresAt.getDate() + plan.duration_days);
+
+                  await tx.user_subscriptions.create({
+                    data: {
+                      user_id: order.user_id,
+                      plan_id: plan.id,
+                      status: 'active',
+                      expires_at: expiresAt,
+                      auto_renew: true,
+                    },
+                  });
+                }
+              }
+            });
+          } catch (txError) {
+            console.error('Webhook transaction failed, reverting status:', txError);
+            await prisma.razorpay_orders.update({
+              where: { id: order.id },
+              data: { status: 'pending' },
+            });
+            throw txError;
+          }
         }
         break;
       }

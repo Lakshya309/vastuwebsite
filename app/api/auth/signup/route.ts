@@ -21,18 +21,37 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check if user already exists
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // Check if user already exists (case-insensitive)
     const existingUser = await prisma.profiles.findFirst({
-      where: { email: email.toLowerCase() },
+      where: { email: { equals: normalizedEmail, mode: "insensitive" } },
     });
 
     if (existingUser) {
       if (!existingUser.password) {
+        // User created account via Google OAuth. Set password so they can log in via both methods to the SAME profile ID.
+        const hashedPassword = hashPassword(password);
+        await prisma.profiles.update({
+          where: { id: existingUser.id },
+          data: { password: hashedPassword },
+        });
+
+        await prisma.user_credits.upsert({
+          where: { user_id: existingUser.id },
+          update: {},
+          create: {
+            user_id: existingUser.id,
+            credits: 0,
+          },
+        });
+
         return NextResponse.json(
-          { error: "This email is registered via Google. Please log in using Google." },
-          { status: 400 }
+          { message: "Password linked to account successfully", userId: existingUser.id },
+          { status: 200 }
         );
       }
+
       return NextResponse.json(
         { error: "User already exists with this email address" },
         { status: 400 }
@@ -46,7 +65,7 @@ export async function POST(req: NextRequest) {
     const profile = await prisma.profiles.create({
       data: {
         id: newId,
-        email: email.toLowerCase(),
+        email: normalizedEmail,
         password: hashedPassword,
         role: "user",
       },

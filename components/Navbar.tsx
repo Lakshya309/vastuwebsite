@@ -116,6 +116,13 @@ const Navbar = () => {
                     >
                       Refund Policy
                     </Link>
+                    <Link
+                      href="/shipping"
+                      onClick={() => setLegalDropdownOpen(false)}
+                      className="block px-4 py-2 text-sm text-gray-600 hover:text-primary hover:bg-white/50 transition-colors"
+                    >
+                      Shipping Policy
+                    </Link>
                   </div>
                 )}
               </div>
@@ -234,6 +241,7 @@ const Navbar = () => {
               <Link href="/terms" onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 text-gray-600 text-sm">Terms & Conditions</Link>
               <Link href="/privacy" onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 text-gray-600 text-sm">Privacy Policy</Link>
               <Link href="/refund" onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 text-gray-600 text-sm">Refund Policy</Link>
+              <Link href="/shipping" onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 text-gray-600 text-sm">Shipping Policy</Link>
             </div>
 
             {user ? (

@@ -4,99 +4,188 @@ import { useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { loadRazorpayScript } from "@/lib/razorpay-client";
-import { CREDIT_PACKAGES } from "@/lib/razorpay";
-import { Upload, FileSearch, Download, Home, Building2, Star, Check, Lock } from "lucide-react";
-
-interface SubscriptionPlan {
-  id: string;
-  name: string;
-  description: string | null;
-  price_inr: number;
-  duration_days: number;
-  plan_type: string;
-  features: Record<string, unknown> | null;
-}
+import {
+  Check, X, Crown, Zap, Shield, ArrowRight, Lock,
+  Upload, RefreshCw, Move, Layers, Building2, Home, Star
+} from "lucide-react";
+import { PLAN_PRICES, PLAN_LIMITS, type PlanTier } from "@/lib/planConfig";
 
 interface PricingClientProps {
-  subscriptions: SubscriptionPlan[];
-  hasActiveSubscription: boolean | null;
-  userCredits: number;
   userEmail: string | null;
+  userPlan: PlanTier;
+  userLoggedIn: boolean;
 }
 
-const FREE_CREDITS = 5;
+// ─── Feature comparison rows ───────────────────────────────────────────────────
+const FEATURE_ROWS: {
+  label: string;
+  free: string | boolean;
+  basic: string | boolean;
+  advanced: string | boolean;
+  icon: React.ReactNode;
+}[] = [
+  {
+    label: "Map / Floor Plan Uploads",
+    free: "1 upload",
+    basic: "2 uploads (1 retry)",
+    advanced: "2 uploads (1 retry)",
+    icon: <Upload size={14} />,
+  },
+  {
+    label: "Object Relocations",
+    free: "None",
+    basic: "5 per object",
+    advanced: "5 per object",
+    icon: <Move size={14} />,
+  },
+  {
+    label: "Boundary / Walls",
+    free: "Draw once (locked after save)",
+    basic: "Draw once (locked after save)",
+    advanced: "Draw once (locked after save)",
+    icon: <Layers size={14} />,
+  },
+  {
+    label: "Basic Objects (Toilet, Kitchen, Bedroom…)",
+    free: true,
+    basic: true,
+    advanced: true,
+    icon: <Home size={14} />,
+  },
+  {
+    label: "Standard Objects (Sofa, Bed, AC, Wardrobe…)",
+    free: false,
+    basic: true,
+    advanced: true,
+    icon: <Building2 size={14} />,
+  },
+  {
+    label: "Premium Objects (Aquarium, Bar, Elements…)",
+    free: false,
+    basic: false,
+    advanced: true,
+    icon: <Crown size={14} />,
+  },
+  {
+    label: "Full Commercial Object Library",
+    free: false,
+    basic: "Partial",
+    advanced: true,
+    icon: <Star size={14} />,
+  },
+  {
+    label: "45-Direction Vastu Grid",
+    free: true,
+    basic: true,
+    advanced: true,
+    icon: <Zap size={14} />,
+  },
+  {
+    label: "Marma Point Detection",
+    free: true,
+    basic: true,
+    advanced: true,
+    icon: <Shield size={14} />,
+  },
+  {
+    label: "Detailed Vastu Report",
+    free: true,
+    basic: true,
+    advanced: true,
+    icon: <Check size={14} />,
+  },
+];
+
+// ─── Plan card configs ─────────────────────────────────────────────────────────
+const PLAN_CARDS: {
+  tier: PlanTier;
+  icon: React.ReactNode;
+  tagline: string;
+  highlight: boolean;
+  badge?: string;
+  cta: string;
+  gradient: string;
+  borderColor: string;
+  textAccent: string;
+  bgCard: string;
+}[] = [
+  {
+    tier: "free",
+    icon: <Home size={24} />,
+    tagline: "Get started with core Vastu essentials — completely free.",
+    highlight: false,
+    cta: "Start Free",
+    gradient: "from-gray-50 to-white",
+    borderColor: "border-gray-200",
+    textAccent: "text-gray-700",
+    bgCard: "bg-white",
+  },
+  {
+    tier: "basic",
+    icon: <Zap size={24} />,
+    tagline: "Standard furniture & utilities. Perfect for homeowners.",
+    highlight: false,
+    badge: "Popular",
+    cta: "Get Basic",
+    gradient: "from-amber-50 to-orange-50",
+    borderColor: "border-amber-300",
+    textAccent: "text-amber-700",
+    bgCard: "bg-amber-50/30",
+  },
+  {
+    tier: "advanced",
+    icon: <Crown size={24} />,
+    tagline: "Every object, full commercial library, complete access.",
+    highlight: true,
+    badge: "Best Value",
+    cta: "Go Advanced",
+    gradient: "from-primary/5 to-primary/10",
+    borderColor: "border-primary",
+    textAccent: "text-primary",
+    bgCard: "bg-primary/5",
+  },
+];
 
 const HOW_IT_WORKS = [
   {
     step: 1,
-    icon: Upload,
+    icon: <Upload size={22} />,
     title: "Upload Your Floor Plan",
-    description: "Draw or upload your floor plan with our interactive canvas tools.",
+    desc: "Draw or upload your floor plan with our interactive canvas tools.",
   },
   {
     step: 2,
-    icon: FileSearch,
+    icon: <Layers size={22} />,
     title: "Place Objects & Analyze",
-    description: "Add furniture and objects to see real-time Vastu compliance.",
+    desc: "Add furniture and objects to see real-time Vastu compliance.",
   },
   {
     step: 3,
-    icon: Download,
-    title: "Get Your Report",
-    description: "Receive a comprehensive analysis with actionable recommendations.",
+    icon: <RefreshCw size={22} />,
+    title: "Relocate & Refine",
+    desc: "Move objects up to 5 times per item to optimise placement.",
   },
 ];
 
-const USE_CASES = [
-  {
-    icon: Home,
-    title: "Homeowners",
-    description: "Ensure your dream home brings peace and prosperity. Perfect for new construction or renovations.",
-    features: ["One-time analysis per property", "Detailed room-by-room guidance", "Cost-effective solution"],
-  },
-  {
-    icon: Building2,
-    title: "Architects & Designers",
-    description: "Integrate Vastu compliance into your projects seamlessly. Impress clients with professional reports.",
-    features: ["Multiple project analysis", "Client-ready reports", "Priority support"],
-  },
-  {
-    icon: Star,
-    title: "Astrologers & Vastu Consultants",
-    description: "Offer Vastu analysis services to your clients. Build credibility with AI-powered insights.",
-    features: ["Unlimited analyses", "White-label reports", "Client management"],
-  },
-];
-
-const FEATURE_COMPARISON = [
-  { feature: "Vastu Analysis", credits: true, subscription: true },
-  { feature: "Marma Point Detection", credits: true, subscription: true },
-  { feature: "45-Direction Grid", credits: true, subscription: true },
-  { feature: "Detailed Reports", credits: true, subscription: true },
-  { feature: "Object Placement Guide", credits: true, subscription: true },
-  { feature: "Number of Analyses", credits: "1 credit per analysis", subscription: "Unlimited" },
-  { feature: "Report Validity", credits: "Permanent access", subscription: "During subscription" },
-  { feature: "Priority Support", credits: false, subscription: true },
-  { feature: "API Access", credits: false, subscription: false },
-];
+function CellValue({ val }: { val: string | boolean }) {
+  if (val === true)
+    return <Check size={18} className="mx-auto text-emerald-500" />;
+  if (val === false) return <X size={18} className="mx-auto text-gray-300" />;
+  return <span className="text-xs text-gray-600 font-medium">{val}</span>;
+}
 
 export default function PricingClient({
-  subscriptions,
-  hasActiveSubscription,
-  userCredits,
   userEmail,
+  userPlan,
+  userLoggedIn,
 }: PricingClientProps) {
-  const [selectedPackage, setSelectedPackage] = useState<string | null>(null);
-  const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isLoggedIn = !!userEmail;
-  const isSubscribed = hasActiveSubscription;
+  const handlePurchase = async (tier: PlanTier) => {
+    if (!userLoggedIn) return;
+    if (tier === "free") return;
 
-  const handlePurchase = async (type: "credits" | "subscription", packageId: string) => {
-    if (!isLoggedIn) return;
-    
     setLoading(true);
     setError(null);
 
@@ -104,31 +193,26 @@ export default function PricingClient({
       const res = await fetch("/api/payments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          type === "credits"
-            ? { packageId }
-            : { planId: packageId }
-        ),
+        body: JSON.stringify({ tier }),
       });
 
+      const data = await res.json();
+
       if (!res.ok) {
-        const data = await res.json();
         throw new Error(data.error || "Failed to create order");
       }
 
-      const { orderId, amount, currency } = await res.json();
+      const { orderId, amount, currency, keyId } = data;
 
       const razorpayLoaded = await loadRazorpayScript();
-      if (!razorpayLoaded) {
-        throw new Error("Razorpay SDK failed to load");
-      }
+      if (!razorpayLoaded) throw new Error("Razorpay SDK failed to load");
 
       const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        key: keyId || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
         amount,
         currency,
         name: "Mangalam Vastu",
-        description: type === "credits" ? "Purchase Credits" : "Subscription Plan",
+        description: `${tier.charAt(0).toUpperCase() + tier.slice(1)} Plan`,
         order_id: orderId,
         handler: async (response: {
           razorpay_payment_id: string;
@@ -145,26 +229,21 @@ export default function PricingClient({
                 razorpay_signature: response.razorpay_signature,
               }),
             });
-
-            if (!verifyRes.ok) {
-              throw new Error("Payment verification failed");
-            }
-
+            if (!verifyRes.ok) throw new Error("Payment verification failed");
             window.location.reload();
-          } catch (err) {
+          } catch {
             setError("Payment verification failed. Please contact support.");
           }
         },
-        prefill: {
-          name: "",
-          email: userEmail || "",
-        },
-        theme: {
-          color: "#4f46e5",
-        },
+        prefill: { email: userEmail || "" },
+        theme: { color: "#4f46e5" },
       };
 
-      const rzp = new (window as unknown as { Razorpay: new (options: Record<string, unknown>) => { open: () => void } }).Razorpay(options);
+      const rzp = new (
+        window as unknown as {
+          Razorpay: new (o: Record<string, unknown>) => { open: () => void };
+        }
+      ).Razorpay(options);
       rzp.open();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Payment failed");
@@ -173,298 +252,287 @@ export default function PricingClient({
     }
   };
 
-  const renderButton = (type: "credits" | "subscription", id: string) => {
-    if (!isLoggedIn) {
+  const renderCTA = (card: (typeof PLAN_CARDS)[0]) => {
+    if (!userLoggedIn) {
       return (
         <Link
           href="/login"
-          className="mt-4 w-full flex items-center justify-center gap-2 bg-gray-600 text-white py-3 rounded-xl font-semibold hover:bg-gray-700 transition-colors"
+          className="mt-8 w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-gray-100 text-gray-600 font-bold text-sm hover:bg-gray-200 transition-all"
         >
-          <Lock className="w-4 h-4" />
-          Login to Purchase
+          <Lock size={14} />
+          Login to Get Started
         </Link>
       );
     }
 
-    if (isSubscribed && type === "subscription") {
+    if (userPlan === card.tier) {
       return (
-        <div className="mt-4 w-full flex items-center justify-center gap-2 bg-green-50 text-green-700 py-3 rounded-xl font-semibold border border-green-200">
-          <Check className="w-4 h-4" />
-          Active
+        <div className="mt-8 w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-emerald-50 text-emerald-700 font-bold text-sm border border-emerald-200">
+          <Check size={14} />
+          Current Plan
         </div>
+      );
+    }
+
+    if (card.tier === "free") {
+      return (
+        <Link
+          href="/projects"
+          className="mt-8 w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-gray-100 text-gray-700 font-bold text-sm hover:bg-gray-200 transition-all"
+        >
+          Go to Dashboard
+          <ArrowRight size={14} />
+        </Link>
       );
     }
 
     return (
       <button
-        onClick={(e) => {
-          e.stopPropagation();
-          handlePurchase(type, id);
-        }}
+        onClick={() => handlePurchase(card.tier)}
         disabled={loading}
-        className="mt-4 w-full bg-primary text-white py-3 rounded-xl font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className={`mt-8 w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-sm transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.02] active:scale-95 ${
+          card.highlight
+            ? "bg-primary text-white shadow-primary/30"
+            : "bg-amber-500 text-white shadow-amber-500/20"
+        }`}
       >
-        {loading ? "Processing..." : "Subscribe"}
+        {loading ? "Processing..." : card.cta}
+        {!loading && <ArrowRight size={14} />}
       </button>
     );
   };
 
   return (
-    <div className="min-h-screen pt-32 pb-20 px-4 md:px-8">
+    <div className="min-h-screen pt-32 pb-24 px-4 md:px-8 bg-gradient-to-b from-stone-50 to-white">
       <div className="max-w-6xl mx-auto">
-        
-        {/* Hero Header */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
+
+        {/* ── Hero ─────────────────────────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-20"
         >
-          <h1 className="text-5xl md:text-6xl font-cormorant font-bold italic text-primary mb-6">
+          <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-bold uppercase tracking-widest mb-6">
+            <Zap size={12} />
+            Simple, Transparent Pricing
+          </span>
+          <h1 className="text-5xl md:text-6xl font-cormorant font-bold italic text-primary mb-5 leading-tight">
             Choose Your Plan
           </h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-8">
-            Get started with professional Vastu analysis or upgrade to unlimited access
+          <p className="text-lg text-gray-500 max-w-xl mx-auto">
+            Start free and upgrade when you need more. All prices include{" "}
+            <span className="font-semibold text-gray-700">18% GST</span>.
           </p>
-          <div className="inline-flex items-center gap-3 px-6 py-3 glass rounded-full border border-white">
-            <span className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
-            <span className="text-primary font-semibold">
-              {FREE_CREDITS} Free Credits for New Users
-            </span>
-          </div>
-          {isLoggedIn && userCredits > 0 && (
-            <div className="mt-4 inline-block bg-green-100 text-green-800 px-4 py-2 rounded-full text-sm font-medium">
-              You have {userCredits} credits available
-            </div>
-          )}
         </motion.div>
 
-        {/* How It Works */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
+        {/* ── 3-Column Pricing Cards ────────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
+          className="grid md:grid-cols-3 gap-6 mb-24"
+        >
+          {PLAN_CARDS.map((card, i) => {
+            const price = PLAN_PRICES[card.tier];
+            return (
+              <motion.div
+                key={card.tier}
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 + i * 0.08 }}
+                className={`relative flex flex-col rounded-[2rem] border-2 p-8 transition-all ${card.borderColor} ${card.bgCard} ${
+                  card.highlight
+                    ? "shadow-2xl shadow-primary/15 scale-[1.02] md:scale-[1.03]"
+                    : "shadow-lg"
+                }`}
+              >
+                {/* Badge */}
+                {card.badge && (
+                  <div
+                    className={`absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-[11px] font-black uppercase tracking-widest text-white shadow-md ${
+                      card.highlight ? "bg-primary" : "bg-amber-500"
+                    }`}
+                  >
+                    {card.badge}
+                  </div>
+                )}
+
+                {/* Icon + Name */}
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-5 ${card.highlight ? "bg-primary text-white" : "bg-gray-100 text-gray-600"}`}>
+                  {card.icon}
+                </div>
+                <h2 className={`text-2xl font-cormorant font-bold italic mb-1 ${card.textAccent}`}>
+                  {PLAN_PRICES[card.tier].label}
+                </h2>
+                <p className="text-xs text-gray-500 mb-6 leading-relaxed">{card.tagline}</p>
+
+                {/* Price */}
+                <div className="mb-6">
+                  {price.base === 0 ? (
+                    <p className="text-4xl font-black text-gray-800">₹0</p>
+                  ) : (
+                    <>
+                      <p className="text-4xl font-black text-gray-800">
+                        ₹{price.total.toLocaleString("en-IN")}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        ₹{price.base.toLocaleString("en-IN")} + ₹{price.gst} GST
+                      </p>
+                    </>
+                  )}
+                </div>
+
+                {/* Quick feature bullets */}
+                <ul className="space-y-2.5 mb-auto">
+                  {[
+                    card.tier === "free"
+                      ? "1 map upload"
+                      : "2 map uploads (1 retry)",
+                    card.tier === "free"
+                      ? "No object relocation"
+                      : "5 relocations per object",
+                    card.tier === "free"
+                      ? "Core Vastu objects only"
+                      : card.tier === "basic"
+                      ? "Standard object library"
+                      : "Complete object library",
+                    "45-direction Vastu grid",
+                    "Marma point detection",
+                    "Full Vastu analysis report",
+                  ].map((feat) => (
+                    <li key={feat} className="flex items-start gap-2.5 text-xs text-gray-600">
+                      <Check size={13} className={`flex-shrink-0 mt-0.5 ${card.highlight ? "text-primary" : card.tier === "basic" ? "text-amber-500" : "text-emerald-500"}`} />
+                      {feat}
+                    </li>
+                  ))}
+                </ul>
+
+                {renderCTA(card)}
+              </motion.div>
+            );
+          })}
+        </motion.div>
+
+        {/* ── Limits at a glance ───────────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+          className="mb-24 grid md:grid-cols-3 gap-6"
+        >
+          {[
+            {
+              icon: <Upload size={20} className="text-blue-500" />,
+              title: "Map Uploads",
+              free: "1 upload (no retry)",
+              basic: "2 uploads (1 retry)",
+              advanced: "2 uploads (1 retry)",
+              bg: "bg-blue-50",
+            },
+            {
+              icon: <Move size={20} className="text-violet-500" />,
+              title: "Object Relocations",
+              free: "Not available",
+              basic: "5 moves per object",
+              advanced: "5 moves per object",
+              bg: "bg-violet-50",
+            },
+            {
+              icon: <Layers size={20} className="text-emerald-500" />,
+              title: "Boundary & Walls",
+              free: "Draw once — locked on save",
+              basic: "Draw once — locked on save",
+              advanced: "Draw once — locked on save",
+              bg: "bg-emerald-50",
+            },
+          ].map((item) => (
+            <div key={item.title} className={`p-6 rounded-[1.5rem] ${item.bg} border border-white`}>
+              <div className="flex items-center gap-2 mb-4">
+                {item.icon}
+                <h3 className="font-bold text-gray-800 text-sm">{item.title}</h3>
+              </div>
+              <div className="space-y-2 text-xs text-gray-600">
+                <div className="flex justify-between"><span className="text-gray-400 font-semibold">Free</span><span>{item.free}</span></div>
+                <div className="flex justify-between"><span className="text-amber-500 font-semibold">Basic</span><span>{item.basic}</span></div>
+                <div className="flex justify-between"><span className="text-primary font-semibold">Advanced</span><span>{item.advanced}</span></div>
+              </div>
+            </div>
+          ))}
+        </motion.div>
+
+        {/* ── How It Works ─────────────────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
           className="mb-24"
         >
           <h2 className="text-3xl md:text-4xl font-cormorant font-bold italic text-primary text-center mb-12">
             How It Works
           </h2>
           <div className="grid md:grid-cols-3 gap-8">
-            {HOW_IT_WORKS.map((item, index) => (
-              <div key={index} className="glass p-8 rounded-[2rem] border border-white text-center relative">
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-12 h-12 bg-primary text-white rounded-full flex items-center justify-center font-bold text-lg shadow-lg">
+            {HOW_IT_WORKS.map((item) => (
+              <div key={item.step} className="glass p-8 rounded-[2rem] border border-white text-center relative shadow-sm">
+                <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-10 h-10 bg-primary text-white rounded-full flex items-center justify-center font-black text-sm shadow-lg">
                   {item.step}
                 </div>
-                <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-6 mt-4">
-                  <item.icon className="w-8 h-8 text-primary" />
+                <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-5 mt-3 text-primary">
+                  {item.icon}
                 </div>
-                <h3 className="text-xl font-cormorant font-bold italic text-primary mb-3">
-                  {item.title}
-                </h3>
-                <p className="text-gray-600 text-sm leading-relaxed">
-                  {item.description}
-                </p>
+                <h3 className="font-cormorant font-bold italic text-primary text-xl mb-2">{item.title}</h3>
+                <p className="text-gray-500 text-sm leading-relaxed">{item.desc}</p>
               </div>
             ))}
           </div>
         </motion.div>
 
-        {/* Use Cases */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
+        {/* ── Feature Comparison Table ──────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
+          transition={{ delay: 0.35 }}
           className="mb-24"
         >
           <h2 className="text-3xl md:text-4xl font-cormorant font-bold italic text-primary text-center mb-4">
-            Perfect For Everyone
+            Full Feature Comparison
           </h2>
-          <p className="text-gray-500 text-center mb-12 max-w-xl mx-auto">
-            Whether you&apos;re a homeowner, architect, or Vastu consultant, we have the right plan for you.
+          <p className="text-gray-500 text-center mb-12 text-sm">
+            Every feature, compared side-by-side.
           </p>
-          <div className="grid md:grid-cols-3 gap-6">
-            {USE_CASES.map((useCase, index) => (
-              <div key={index} className="glass p-8 rounded-[2rem] border border-white">
-                <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center mb-6">
-                  <useCase.icon className="w-7 h-7 text-primary" />
-                </div>
-                <h3 className="text-xl font-cormorant font-bold italic text-primary mb-3">
-                  {useCase.title}
-                </h3>
-                <p className="text-gray-600 text-sm leading-relaxed mb-6">
-                  {useCase.description}
-                </p>
-                <ul className="space-y-2">
-                  {useCase.features.map((feature, i) => (
-                    <li key={i} className="flex items-center gap-2 text-sm text-gray-600">
-                      <Check className="w-4 h-4 text-primary flex-shrink-0" />
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </motion.div>
 
-        {/* Credit Packages & Subscriptions */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="mb-24"
-        >
-          <div className="grid lg:grid-cols-2 gap-12">
-            {/* Credit Packages */}
-            <div>
-              <h2 className="text-3xl font-cormorant font-bold italic text-primary mb-2">
-                Pay As You Go
-              </h2>
-              <p className="text-gray-600 mb-8">
-                Purchase credits individually. Each credit unlocks one comprehensive Vastu analysis.
-              </p>
-              <div className="space-y-4">
-                {CREDIT_PACKAGES.map((pkg) => (
-                  <div
-                    key={pkg.id}
-                    className={`glass p-6 rounded-[1.5rem] border transition-all cursor-pointer ${
-                      selectedPackage === pkg.id
-                        ? "border-primary shadow-lg shadow-primary/10"
-                        : "border-white hover:border-primary/30"
-                    } ${pkg.popular ? "ring-2 ring-primary ring-offset-4" : ""}`}
-                    onClick={() => setSelectedPackage(pkg.id)}
-                  >
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <div className="flex items-center gap-3">
-                          <h3 className="text-lg font-semibold text-gray-900">{pkg.name}</h3>
-                          {pkg.popular && (
-                            <span className="bg-primary/10 text-primary text-xs font-bold px-2 py-0.5 rounded-full">
-                              Popular
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-gray-500 text-sm mt-1">
-                          {pkg.credits} {pkg.credits === 1 ? 'analysis' : 'analyses'}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-2xl font-bold text-primary">₹{pkg.priceInr}</p>
-                        <p className="text-xs text-gray-400">
-                          ₹{(pkg.priceInr / pkg.credits).toFixed(0)}/analysis
-                        </p>
-                      </div>
-                    </div>
-                    {renderButton("credits", pkg.id)}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Subscriptions */}
-            <div>
-              <h2 className="text-3xl font-cormorant font-bold italic text-primary mb-2">
-                Expert Subscription
-              </h2>
-              <p className="text-gray-600 mb-8">
-                Unlimited Vastu analyses for astrologers, architects, and serious consultants.
-              </p>
-              {isSubscribed ? (
-                <div className="glass p-8 rounded-[1.5rem] border border-green-200 bg-green-50/50 text-center">
-                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Check className="w-8 h-8 text-green-600" />
-                  </div>
-                  <h3 className="text-xl font-semibold text-green-800 mb-2">Active Subscription</h3>
-                  <p className="text-green-600">You have unlimited access to all analyses</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {subscriptions.map((plan) => (
-                    <div
-                      key={plan.id}
-                      className={`glass p-6 rounded-[1.5rem] border transition-all cursor-pointer ${
-                        selectedPlan === plan.id
-                          ? "border-primary shadow-lg shadow-primary/10"
-                          : "border-white hover:border-primary/30"
-                      }`}
-                      onClick={() => setSelectedPlan(plan.id)}
-                    >
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <h3 className="text-lg font-semibold text-gray-900">{plan.name}</h3>
-                          <p className="text-sm text-gray-500">
-                            {plan.duration_days} days of unlimited access
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-2xl font-bold text-primary">₹{plan.price_inr}</p>
-                          <p className="text-xs text-gray-400">
-                            ₹{(plan.price_inr / plan.duration_days).toFixed(0)}/day
-                          </p>
-                        </div>
-                      </div>
-                      {renderButton("subscription", plan.id)}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Feature Comparison Table */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="mb-24"
-        >
-          <h2 className="text-3xl md:text-4xl font-cormorant font-bold italic text-primary text-center mb-4">
-            Compare Features
-          </h2>
-          <p className="text-gray-500 text-center mb-12">
-            See what&apos;s included in each plan
-          </p>
-          <div className="glass rounded-[2rem] border border-white overflow-hidden">
+          <div className="glass rounded-[2rem] border border-white overflow-hidden shadow-xl">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-white/50">
-                  <th className="text-left p-6 text-sm font-bold text-gray-500 uppercase tracking-wider">
+                  <th className="text-left p-5 text-xs font-bold text-gray-500 uppercase tracking-widest w-[45%]">
                     Feature
                   </th>
-                  <th className="text-center p-6 text-sm font-bold text-gray-500 uppercase tracking-wider">
-                    Credits
+                  <th className="text-center p-5 text-xs font-bold text-gray-500 uppercase tracking-widest">
+                    Free
                   </th>
-                  <th className="text-center p-6 text-sm font-bold text-gray-500 uppercase tracking-wider">
-                    Subscription
+                  <th className="text-center p-5 text-xs font-bold text-amber-600 uppercase tracking-widest bg-amber-50/40">
+                    Basic
+                  </th>
+                  <th className="text-center p-5 text-xs font-bold text-primary uppercase tracking-widest bg-primary/5">
+                    Advanced
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {FEATURE_COMPARISON.map((row, index) => (
-                  <tr key={index} className={`border-b border-white/30 ${index % 2 === 0 ? 'bg-white/20' : ''}`}>
-                    <td className="p-6 text-gray-700 font-medium">{row.feature}</td>
-                    <td className="p-6 text-center">
-                      {typeof row.credits === 'boolean' ? (
-                        row.credits ? (
-                          <Check className="w-5 h-5 text-green-600 mx-auto" />
-                        ) : (
-                          <span className="text-gray-300">—</span>
-                        )
-                      ) : (
-                        <span className="text-sm text-gray-600">{row.credits}</span>
-                      )}
+                {FEATURE_ROWS.map((row, i) => (
+                  <tr
+                    key={row.label}
+                    className={`border-b border-white/30 ${i % 2 === 0 ? "bg-white/20" : ""}`}
+                  >
+                    <td className="p-5">
+                      <div className="flex items-center gap-2 text-gray-700 font-medium text-sm">
+                        <span className="text-gray-400">{row.icon}</span>
+                        {row.label}
+                      </div>
                     </td>
-                    <td className="p-6 text-center">
-                      {typeof row.subscription === 'boolean' ? (
-                        row.subscription ? (
-                          <Check className="w-5 h-5 text-green-600 mx-auto" />
-                        ) : (
-                          <span className="text-gray-300">—</span>
-                        )
-                      ) : (
-                        <span className="text-sm text-gray-600">{row.subscription}</span>
-                      )}
-                    </td>
+                    <td className="p-5 text-center"><CellValue val={row.free} /></td>
+                    <td className="p-5 text-center bg-amber-50/30"><CellValue val={row.basic} /></td>
+                    <td className="p-5 text-center bg-primary/5"><CellValue val={row.advanced} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -472,27 +540,29 @@ export default function PricingClient({
           </div>
         </motion.div>
 
-        {/* CTA Footer */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
+        {/* ── CTA Footer ───────────────────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
+          transition={{ delay: 0.4 }}
           className="text-center"
         >
-          <div className="glass p-12 rounded-[2.5rem] border border-white">
+          <div className="glass p-12 rounded-[2.5rem] border border-white shadow-2xl shadow-primary/5">
+            <Crown size={36} className="text-primary mx-auto mb-5 opacity-80" />
             <h2 className="text-3xl md:text-4xl font-cormorant font-bold italic text-primary mb-4">
               Ready to Begin Your Vastu Journey?
             </h2>
-            <p className="text-gray-600 mb-8 max-w-xl mx-auto">
-              Start with {FREE_CREDITS} free credits on signup. No credit card required.
+            <p className="text-gray-500 mb-8 max-w-lg mx-auto text-sm leading-relaxed">
+              Start completely free — no credit card required. Upgrade any time to unlock
+              more objects, relocations, and the full commercial library.
             </p>
-            {!isLoggedIn ? (
+            {!userLoggedIn ? (
               <div className="flex flex-col sm:flex-row justify-center gap-4">
                 <Link
                   href="/signup"
-                  className="px-8 py-4 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-all"
+                  className="px-8 py-4 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-all flex items-center gap-2 justify-center"
                 >
-                  Get Started Free
+                  Get Started Free <ArrowRight size={16} />
                 </Link>
                 <Link
                   href="/login"
@@ -504,18 +574,18 @@ export default function PricingClient({
             ) : (
               <Link
                 href="/projects"
-                className="inline-block px-8 py-4 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-all"
+                className="inline-flex items-center gap-2 px-8 py-4 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-all"
               >
-                Go to Dashboard
+                Go to Dashboard <ArrowRight size={16} />
               </Link>
             )}
           </div>
         </motion.div>
 
-        {/* Error Message */}
+        {/* Error */}
         {error && (
           <div className="mt-8 max-w-md mx-auto bg-red-50 border border-red-200 rounded-xl p-4">
-            <p className="text-red-600 text-center">{error}</p>
+            <p className="text-red-600 text-center text-sm">{error}</p>
           </div>
         )}
       </div>

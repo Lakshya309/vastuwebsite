@@ -45,21 +45,44 @@ export async function POST(req: NextRequest) {
     // Get user profile to check role
     const profile = await prisma.profiles.findUnique({
       where: { id: uid },
-      select: { role: true }
+      select: { role: true, valid_from: true, valid_to: true }
     });
 
-    const isAdminOrAstrologer = profile?.role === 'admin' || profile?.role === 'astrologer';
+    const now = new Date();
+    const isAdminOrAstrologer =
+      profile?.role === 'admin' ||
+      (profile?.role === 'astrologer' &&
+        profile.valid_from &&
+        profile.valid_to &&
+        now >= new Date(profile.valid_from) &&
+        now <= new Date(profile.valid_to));
 
-    // Validate Re-upload limits (Max 2 uploads per project)
+    // Check if user has an active paid subscription (basic or advanced)
+    const activeSubscription = await prisma.user_subscriptions.findFirst({
+      where: {
+        user_id: uid,
+        status: { in: ['active', 'trialing'] },
+        expires_at: { gt: now },
+      },
+    });
+
+    const isPaidUser = !!activeSubscription;
+
+    // Validate re-upload limits:
+    //   Free users:  max 1 upload (no retry)
+    //   Paid users:  max 2 uploads (1 retry)
+    //   Admin/Astrologer: unlimited
     const uploadCount = await prisma.map_plots.count({
       where: { project_id: projectId }
     });
 
-    if (uploadCount >= 2 && !isAdminOrAstrologer) {
-      return NextResponse.json(
-        { message: "Maximum upload limit reached. You can only re-upload once." },
-        { status: 403 }
-      );
+    const maxUploads = isAdminOrAstrologer ? Infinity : isPaidUser ? 2 : 1;
+
+    if (uploadCount >= maxUploads) {
+      const message = isPaidUser
+        ? "Maximum upload limit reached. You can only re-upload once."
+        : "Free plan allows only 1 map upload. Upgrade to Basic or Advanced to re-upload.";
+      return NextResponse.json({ message }, { status: 403 });
     }
 
     const fileBuffer = Buffer.from(await file.arrayBuffer());

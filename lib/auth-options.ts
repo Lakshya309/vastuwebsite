@@ -32,14 +32,19 @@ export const authOptions: AuthOptions = {
         }
 
         try {
+        const normalizedEmail = credentials.email.trim().toLowerCase();
+
+        try {
           const profile = await prisma.profiles.findFirst({
-            where: { email: credentials.email }
+            where: {
+              email: { equals: normalizedEmail, mode: "insensitive" }
+            }
           });
 
           console.log("[AUTH DEBUG] Profile query finished. Found profile?", !!profile);
 
           if (!profile) {
-            console.log("[AUTH DEBUG] No profile found for email:", credentials.email);
+            console.log("[AUTH DEBUG] No profile found for email:", normalizedEmail);
             throw new Error("Invalid email or password");
           }
 
@@ -76,10 +81,14 @@ export const authOptions: AuthOptions = {
     async signIn({ user }) {
       if (!user.email) return false;
 
+      const normalizedEmail = user.email.trim().toLowerCase();
+
       try {
-        // Attempt to find the user first
+        // Attempt to find the user first using case-insensitive email match
         let profile = await prisma.profiles.findFirst({
-          where: { email: user.email }
+          where: {
+            email: { equals: normalizedEmail, mode: "insensitive" }
+          }
         });
 
         if (!profile) {
@@ -90,7 +99,7 @@ export const authOptions: AuthOptions = {
             prisma.profiles.create({
               data: {
                 id: newId,
-                email: user.email,
+                email: normalizedEmail,
                 role: "user",
               },
             }),
@@ -105,6 +114,16 @@ export const authOptions: AuthOptions = {
           user.id = newId;
         } else {
           user.id = profile.id;
+          
+          // Ensure user_credits record exists for existing user profile
+          await prisma.user_credits.upsert({
+            where: { user_id: profile.id },
+            update: {},
+            create: {
+              user_id: profile.id,
+              credits: 0,
+            },
+          });
         }
 
         return true;

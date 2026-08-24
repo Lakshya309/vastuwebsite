@@ -44,55 +44,76 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'Payment already verified', status: 'completed' });
     }
 
-    await prisma.razorpay_payments.create({
-      data: {
-        razorpay_payment_id,
-        razorpay_order_id,
-        razorpay_signature,
-        user_id: userId,
-        amount: order.amount,
-        status: 'captured',
+    // Atomic update to prevent race conditions
+    const updatedOrderResult = await prisma.razorpay_orders.updateMany({
+      where: { 
+        id: order.id, 
+        status: 'pending' 
       },
-    });
-
-    if (order.order_type === 'credits' && order.credits_purchased) {
-      await prisma.user_credits.upsert({
-        where: { user_id: userId },
-        update: {
-          credits: { increment: order.credits_purchased },
-        },
-        create: {
-          user_id: userId,
-          credits: order.credits_purchased,
-        },
-      });
-    }
-
-    if (order.order_type === 'subscription' && order.plan_id) {
-      const plan = await prisma.subscription_plans.findUnique({
-        where: { id: order.plan_id },
-      });
-
-      if (plan) {
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + plan.duration_days);
-
-        await prisma.user_subscriptions.create({
-          data: {
-            user_id: userId,
-            plan_id: plan.id,
-            status: 'active',
-            expires_at: expiresAt,
-            auto_renew: true,
-          },
-        });
-      }
-    }
-
-    await prisma.razorpay_orders.update({
-      where: { id: order.id },
       data: { status: 'completed' },
     });
+
+    if (updatedOrderResult.count === 0) {
+      // Order was already completed by another process (e.g. webhook)
+      return NextResponse.json({ message: 'Payment already verified', status: 'completed' });
+    }
+
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.razorpay_payments.create({
+          data: {
+            razorpay_payment_id,
+            razorpay_order_id,
+            razorpay_signature,
+            user_id: userId,
+            amount: order.amount,
+            status: 'captured',
+          },
+        });
+
+        if (order.order_type === 'credits' && order.credits_purchased) {
+          await tx.user_credits.upsert({
+            where: { user_id: userId },
+            update: {
+              credits: { increment: order.credits_purchased },
+            },
+            create: {
+              user_id: userId,
+              credits: order.credits_purchased,
+            },
+          });
+        }
+
+        if (order.order_type === 'subscription' && order.plan_id) {
+          const plan = await tx.subscription_plans.findUnique({
+            where: { id: order.plan_id },
+          });
+
+          if (plan) {
+            const expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + plan.duration_days);
+
+            await tx.user_subscriptions.create({
+              data: {
+                user_id: userId,
+                plan_id: plan.id,
+                status: 'active',
+                expires_at: expiresAt,
+                auto_renew: true,
+              },
+            });
+          }
+        }
+      });
+    } catch (txError) {
+      // Revert status if transaction fails so it can be retried
+      console.error('Transaction failed, reverting order status:', txError);
+      await prisma.razorpay_orders.update({
+        where: { id: order.id },
+        data: { status: 'pending' },
+      });
+      throw txError;
+    }
 
     return NextResponse.json({
       message: 'Payment verified successfully',

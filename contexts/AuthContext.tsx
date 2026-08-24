@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
+import type { PlanTier } from "@/lib/planConfig";
 
 interface UserProfile {
   id: string;
@@ -14,6 +15,7 @@ interface UserProfile {
 interface User {
   id: string;
   email: string | null;
+  plan: PlanTier;
   profile?: UserProfile | null;
 }
 

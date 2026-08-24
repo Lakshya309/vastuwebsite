@@ -14,6 +14,7 @@ import { ControlPanel } from "@/components/floor-plan/ControlPanel";
 import { DevtaInfoCard } from "@/components/floor-plan/DevtaInfoCard";
 import { MobileMapView } from "@/components/floor-plan/MobileMapView";
 import { PremiumUpgradeModal } from "@/components/floor-plan/PremiumUpgradeModal";
+import { PLAN_LIMITS } from "@/lib/planConfig";
 
 import { PlacedObject, DevtaRegion, Point, Wall } from "@/lib/floorPlanInterfaces";
 import {
@@ -51,15 +52,27 @@ export default function FloorPlanPage() {
 
   const { user } = useAuth();
   const isAdminOrAstrologer = user?.profile?.role === "admin" || user?.profile?.role === "astrologer";
-  const effectiveIsPremium = isPremium || isAdminOrAstrologer;
+  const userPlan = isAdminOrAstrologer ? "advanced" : (user?.plan ?? "free");
+  const effectiveIsPremium = userPlan !== "free" || isAdminOrAstrologer;
 
   const handleDragEnd = (id: string) => {
+    const planLimits = PLAN_LIMITS[userPlan as keyof typeof PLAN_LIMITS] ?? PLAN_LIMITS.free;
+    const maxRelocations = planLimits.maxRelocationsPerObject;
+
     setPlacedObjects((prev) =>
       prev.map((obj) => {
         if (obj.id === id) {
+          const currentCount = (obj as any).relocation_count || 0;
+
+          // Block relocation if limit reached
+          if (maxRelocations > 0 && currentCount >= maxRelocations) {
+            // Show upgrade toast (handled by canvas via isLocked flag on next drag)
+            return obj; // Don't increment; object is already at limit
+          }
+
           return {
             ...obj,
-            relocation_count: ((obj as any).relocation_count || 0) + 1,
+            relocation_count: currentCount + 1,
           };
         }
         return obj;
@@ -769,17 +782,30 @@ export default function FloorPlanPage() {
         handleFinishDrawingBoundary();
       }
 
+      // Lock the boundary in metadata after first save
+      const currentMeta = (project?.metadata as any) || {};
+      const shouldLock = boundary.length > 0 && !currentMeta.boundary_locked;
+      const updatedMeta = shouldLock
+        ? { ...currentMeta, boundary_locked: true }
+        : currentMeta;
+
       const response = await fetch(`/api/projects/${projectId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           boundary_normalized: boundary,
           north_direction: liveNorthDirection,
+          ...(shouldLock ? { metadata: updatedMeta } : {}),
         }),
       });
 
       if (!response.ok) {
         throw new Error("Failed to save project data.");
+      }
+
+      // Update local project state to reflect the lock
+      if (shouldLock) {
+        setProject((prev: any) => prev ? { ...prev, metadata: updatedMeta } : prev);
       }
 
       if (boundary.length > 0) {
@@ -792,11 +818,9 @@ export default function FloorPlanPage() {
         }
       }
 
-
       // Phase change handled via scrolling down
     } catch (error) {
       console.error(error);
-      // You might want to show an error message to the user
     }
   };
 
@@ -1044,11 +1068,13 @@ export default function FloorPlanPage() {
 
                 {/* Control Panel (Right) */}
                 <div className="h-full overflow-y-auto flex-shrink-0">
-                  <ControlPanel
+                <ControlPanel
                     projectId={projectId}
                     error={error || analysisError}
                     loading={loading}
                     isPremium={effectiveIsPremium}
+                    userPlan={userPlan as any}
+                    boundaryLocked={!!(project?.metadata as any)?.boundary_locked}
                     propertyType={propertyType}
                     commercialType={commercialType}
                     onPropertyTypeChange={handlePropertyTypeChange}
@@ -1218,6 +1244,8 @@ export default function FloorPlanPage() {
                 error={error || analysisError}
                 loading={loading}
                 isPremium={effectiveIsPremium}
+                userPlan={userPlan as any}
+                boundaryLocked={!!(project?.metadata as any)?.boundary_locked}
                 propertyType={propertyType}
                 commercialType={commercialType}
                 onPropertyTypeChange={handlePropertyTypeChange}

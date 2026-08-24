@@ -2,92 +2,71 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/db';
 import PricingClient from './PricingClient';
-
-interface SubscriptionPlan {
-  id: string;
-  name: string;
-  description: string | null;
-  price_inr: number;
-  duration_days: number;
-  plan_type: string;
-  features: Record<string, unknown> | null;
-}
+import type { PlanTier } from '@/lib/planConfig';
 
 async function getUserData() {
   const session = await getServerSession(authOptions);
   const user = session?.user as any;
 
-  let credits = 0;
-  let hasActiveSubscription = false;
+  let userPlan: PlanTier = "free";
   let userLoggedIn = false;
 
   if (user && user.id) {
     userLoggedIn = true;
-    
+
     const profile = await prisma.profiles.findUnique({
       where: { id: user.id },
-      select: { id: true, role: true, valid_from: true, valid_to: true },
+      select: { role: true, valid_from: true, valid_to: true },
     });
 
-    const userCredits = await prisma.user_credits.findUnique({
-      where: { user_id: user.id },
-      select: { credits: true },
-    });
-
-    credits = userCredits?.credits ?? 0;
-
+    // Check active subscription
     const subscription = await prisma.user_subscriptions.findFirst({
       where: {
         user_id: user.id,
         status: { in: ['active', 'trialing'] },
         expires_at: { gt: new Date() },
       },
+      include: { plans: true },
     });
 
     const now = new Date();
-    const isAstrologerWithActiveSubscription =
+    const isAstrologerActive =
       profile?.role === 'astrologer' &&
       profile.valid_from &&
       profile.valid_to &&
       now >= new Date(profile.valid_from) &&
       now <= new Date(profile.valid_to);
 
-    hasActiveSubscription = (!!subscription || isAstrologerWithActiveSubscription) ?? false;
+    if (profile?.role === 'admin' || isAstrologerActive) {
+      userPlan = "advanced";
+    } else if (subscription) {
+      // Derive plan tier from subscription plan name
+      const planName = subscription.plans?.name?.toLowerCase() ?? "";
+      if (planName.includes("advanced") || planName.includes("pro")) {
+        userPlan = "advanced";
+      } else if (planName.includes("basic")) {
+        userPlan = "basic";
+      } else {
+        userPlan = "basic"; // default paid = basic
+      }
+    }
   }
 
-  const dbPlans = await prisma.subscription_plans.findMany({
-    where: { is_active: true },
-    orderBy: { price_inr: 'asc' },
-  });
-
-  const subscriptions: SubscriptionPlan[] = dbPlans.map(p => ({
-    id: p.id,
-    name: p.name,
-    description: p.description,
-    price_inr: p.price_inr,
-    duration_days: p.duration_days,
-    plan_type: p.plan_type,
-    features: null,
-  }));
-
   return {
-    user: userLoggedIn ? user : null,
     userEmail: user?.email ?? null,
-    credits,
-    hasActiveSubscription,
-    subscriptions,
+    userPlan,
+    userLoggedIn,
   };
 }
 
 export default async function PricingPage() {
-  const { user, userEmail, credits, hasActiveSubscription, subscriptions } = await getUserData();
+  const { userEmail, userPlan, userLoggedIn } = await getUserData();
 
   return (
     <PricingClient
-      subscriptions={subscriptions}
-      hasActiveSubscription={hasActiveSubscription}
-      userCredits={credits}
       userEmail={userEmail}
+      userPlan={userPlan}
+      userLoggedIn={userLoggedIn}
     />
   );
 }
