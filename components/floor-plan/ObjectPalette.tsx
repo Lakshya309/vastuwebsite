@@ -5,6 +5,7 @@ import React, { useState, useEffect } from "react";
 import { Crown, ChevronDown, ChevronUp, Layers, Zap } from "lucide-react";
 import { getObjectIcon } from "@/lib/objectIcons";
 import { isObjectAccessible, getRequiredTier, type PlanTier } from "@/lib/planConfig";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface ObjectPaletteItemProps {
   objectType: string;
@@ -198,6 +199,7 @@ export const ObjectPalette: React.FC<ObjectPaletteProps> = ({
   commercialType = "general",
   onPropertyTypeChange,
 }) => {
+  const { isObjectAllowed, access } = useAuth();
   // Resolve effective plan: if legacy isPremium is passed and no userPlan, treat as basic
   const effectivePlan: PlanTier = userPlan ?? (isPremium ? "basic" : "free");
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
@@ -357,7 +359,9 @@ export const ObjectPalette: React.FC<ObjectPaletteProps> = ({
                 <div className="p-3 bg-white/10 border-t border-gray-100/50">
                   <div className="grid grid-cols-3 gap-1.5 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
                     {category.items.map((item) => {
-                      const accessible = isObjectAccessible(item, effectivePlan);
+                      const accessible = access
+                        ? isObjectAllowed(item)
+                        : isObjectAccessible(item, effectivePlan);
                       const reqTier = getRequiredTier(item);
                       return (
                         <ObjectPaletteItem
