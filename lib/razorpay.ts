@@ -59,7 +59,7 @@ export async function createRazorpayOrder(params: CreateOrderParams) {
   const options = {
     amount: amount * 100,
     currency,
-    receipt: receipt || `rcpt_${userId}_${Date.now()}`,
+    receipt: (receipt || `rcpt_${userId.replace(/-/g, '').slice(0, 8)}_${Date.now()}`).slice(0, 40),
     notes: {
       userId,
       orderType,

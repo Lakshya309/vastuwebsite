@@ -35,9 +35,10 @@ export async function POST(request: NextRequest) {
         orderBy: { price_inr: 'asc' },
       });
 
-      // If no DB plan exists yet, use config price directly
+      const shortUser = userId.replace(/-/g, '').slice(0, 8);
+      // Ensure receipt string length is strictly <= 40 chars for Razorpay API
       const orderAmount = plan ? plan.price_inr : priceConfig.total;
-      const receipt = `tier_${tier}_${userId}_${Date.now()}`;
+      const receipt = `tr_${tier}_${shortUser}_${Date.now()}`.slice(0, 40);
 
       const order = await createRazorpayOrder({
         userId,
@@ -75,12 +76,15 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid package' }, { status: 400 });
       }
 
+      const shortUser = userId.replace(/-/g, '').slice(0, 8);
+      const receipt = `cr_${shortUser}_${Date.now()}`.slice(0, 40);
+
       const order = await createRazorpayOrder({
         userId,
         amount: creditPackage.priceInr,
         orderType: 'credits',
         credits: creditPackage.credits,
-        receipt: `cr_${userId}_${Date.now()}`,
+        receipt,
       });
 
       await prisma.razorpay_orders.create({
@@ -114,12 +118,15 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid plan' }, { status: 400 });
       }
 
+      const shortUser = userId.replace(/-/g, '').slice(0, 8);
+      const receipt = `sb_${shortUser}_${Date.now()}`.slice(0, 40);
+
       const order = await createRazorpayOrder({
         userId,
         amount: plan.price_inr,
         orderType: 'subscription',
         planId: plan.id,
-        receipt: `sub_${userId}_${Date.now()}`,
+        receipt,
       });
 
       await prisma.razorpay_orders.create({
