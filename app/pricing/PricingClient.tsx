@@ -236,6 +236,30 @@ export default function PricingClient({
           }
         },
         prefill: { email: userEmail || "" },
+        config: {
+          display: {
+            blocks: {
+              upi: {
+                name: "Pay via UPI / QR",
+                instruments: [
+                  { method: "upi" },
+                ],
+              },
+              other: {
+                name: "Other Payment Methods",
+                instruments: [
+                  { method: "card" },
+                  { method: "netbanking" },
+                  { method: "wallet" },
+                ],
+              },
+            },
+            sequence: ["block.upi", "block.other"],
+            preferences: {
+              show_default_blocks: true,
+            },
+          },
+        },
         theme: { color: "#4f46e5" },
       };
 
