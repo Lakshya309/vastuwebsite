@@ -32,9 +32,8 @@ export const authOptions: AuthOptions = {
         }
 
         try {
-        const normalizedEmail = credentials.email.trim().toLowerCase();
+          const normalizedEmail = credentials.email.trim().toLowerCase();
 
-        try {
           const profile = await prisma.profiles.findFirst({
             where: {
               email: { equals: normalizedEmail, mode: "insensitive" }
@@ -48,12 +47,12 @@ export const authOptions: AuthOptions = {
             throw new Error("Invalid email or password");
           }
 
-          if (!profile.password) {
+          if (!(profile as any).password) {
             console.log("[AUTH DEBUG] Profile found but has no password hash");
             throw new Error("This account is linked to Google. Please sign in with Google.");
           }
 
-          const isValid = verifyPassword(credentials.password, profile.password);
+          const isValid = verifyPassword(credentials.password, (profile as any).password);
           console.log("[AUTH DEBUG] Password verification result:", isValid);
 
           if (!isValid) {

@@ -29,12 +29,12 @@ export async function POST(req: NextRequest) {
     });
 
     if (existingUser) {
-      if (!existingUser.password) {
+      if (!(existingUser as any).password) {
         // User created account via Google OAuth. Set password so they can log in via both methods to the SAME profile ID.
         const hashedPassword = hashPassword(password);
         await prisma.profiles.update({
           where: { id: existingUser.id },
-          data: { password: hashedPassword },
+          data: { password: hashedPassword } as any,
         });
 
         await prisma.user_credits.upsert({
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
         email: normalizedEmail,
         password: hashedPassword,
         role: "user",
-      },
+      } as any,
     });
 
     // Ensure user has a credits record
