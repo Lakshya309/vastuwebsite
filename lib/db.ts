@@ -9,13 +9,16 @@ const prismaClientSingleton = () => {
   if (dbUrl) {
     try {
       const parsedUrl = new URL(dbUrl);
+      const sslParam = parsedUrl.searchParams.get("sslmode") || parsedUrl.searchParams.get("ssl");
+      const useSsl = sslParam === "require" || sslParam === "true";
+
       pool = new Pool({
         host: parsedUrl.hostname,
         port: parsedUrl.port ? parseInt(parsedUrl.port) : 5432,
         database: parsedUrl.pathname.slice(1),
         user: parsedUrl.username,
         password: decodeURIComponent(parsedUrl.password),
-        ssl: parsedUrl.searchParams.get("sslmode") !== "disable" ? { rejectUnauthorized: false } : undefined,
+        ssl: useSsl ? { rejectUnauthorized: false } : undefined,
       });
     } catch (e) {
       console.warn("Prisma Client Pool fallback: invalid connection string format. Using raw URL.", e);
