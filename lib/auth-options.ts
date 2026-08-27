@@ -44,12 +44,12 @@ export const authOptions: AuthOptions = {
             throw new Error("Invalid email or password");
           }
 
-          if (!profile.password) {
+          if (!(profile as any).password) {
             console.log("[AUTH DEBUG] Profile found but has no password hash");
             throw new Error("This email was registered with Google. Please sign in with Google.");
           }
 
-          const isValid = verifyPassword(credentials.password, profile.password);
+          const isValid = verifyPassword(credentials.password, (profile as any).password);
           console.log("[AUTH DEBUG] Password verification result:", isValid);
 
           if (!isValid) {
@@ -150,6 +150,20 @@ export const authOptions: AuthOptions = {
     },
   },
   secret: process.env.NEXTAUTH_SECRET,
+  useSecureCookies: process.env.NODE_ENV === "production" || process.env.NEXTAUTH_URL?.startsWith("https://"),
+  cookies: {
+    sessionToken: {
+      name: (process.env.NODE_ENV === "production" || process.env.NEXTAUTH_URL?.startsWith("https://"))
+        ? "__Secure-next-auth.session-token"
+        : "next-auth.session-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production" || process.env.NEXTAUTH_URL?.startsWith("https://"),
+      },
+    },
+  },
   pages: {
     signIn: "/login",
   },

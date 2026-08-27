@@ -6,9 +6,9 @@ export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
   // ==============================
-  // CORS HANDLING FOR API ROUTES
+  // CORS HANDLING FOR API ROUTES (EXCLUDING NEXT-AUTH)
   // ==============================
-  if (pathname.startsWith('/api')) {
+  if (pathname.startsWith('/api') && !pathname.startsWith('/api/auth')) {
 
     const origin = request.headers.get('origin') || ''
 
@@ -55,9 +55,15 @@ export async function middleware(request: NextRequest) {
   // ==============================
   // NEXT-AUTH JWT MIDDLEWARE
   // ==============================
+  const isSecure =
+    process.env.NODE_ENV === 'production' ||
+    request.headers.get('x-forwarded-proto') === 'https' ||
+    request.nextUrl.protocol === 'https:'
+
   const token = await getToken({
     req: request,
     secret: process.env.NEXTAUTH_SECRET,
+    secureCookie: isSecure,
   })
 
   // ==============================

@@ -14,8 +14,8 @@ export function hashPassword(password: string): string {
  */
 export function verifyPassword(password: string, storedHash: string): boolean {
   try {
-    // If it's a Supabase Bcrypt hash
-    if (storedHash.startsWith("$2a$") || storedHash.startsWith("$2b$")) {
+    // If it's a standard Bcrypt hash ($2a$, $2b$, $2y$)
+    if (storedHash.startsWith("$2a$") || storedHash.startsWith("$2b$") || storedHash.startsWith("$2y$") || storedHash.startsWith("$2")) {
       return bcrypt.compareSync(password, storedHash);
     }
 
