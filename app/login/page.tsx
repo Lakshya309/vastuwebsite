@@ -4,6 +4,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { useAuth } from "@/contexts/AuthContext";
 
 function LoginContent() {
   const [email, setEmail] = useState("");
@@ -13,6 +14,7 @@ function LoginContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const router = useRouter();
+  const { refresh } = useAuth();
 
   React.useEffect(() => {
     const urlError = searchParams.get("error");
@@ -52,7 +54,8 @@ function LoginContent() {
         throw new Error(result.error || "Invalid email or password");
       }
 
-      window.location.href = redirectTo;
+      await refresh();
+      window.location.replace(redirectTo);
     } catch (err: any) {
       setError(err.message || "An unexpected error occurred");
       setIsLoading(false);
