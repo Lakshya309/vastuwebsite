@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { PLAN_PRICES, PLAN_LIMITS, CREDIT_PACKAGES } from "@/lib/planConfig";
+import { PLAN_PRICES, PLAN_LIMITS } from "@/lib/planConfig";
+import { CREDIT_PACKAGES } from "@/lib/razorpay";
 
 export const dynamic = "force-dynamic";
 
