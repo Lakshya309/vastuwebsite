@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
 
     // Create profile and credits in a transaction
     const profile = await prisma.$transaction(async (tx) => {
-      const newProfile = await tx.profiles.create({
+      const newProfile = await (tx.profiles.create as any)({
         data: {
           id: newId,
           email: email.toLowerCase(),

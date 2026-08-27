@@ -123,20 +123,17 @@ export const authOptions: AuthOptions = {
     },
     async jwt({ token, user }) {
       if (user) {
+        // Only runs on sign-in — fetch role once and store in JWT
         token.id = user.id;
-      }
-      
-      // Fetch fresh role from DB on every token refresh
-      if (token.id) {
         try {
           const dbProfile = await prisma.profiles.findUnique({
-            where: { id: token.id as string },
+            where: { id: user.id as string },
             select: { role: true },
           });
           token.role = dbProfile?.role || "user";
         } catch (error) {
-          console.error("Error fetching fresh role in jwt callback:", error);
-          if (!token.role) token.role = "user"; // Fallback
+          console.error("Error fetching role on sign-in:", error);
+          token.role = "user";
         }
       }
       return token;

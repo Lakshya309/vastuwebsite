@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (existingUser) {
-      if (!existingUser.password) {
+      if (!(existingUser as any).password) {
         return NextResponse.json(
           { error: "This email is already linked to a Google account. Please sign in with Google." },
           { status: 400 }
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
     const hashedPassword = hashPassword(password);
 
     // Create the profile
-    const profile = await prisma.profiles.create({
+    const profile = await (prisma.profiles.create as any)({
       data: {
         id: newId,
         email: email.toLowerCase(),

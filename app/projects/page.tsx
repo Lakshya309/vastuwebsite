@@ -21,7 +21,7 @@ export default function ProjectsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
   const fetchProjects = useCallback(async () => {
     try {
@@ -31,7 +31,7 @@ export default function ProjectsPage() {
 
       if (response.status === 401) {
         setProjects([]);
-        router.push("/");
+        router.push("/login");
         return;
       }
 
@@ -73,16 +73,20 @@ export default function ProjectsPage() {
   };
 
   useEffect(() => {
+    // Wait until auth state is resolved
+    if (authLoading) return;
+
     if (!user) {
-      setProjects([]);
-      setLoading(false);
+      // Not authenticated — middleware should have redirected, but just in case:
+      router.push("/login");
       return;
     }
 
     fetchProjects();
-  }, [user, fetchProjects]);
+  }, [user, authLoading, fetchProjects, router]);
 
-  if (loading || !user) {
+  // Show spinner only while auth or data is loading
+  if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">

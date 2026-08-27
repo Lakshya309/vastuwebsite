@@ -19,11 +19,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
     }
 
-    if (!profile.password) {
+    if (!(profile as any).password) {
       return NextResponse.json({ error: "This email was registered with Google. Please use Google Sign-In." }, { status: 401 });
     }
 
-    const isValid = verifyPassword(password, profile.password);
+    const isValid = verifyPassword(password, (profile as any).password);
     if (!isValid) {
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
     }

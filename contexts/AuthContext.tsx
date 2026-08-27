@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { getSession, SessionProvider } from "next-auth/react";
+import { useSession } from "next-auth/react";
 
 interface UserProfile {
   id: string;
@@ -41,31 +41,26 @@ export const useAuth = () => {
   return context;
 };
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+// Inner component — must be a child of SessionProvider (in layout.tsx)
+function AuthContextInner({ children }: { children: React.ReactNode }) {
+  const { data: session, status, update } = useSession();
+  const [profile, setProfile] = useState<UserProfile | null>(null);
 
-  const fetchUser = async () => {
-    try {
-      setLoading(true);
-      const session = await getSession();
-      if (session?.user) {
-        // Construct base user from session JWT
-        const sessionUser = {
+  const loading = status === "loading";
+
+  const user: User | null =
+    status === "authenticated" && session?.user
+      ? {
           id: (session.user as any).id,
-          email: session.user.email || null,
-          role: (session.user as any).role,
-        };
-        setUser(sessionUser);
-      } else {
-        setUser(null);
-      }
-    } catch (error) {
-      console.error("Error fetching session:", error);
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
+          email: session.user.email ?? null,
+          role: (session.user as any).role ?? "user",
+          profile: profile ?? undefined,
+        }
+      : null;
+
+  // Refresh session (calls /api/auth/session internally via NextAuth)
+  const refresh = async () => {
+    await update();
   };
 
   const fetchProfile = async () => {
@@ -74,22 +69,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const response = await fetch("/api/auth/user");
       const data = await response.json();
       if (data.user?.profile) {
-        setUser((prev) => prev ? { ...prev, profile: data.user.profile } : null);
+        setProfile(data.user.profile);
       }
     } catch (error) {
       console.error("Error fetching profile:", error);
     }
   };
 
-  useEffect(() => {
-    fetchUser();
-  }, []);
-
   return (
-    <SessionProvider>
-      <AuthContext.Provider value={{ user, loading, refresh: fetchUser, fetchProfile }}>
-        {children}
-      </AuthContext.Provider>
-    </SessionProvider>
+    <AuthContext.Provider value={{ user, loading, refresh, fetchProfile }}>
+      {children}
+    </AuthContext.Provider>
   );
+}
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
+  return <AuthContextInner>{children}</AuthContextInner>;
 };

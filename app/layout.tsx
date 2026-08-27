@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import { Cormorant_Garamond, Inter } from "next/font/google"; // Cormorant Garamond for Serifs, Inter for UI
+import { Cormorant_Garamond, Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { SessionProvider } from "next-auth/react";
 import Navbar from "../components/Navbar";
 
 const cormorant = Cormorant_Garamond({
@@ -31,12 +32,13 @@ export default function RootLayout({
       <body
         className={`${cormorant.variable} ${inter.variable} font-inter antialiased bg-background text-foreground selection:bg-teal-100 grid-overlay organic-gradient`}
       >
-        <AuthProvider>
-          <Navbar />
-          {children}
-        </AuthProvider>
+        <SessionProvider>
+          <AuthProvider>
+            <Navbar />
+            {children}
+          </AuthProvider>
+        </SessionProvider>
       </body>
     </html>
   );
 }
-
