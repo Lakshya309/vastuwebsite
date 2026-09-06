@@ -21,11 +21,13 @@ export async function POST(request: NextRequest) {
 
     const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
 
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetPlanId);
+
     // 1. Try finding in DB subscription_plans
     const dbPlan = await prisma.subscription_plans.findFirst({
       where: {
         OR: [
-          { id: targetPlanId },
+          ...(isUuid ? [{ id: targetPlanId }] : []),
           { name: { equals: targetPlanId, mode: 'insensitive' } },
         ],
         is_active: true,
