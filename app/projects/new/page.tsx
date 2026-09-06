@@ -224,6 +224,12 @@ export default function NewProjectPage() {
               </button>
             </div>
 
+            {plotType === "upload" && (
+              <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 p-2.5 rounded-lg leading-relaxed">
+                ℹ️ <strong>Note:</strong> Map Upload is available for <strong>Basic (₹999 + GST)</strong> and <strong>Advanced (₹2500 + GST)</strong> plans. Free tier supports <strong>Manual Plot</strong> creation.
+              </p>
+            )}
+
             {plotType === "manual" && (
               <div className="space-y-4">
                 <div className="flex gap-4 p-1 bg-gray-100 rounded-lg">

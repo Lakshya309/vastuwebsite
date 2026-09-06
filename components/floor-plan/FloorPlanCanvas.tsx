@@ -167,6 +167,173 @@ const isPointNearLineSegment = (
 };
 
 
+/**
+ * Polyfill for ctx.roundRect (Chrome 99+ only)
+ */
+function fillRoundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number, y: number, w: number, h: number, r: number
+) {
+  r = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+/**
+ * For a zone polygon, finds the true outer boundary arc.
+ *
+ * Strategy: identify which vertex is the "apex" (plot centroid) by finding
+ * the polygon vertex closest to the known centroid pixel position. Then walk
+ * the polygon to find the contiguous arc of vertices that does NOT include
+ * the apex — that is the outer boundary arc.
+ */
+function computeZoneOuterArc(
+  pts: { x: number; y: number }[],
+  realScale: number | null,
+  centroidPx: { x: number; y: number } | null
+) {
+  if (pts.length < 3) return null;
+
+  // 1. Find the apex vertex (the plot centroid vertex in the polygon).
+  //    If no centroid provided, fall back to the point closest to the
+  //    polygon's own centroid (innermost point).
+  let apexIdx = 0;
+  if (centroidPx) {
+    let minDist = Infinity;
+    pts.forEach((p, i) => {
+      const d = Math.hypot(p.x - centroidPx.x, p.y - centroidPx.y);
+      if (d < minDist) { minDist = d; apexIdx = i; }
+    });
+  } else {
+    // Fallback: vertex closest to polygon centroid = innermost
+    const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
+    const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+    let minDist = Infinity;
+    pts.forEach((p, i) => {
+      const d = Math.hypot(p.x - cx, p.y - cy);
+      if (d < minDist) { minDist = d; apexIdx = i; }
+    });
+  }
+
+  const n = pts.length;
+
+  // 2. Extract the outer arc: consecutive vertices going from apexIdx+1
+  //    all the way around back to apexIdx (wrapping), i.e., every vertex
+  //    except the apex itself.
+  const arcPts: { x: number; y: number }[] = [];
+  for (let i = 1; i < n; i++) {
+    arcPts.push(pts[(apexIdx + i) % n]);
+  }
+  // arcPts now has n-1 vertices forming the outer arc
+
+  // 3. Compute total arc length
+  let totalLen = 0;
+  const cumulative = [0];
+  for (let i = 0; i < arcPts.length - 1; i++) {
+    const dx = arcPts[i + 1].x - arcPts[i].x;
+    const dy = arcPts[i + 1].y - arcPts[i].y;
+    totalLen += Math.sqrt(dx * dx + dy * dy);
+    cumulative.push(totalLen);
+  }
+  if (totalLen < 1) return null;
+
+  // 4. Interpolate midpoint along the arc
+  const halfLen = totalLen / 2;
+  let midPt = arcPts[0];
+  for (let i = 0; i < arcPts.length - 1; i++) {
+    if (cumulative[i + 1] >= halfLen) {
+      const t = (halfLen - cumulative[i]) / (cumulative[i + 1] - cumulative[i]);
+      midPt = {
+        x: arcPts[i].x + t * (arcPts[i + 1].x - arcPts[i].x),
+        y: arcPts[i].y + t * (arcPts[i + 1].y - arcPts[i].y),
+      };
+      break;
+    }
+  }
+
+  // 5. Outward unit normal: from apex → midPt, then inverted for
+  //    slight inward offset (so label sits INSIDE the boundary wall)
+  const apex = pts[apexIdx];
+  const dx = midPt.x - apex.x;
+  const dy = midPt.y - apex.y;
+  const mag = Math.sqrt(dx * dx + dy * dy) || 1;
+
+  return {
+    midPt,                                     // ON the boundary wall
+    nx: -(dx / mag),                           // inward direction
+    ny: -(dy / mag),
+    outX: dx / mag,                            // outward direction
+    outY: dy / mag,
+    apex,
+    totalLen,
+    realArcLength: realScale ? totalLen * realScale : null,
+    edgeStart: arcPts[0],
+    edgeEnd: arcPts[arcPts.length - 1],
+  };
+}
+
+/**
+ * For a point on the boundary wall, determines which wall segment it belongs to
+ * and calculates its linear running distance from the starting corner of that wall.
+ */
+function getWallCornerReference(
+  pt: { x: number; y: number },
+  pxBoundary: { x: number; y: number }[],
+  wallLengths: number[] | undefined,
+  realScale: number | null
+) {
+  if (pxBoundary.length < 2) return null;
+  let bestWallIdx = 0;
+  let minDistToWall = Infinity;
+  let bestT = 0;
+  let bestDistPx = 0;
+
+  for (let i = 0; i < pxBoundary.length; i++) {
+    const p1 = pxBoundary[i];
+    const p2 = pxBoundary[(i + 1) % pxBoundary.length];
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq < 1e-4) continue;
+
+    const t = Math.max(0, Math.min(1, ((pt.x - p1.x) * dx + (pt.y - p1.y) * dy) / lenSq));
+    const projX = p1.x + t * dx;
+    const projY = p1.y + t * dy;
+    const distToLine = Math.hypot(pt.x - projX, pt.y - projY);
+
+    if (distToLine < minDistToWall) {
+      minDistToWall = distToLine;
+      bestWallIdx = i;
+      bestT = t;
+      bestDistPx = Math.hypot(projX - p1.x, projY - p1.y);
+    }
+  }
+
+  let realDist: number | null = null;
+  if (wallLengths && wallLengths[bestWallIdx] != null && wallLengths[bestWallIdx] > 0) {
+    realDist = bestT * wallLengths[bestWallIdx];
+  } else if (realScale) {
+    realDist = bestDistPx * realScale;
+  }
+
+  return {
+    cornerLabel: `C${bestWallIdx + 1}`,
+    wallIdx: bestWallIdx,
+    t: bestT,
+    distPx: bestDistPx,
+    realDist,
+  };
+}
+
 const drawCanvasContent = (
   ctx: CanvasRenderingContext2D,
   width: number,
@@ -450,18 +617,7 @@ const drawCanvasContent = (
       }
     }
 
-    // Draw Boundary Vertices (handles for dragging)
-    if (!isStatic && (drawingMode === "boundary" || drawingMode === "objects" || drawingMode === "select" || !drawingMode)) {
-      ctx.fillStyle = "white";
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = "#2563EB";
-      pxBoundary.forEach((p, idx) => {
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-      });
-    }
+
   }
 
   // Draw measurement line
@@ -575,6 +731,14 @@ const drawCanvasContent = (
     ctx.fillText(region.name, center.x, center.y);
   });
 
+  // Collect zone16 arc data for final-pass label rendering (drawn on boundary wall)
+  const zone16Arcs: Array<{
+    text: string; lx: number; ly: number;
+    nx: number; ny: number; outX: number; outY: number;
+    apex: { x: number; y: number };
+    edgeStart: { x: number; y: number }; edgeEnd: { x: number; y: number };
+  }> = [];
+
   zone16Regions.forEach((region) => {
     if (!region.polygon || region.polygon.length < 3) return;
     const pts = region.polygon.map(toPx);
@@ -585,7 +749,7 @@ const drawCanvasContent = (
 
     const isHighlighted = highlightedZones?.includes(region.name);
     const color = ZONE_COLORS_16[region.name] || "rgba(173, 216, 230, 0.4)";
-    ctx.fillStyle = isHighlighted ? `${color}CC` : `${color}99`; // More opaque if highlighted
+    ctx.fillStyle = isHighlighted ? `${color}CC` : `${color}99`;
     ctx.fill();
     ctx.strokeStyle = isHighlighted ? "red" : "rgba(0,0,0,0.3)";
     ctx.lineWidth = isHighlighted ? 3 : 1;
@@ -595,8 +759,38 @@ const drawCanvasContent = (
     ctx.fillStyle = "#333";
     ctx.font = "10px sans-serif";
     ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
     ctx.fillText(region.name, center.x, center.y);
+
+    // Collect for final-pass rendering directly ON the wall boundary
+    const plotCpx = plotCentroid ? toPx(plotCentroid) : null;
+    const arcInfo = computeZoneOuterArc(pts, realScale ?? null, plotCpx);
+    if (arcInfo && arcInfo.totalLen > 2) {
+      const text = arcInfo.realArcLength !== null
+        ? `${arcInfo.realArcLength.toFixed(1)}\u2032`
+        : `${Math.round(arcInfo.totalLen)}px`;
+      zone16Arcs.push({
+        text,
+        lx: arcInfo.midPt.x, // Directly ON the wall boundary
+        ly: arcInfo.midPt.y,
+        nx: arcInfo.nx,
+        ny: arcInfo.ny,
+        outX: arcInfo.outX,
+        outY: arcInfo.outY,
+        apex: arcInfo.apex,
+        edgeStart: arcInfo.edgeStart,
+        edgeEnd: arcInfo.edgeEnd,
+      });
+    }
   });
+
+  // Collect zone8 arc data for final-pass label rendering
+  const zone8Arcs: Array<{
+    text: string; lx: number; ly: number;
+    nx: number; ny: number; outX: number; outY: number;
+    apex: { x: number; y: number };
+    edgeStart: { x: number; y: number }; edgeEnd: { x: number; y: number };
+  }> = [];
 
   zone8Regions.forEach((region) => {
     if (!region.polygon || region.polygon.length < 3) return;
@@ -609,12 +803,68 @@ const drawCanvasContent = (
     ctx.fill();
     ctx.strokeStyle = "rgba(0,0,0,0.3)";
     ctx.stroke();
+
     const center = getCentroid(pts);
     ctx.fillStyle = "#333";
     ctx.font = "10px sans-serif";
     ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
     ctx.fillText(region.name, center.x, center.y);
+
+    const plotCpx8 = plotCentroid ? toPx(plotCentroid) : null;
+    const arcInfo = computeZoneOuterArc(pts, realScale ?? null, plotCpx8);
+    if (arcInfo && arcInfo.totalLen > 2) {
+      const text = arcInfo.realArcLength !== null
+        ? `${arcInfo.realArcLength.toFixed(1)}\u2032`
+        : `${Math.round(arcInfo.totalLen)}px`;
+      zone8Arcs.push({
+        text,
+        lx: arcInfo.midPt.x, // Directly ON the wall boundary
+        ly: arcInfo.midPt.y,
+        nx: arcInfo.nx,
+        ny: arcInfo.ny,
+        outX: arcInfo.outX,
+        outY: arcInfo.outY,
+        apex: arcInfo.apex,
+        edgeStart: arcInfo.edgeStart,
+        edgeEnd: arcInfo.edgeEnd,
+      });
+    }
   });
+
+  // Collect outer devta arc data for 32 outer devtas (when devtas are displayed)
+  const devtaArcs: Array<{
+    text: string; lx: number; ly: number;
+    nx: number; ny: number; outX: number; outY: number;
+    apex: { x: number; y: number };
+    edgeStart: { x: number; y: number }; edgeEnd: { x: number; y: number };
+  }> = [];
+
+  if (zone16Regions.length === 0 && zone8Regions.length === 0 && devtaRegions.length > 0) {
+    const plotCpxD = plotCentroid ? toPx(plotCentroid) : null;
+    devtaRegions.forEach((region) => {
+      if (region.ring !== "outer" || !region.polygon || region.polygon.length < 3) return;
+      const pts = region.polygon.map(toPx);
+      const arcInfo = computeZoneOuterArc(pts, realScale ?? null, plotCpxD);
+      if (arcInfo && arcInfo.totalLen > 2) {
+        const text = arcInfo.realArcLength !== null
+          ? `${arcInfo.realArcLength.toFixed(1)}\u2032`
+          : `${Math.round(arcInfo.totalLen)}px`;
+        devtaArcs.push({
+          text,
+          lx: arcInfo.midPt.x,
+          ly: arcInfo.midPt.y,
+          nx: arcInfo.nx,
+          ny: arcInfo.ny,
+          outX: arcInfo.outX,
+          outY: arcInfo.outY,
+          apex: arcInfo.apex,
+          edgeStart: arcInfo.edgeStart,
+          edgeEnd: arcInfo.edgeEnd,
+        });
+      }
+    });
+  }
 
   if (hoveredDevta) {
     const region = hoveredDevta;
@@ -734,6 +984,158 @@ const drawCanvasContent = (
       ctx.shadowColor = "transparent"; // remove text shadow
       ctx.fillText("N", 0, 1);
       ctx.restore();
+    ctx.restore();
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  // FINAL PASS: Zone outer span labels — drawn LAST so they sit above all
+  // other content (boundary stroke, compass needle, etc.)
+  // ════════════════════════════════════════════════════════════════════════
+  const allZoneArcs = [...zone16Arcs, ...zone8Arcs, ...devtaArcs];
+  if (allZoneArcs.length > 0) {
+    ctx.save();
+
+    // 1. Draw Tick Marks along the boundary at zone division points
+    const drawnTicks = new Set<string>();
+    ctx.strokeStyle = "#1D4ED8";
+    ctx.lineWidth = 2.5;
+
+    allZoneArcs.forEach(({ apex, edgeStart, edgeEnd }) => {
+      [edgeStart, edgeEnd].forEach((tp) => {
+        const key = `${Math.round(tp.x)},${Math.round(tp.y)}`;
+        if (drawnTicks.has(key)) return;
+        drawnTicks.add(key);
+
+        const rdx = tp.x - apex.x;
+        const rdy = tp.y - apex.y;
+        const rmag = Math.hypot(rdx, rdy) || 1;
+        const rnx = rdx / rmag;
+        const rny = rdy / rmag;
+
+        ctx.beginPath();
+        // Cut 8px inside and 8px outside across the 5px boundary wall
+        ctx.moveTo(tp.x - rnx * 8, tp.y - rny * 8);
+        ctx.lineTo(tp.x + rnx * 8, tp.y + rny * 8);
+        ctx.stroke();
+
+        // Display corner reference distance tag at the tick mark
+        if (boundary.length >= 3) {
+          const pxB = boundary.map(toPx);
+          const ref = getWallCornerReference(tp, pxB, wallLengths, realScale ?? null);
+          if (ref && ref.realDist !== null && ref.t > 0.04 && ref.t < 0.96) {
+            const tagText = `${ref.cornerLabel}+${ref.realDist.toFixed(1)}′`;
+            const tagX = tp.x + rnx * 14;
+            const tagY = tp.y + rny * 14;
+
+            ctx.save();
+            ctx.font = "bold 7.5px 'Inter', Arial, sans-serif";
+            const tMetrics = ctx.measureText(tagText);
+            const tw = tMetrics.width + 6;
+            const th = 12;
+
+            ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+            fillRoundRect(ctx, tagX - tw / 2, tagY - th / 2, tw, th, 2);
+            ctx.fill();
+
+            ctx.strokeStyle = "rgba(37, 99, 235, 0.4)";
+            ctx.lineWidth = 0.8;
+            fillRoundRect(ctx, tagX - tw / 2, tagY - th / 2, tw, th, 2);
+            ctx.stroke();
+
+            ctx.fillStyle = "#1E40AF";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(tagText, tagX, tagY);
+            ctx.restore();
+          }
+        }
+      });
+    });
+
+    // 2. Draw Corner Reference Handles (C1, C2, C3, C4...) on top of the boundary line
+    if (boundary.length > 0 && !isStatic && (drawingMode === "boundary" || drawingMode === "objects" || drawingMode === "select" || !drawingMode)) {
+      const pxB = boundary.map(toPx);
+      pxB.forEach((p, idx) => {
+        ctx.save();
+        ctx.shadowColor = "rgba(0, 0, 0, 0.25)";
+        ctx.shadowBlur = 4;
+        ctx.shadowOffsetY = 1;
+
+        // Solid white circular backdrop to completely mask the 5px blue boundary wall under it
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 10, 0, Math.PI * 2);
+        ctx.fillStyle = "#FFFFFF";
+        ctx.fill();
+        ctx.restore();
+
+        ctx.strokeStyle = "#1D4ED8";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 10, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // High-contrast bold corner text
+        ctx.fillStyle = "#1E3A8A";
+        ctx.font = "bold 9.5px 'Inter', Arial, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(`C${idx + 1}`, p.x, p.y);
+      });
+    }
+
+    // 3. Draw Pill Labels directly on the wall boundary (and offset at corners)
+    ctx.font = "bold 9.5px 'Inter', Arial, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    allZoneArcs.forEach(({ text, lx, ly, apex }) => {
+      let drawX = lx;
+      let drawY = ly;
+
+      // If this label is at a corner vertex (e.g. C1, C2, C3, C4),
+      // offset it outward/upward so it never collides with the corner badge!
+      if (boundary.length > 0) {
+        const pxB = boundary.map(toPx);
+        for (const cp of pxB) {
+          if (Math.hypot(lx - cp.x, ly - cp.y) < 22) {
+            const dx = cp.x - (apex ? apex.x : lx);
+            const dy = cp.y - (apex ? apex.y : ly);
+            const mag = Math.hypot(dx, dy) || 1;
+            // 32px offset gives clean separation: 10px corner + 14px space + 8px half-pill
+            drawX = cp.x + (dx / mag) * 32;
+            drawY = cp.y + (dy / mag) * 32;
+            break;
+          }
+        }
+      }
+
+      const metrics = ctx.measureText(text);
+      const pw = metrics.width + 10;
+      const ph = 16;
+
+      // Subtle elevation shadow so badge pops cleanly off the canvas
+      ctx.save();
+      ctx.shadowColor = "rgba(0, 0, 0, 0.2)";
+      ctx.shadowBlur = 4;
+      ctx.shadowOffsetY = 1;
+
+      // Solid white background pill
+      ctx.fillStyle = "#FFFFFF";
+      fillRoundRect(ctx, drawX - pw / 2, drawY - ph / 2, pw, ph, 4);
+      ctx.fill();
+      ctx.restore();
+
+      // Border matching boundary wall
+      ctx.strokeStyle = "#2563EB";
+      ctx.lineWidth = 1.2;
+      fillRoundRect(ctx, drawX - pw / 2, drawY - ph / 2, pw, ph, 4);
+      ctx.stroke();
+
+      // Bold, high-contrast label text
+      ctx.fillStyle = "#1E3A8A";
+      ctx.fillText(text, drawX, drawY);
+    });
+
     ctx.restore();
   }
 };

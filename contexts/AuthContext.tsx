@@ -10,11 +10,13 @@ interface UserProfile {
   valid_from: string | null;
   valid_to: string | null;
   credits: number;
+  has_active_subscription?: boolean;
 }
 
 interface User {
   id: string;
   email: string | null;
+  name?: string | null;
   role?: string;
   profile?: UserProfile | null;
 }

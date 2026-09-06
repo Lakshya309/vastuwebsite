@@ -19,10 +19,39 @@ function getRazorpay(): Razorpay {
 export const RAZORPAY_WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET || '';
 
 export const CREDIT_PACKAGES = [
-  { id: 'credits_1', credits: 1, priceInr: 99, name: '1 Credit' },
-  { id: 'credits_3', credits: 3, priceInr: 249, name: '3 Credits', popular: true },
-  { id: 'credits_5', credits: 5, priceInr: 399, name: '5 Credits' },
-  { id: 'credits_10', credits: 10, priceInr: 699, name: '10 Credits' },
+  { 
+    id: 'credits_1rs', 
+    credits: 1, 
+    priceInr: 1, 
+    priceWithGst: 1,
+    name: '1 Rupee Test Credit', 
+    description: 'Test payment credit',
+    relocationsLimit: 5,
+    mapUploadAllowed: true,
+    popular: false 
+  },
+  { 
+    id: 'basic_plan', 
+    credits: 1, 
+    priceInr: 999, 
+    priceWithGst: 1179,
+    name: 'Basic Plan', 
+    description: '1 Project Credit • 5 Relocations Limit • Manual Plot & Map Upload',
+    relocationsLimit: 5,
+    mapUploadAllowed: true,
+    popular: false 
+  },
+  { 
+    id: 'advanced_plan', 
+    credits: 1, 
+    priceInr: 2500, 
+    priceWithGst: 2950,
+    name: 'Advanced Plan', 
+    description: '1 Advanced Credit • 5 Relocations Limit • 45 Devta Grid & Shakti Chakra • Full PDF Report',
+    relocationsLimit: 5,
+    mapUploadAllowed: true,
+    popular: true 
+  },
 ];
 
 export interface CreateOrderParams {

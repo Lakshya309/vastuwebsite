@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateAuth } from "@/lib/auth";
+import { validateAuth, checkPaymentAccess } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
 export async function GET(request: NextRequest) {
@@ -96,7 +96,8 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    const isPremium = !!paidAnalysis || userRole === 'admin' || userRole === 'astrologer';
+    const paymentAccess = await checkPaymentAccess(uid);
+    const isPremium = !!paidAnalysis || paymentAccess.hasAccess;
 
     if (!isPremium) {
       // For non-premium users, lock 45 devtas (return empty array)

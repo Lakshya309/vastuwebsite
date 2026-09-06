@@ -42,13 +42,34 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get user profile to check role
+    // Get user profile and credits
     const profile = await prisma.profiles.findUnique({
       where: { id: uid },
       select: { role: true }
     });
 
+    const userCredits = await prisma.user_credits.findUnique({
+      where: { user_id: uid },
+      select: { credits: true }
+    });
+
+    const userSub = await prisma.user_subscriptions.findFirst({
+      where: {
+        user_id: uid,
+        status: { in: ['active', 'trialing'] },
+        expires_at: { gt: new Date() }
+      }
+    });
+
     const isAdminOrAstrologer = profile?.role === 'admin' || profile?.role === 'astrologer';
+    const hasPaidAccess = isAdminOrAstrologer || !!userSub || (userCredits?.credits ?? 0) > 0;
+
+    if (!hasPaidAccess) {
+      return NextResponse.json(
+        { message: "Map Upload is restricted to Basic (₹999+GST) and Advanced (₹2500+GST) plans. Free tier allows manual plot entry only." },
+        { status: 403 }
+      );
+    }
 
     // Validate Re-upload limits (Max 2 uploads per project)
     const uploadCount = await prisma.map_plots.count({

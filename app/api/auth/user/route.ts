@@ -31,6 +31,14 @@ export async function GET(req: NextRequest) {
       select: { credits: true }
     });
 
+    const activeSubscription = await prisma.user_subscriptions.findFirst({
+      where: {
+        user_id: userId,
+        status: { in: ['active', 'trialing'] },
+        expires_at: { gt: new Date() },
+      },
+    });
+
     return NextResponse.json({
       user: {
         id: userId,
@@ -38,6 +46,7 @@ export async function GET(req: NextRequest) {
         profile: profile ? {
           ...profile,
           credits: userCredits?.credits ?? 0,
+          has_active_subscription: !!activeSubscription,
         } : null
       }
     });

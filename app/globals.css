@@ -1,48 +1,221 @@
 @import "tailwindcss";
 
 @theme {
-  /* V1 Modern Palette */
-  --color-background: #ffffff;
+  /* ─── Brand Colours ─── */
+  --color-background: #faf8f4;
   --color-foreground: #1a1a1a;
-  --color-primary: #13547a; /* Teal/Navy accent */
+  --color-primary: #004b6e;
+  --color-primary-dark: #0d3d5a;
   --color-secondary: #80d0c7;
-  --color-accent-gold: #ffd166;
-  
-  /* Redefine shadows to use rgba instead of oklch */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.03), 0 4px 6px -4px rgba(0, 0, 0, 0.03);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.02), 0 8px 10px -6px rgba(0, 0, 0, 0.02);
-  --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
-  --shadow-inner: inset 0 2px 4px 0 rgba(0, 0, 0, 0.05);
+  --color-accent-gold: #d4a853;
+  --color-accent-warm: #e8b87a;
+  --color-cream: #faf3e8;
+  --color-sand: #f4ece0;
+  --color-ink: #1c2333;
+
+  /* ─── Custom Fonts ─── */
+  --font-outfit: var(--font-outfit);
+  --font-cormorant: var(--font-cormorant);
+
+  /* ─── Refined Shadows ─── */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  --shadow: 0 2px 6px 0 rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 12px 28px -4px rgba(0, 0, 0, 0.08);
+  --shadow-xl: 0 24px 48px -8px rgba(19, 84, 122, 0.12);
+  --shadow-2xl: 0 40px 80px -16px rgba(19, 84, 122, 0.16);
 }
 
 :root {
-  --background: #ffffff;
+  --background: #faf8f4;
   --foreground: #1a1a1a;
 }
 
-@layer utilities {
-  .glass {
-    @apply bg-white/40 backdrop-blur-3xl border border-white/20;
+/* ─── Keyframes ─── */
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
   }
-  .grid-overlay {
-    background-size: 40px 40px;
-    background-image: radial-gradient(circle, rgba(0,0,0,0.05) 1px, transparent 1px);
-  }
-  .organic-gradient {
-    background: radial-gradient(circle at 0% 0%, rgba(250, 208, 196, 0.4) 0%, transparent 50%),
-                radial-gradient(circle at 100% 100%, rgba(19, 84, 122, 0.1) 0%, transparent 50%),
-                radial-gradient(circle at 50% 50%, rgba(128, 208, 199, 0.1) 0%, transparent 100%);
-  }
-  .text-serif {
-    @apply font-serif tracking-tight leading-none;
+
+  100% {
+    transform: translateX(-50%);
   }
 }
 
+@keyframes float-a {
 
+  0%,
+  100% {
+    transform: translateY(0px) rotate(0deg);
+  }
 
+  50% {
+    transform: translateY(-18px) rotate(1deg);
+  }
+}
 
+@keyframes float-b {
 
+  0%,
+  100% {
+    transform: translateY(0px) rotate(0deg);
+  }
 
+  50% {
+    transform: translateY(-12px) rotate(-1.5deg);
+  }
+}
+
+@keyframes glow-pulse {
+
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% center;
+  }
+
+  100% {
+    background-position: 200% center;
+  }
+}
+
+@keyframes draw-line {
+  from {
+    scaleX: 0;
+  }
+
+  to {
+    scaleX: 1;
+  }
+}
+
+@layer utilities {
+
+  /* ─── Glassmorphism ─── */
+  .glass {
+    @apply bg-white/50 backdrop-blur-2xl border border-white/30;
+  }
+
+  .glass-dark {
+    @apply bg-[#0e1f2e]/80 backdrop-blur-2xl border border-white/10;
+  }
+
+  /* ─── Background Systems ─── */
+  .grid-overlay {
+    background-size: 44px 44px;
+    background-image: radial-gradient(circle, rgba(19, 84, 122, 0.04) 1px, transparent 1px);
+  }
+
+  .organic-gradient {
+    background:
+      radial-gradient(ellipse 80% 60% at 20% -5%, rgba(244, 236, 220, 0.95) 0%, transparent 55%),
+      radial-gradient(ellipse 60% 50% at 85% 10%, rgba(212, 168, 83, 0.08) 0%, transparent 50%),
+      radial-gradient(ellipse 50% 40% at 50% 90%, rgba(128, 208, 199, 0.07) 0%, transparent 100%),
+      #faf8f4;
+  }
+
+  .dark-island {
+    background: linear-gradient(135deg, #0d1b2a 0%, #0e2235 50%, #0d1b2a 100%);
+    @apply rounded-[3rem] overflow-hidden;
+  }
+
+  /* ─── Logo Mount — neutral card behind emblem ─── */
+  .logo-bg {
+    @apply bg-white/90 ring-1 ring-black/8 shadow-md rounded-2xl p-2 inline-flex;
+  }
+
+  /* ─── Typography Utilities ─── */
+  .text-display {
+    font-family: var(--font-cormorant), Georgia, serif;
+    letter-spacing: -0.03em;
+    line-height: 0.88;
+    font-weight: 700;
+    font-style: italic;
+  }
+
+  .text-display-roman {
+    font-family: var(--font-cormorant), Georgia, serif;
+    letter-spacing: -0.03em;
+    line-height: 0.88;
+    font-weight: 300;
+    font-style: normal;
+  }
+
+  .text-section {
+    font-family: var(--font-cormorant), Georgia, serif;
+    letter-spacing: -0.025em;
+    line-height: 1.05;
+    font-weight: 700;
+    font-style: italic;
+  }
+
+  .text-eyebrow {
+    font-family: var(--font-outfit), system-ui, sans-serif;
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+
+  .text-body {
+    font-family: var(--font-outfit), system-ui, sans-serif;
+    letter-spacing: 0.005em;
+    line-height: 1.7;
+  }
+
+  .text-ui {
+    font-family: var(--font-outfit), system-ui, sans-serif;
+    letter-spacing: 0.02em;
+  }
+
+  /* ─── Section Padding ─── */
+  .section-pad {
+    @apply py-28 md:py-36 px-6 lg:px-24;
+  }
+
+  /* ─── Animations ─── */
+  .animate-marquee {
+    display: flex;
+    width: max-content;
+    animation: marquee 28s linear infinite;
+  }
+
+  .animate-float-a {
+    animation: float-a 6s ease-in-out infinite;
+  }
+
+  .animate-float-b {
+    animation: float-b 8s ease-in-out infinite;
+    animation-delay: -2s;
+  }
+
+  .animate-glow-pulse {
+    animation: glow-pulse 3s ease-in-out infinite;
+  }
+
+  /* ─── Accent line ─── */
+  .accent-line {
+    @apply w-14 h-[2px] bg-accent-gold rounded-full;
+  }
+
+  /* ─── Gold shimmer text ─── */
+  .text-gold-shimmer {
+    background: linear-gradient(90deg, #d4a853 0%, #f0c97a 40%, #d4a853 60%, #b8892e 100%);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: shimmer 4s linear infinite;
+  }
+}

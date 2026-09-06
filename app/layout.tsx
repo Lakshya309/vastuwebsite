@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { Cormorant_Garamond, Inter } from "next/font/google";
+import { Cormorant_Garamond, Outfit } from "next/font/google";
 import "./globals.css";
-import { AuthProvider } from "@/contexts/AuthContext";
-import { SessionProvider } from "next-auth/react";
+import { Providers } from "@/components/Providers";
 import Navbar from "../components/Navbar";
+import Footer from "../components/Footer";
 
 const cormorant = Cormorant_Garamond({
   variable: "--font-cormorant",
@@ -12,9 +12,10 @@ const cormorant = Cormorant_Garamond({
   style: ["normal", "italic"],
 });
 
-const inter = Inter({
-  variable: "--font-inter",
+const outfit = Outfit({
+  variable: "--font-outfit",
   subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -30,14 +31,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${cormorant.variable} ${inter.variable} font-inter antialiased bg-background text-foreground selection:bg-teal-100 grid-overlay organic-gradient`}
+        className={`${cormorant.variable} ${outfit.variable} antialiased bg-background text-foreground selection:bg-teal-100 grid-overlay organic-gradient min-h-screen flex flex-col`}
+        style={{ fontFamily: "var(--font-outfit), system-ui, sans-serif" }}
       >
-        <SessionProvider>
-          <AuthProvider>
-            <Navbar />
-            {children}
-          </AuthProvider>
-        </SessionProvider>
+        <Providers>
+          <Navbar />
+          <div className="flex-1">{children}</div>
+          <Footer />
+        </Providers>
       </body>
     </html>
   );

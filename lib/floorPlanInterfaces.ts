@@ -35,6 +35,8 @@ export interface DevtaRegion {
   center: Point;
   color?: string; // Optional for visualization
   description?: string; // Optional additional info
+  ring?: string;
+  id?: string;
 }
 
 // Based on the usage in hooks/useFloorPlanData.ts and app/admin/AdminProjectTable.tsx

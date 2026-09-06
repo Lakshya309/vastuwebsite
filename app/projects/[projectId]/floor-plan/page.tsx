@@ -51,7 +51,8 @@ export default function FloorPlanPage() {
 
   const { user } = useAuth();
   const isAdminOrAstrologer = user?.profile?.role === "admin" || user?.profile?.role === "astrologer";
-  const effectiveIsPremium = isPremium || isAdminOrAstrologer;
+  const hasActiveSubOrCredits = user?.profile?.has_active_subscription || (user?.profile?.credits ?? 0) > 0;
+  const effectiveIsPremium = isPremium || isAdminOrAstrologer || hasActiveSubOrCredits;
 
   const handleDragEnd = (id: string) => {
     setPlacedObjects((prev) =>

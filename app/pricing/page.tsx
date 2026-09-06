@@ -67,7 +67,7 @@ async function getUserData() {
     price_inr: p.price_inr,
     duration_days: p.duration_days,
     plan_type: p.plan_type,
-    features: null,
+    features: p.features as Record<string, unknown> | null,
   }));
 
   return {

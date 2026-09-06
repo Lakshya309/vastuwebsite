@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { validateAuth } from '@/lib/auth';
 import { verifyPaymentSignature } from '@/lib/razorpay';
+import { fulfillOrder } from '@/lib/paymentFulfillment';
 
 export async function POST(request: NextRequest) {
   try {
@@ -40,62 +41,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Order does not belong to user' }, { status: 403 });
     }
 
-    if (order.status === 'completed') {
-      return NextResponse.json({ message: 'Payment already verified', status: 'completed' });
-    }
-
-    await prisma.razorpay_payments.create({
-      data: {
-        razorpay_payment_id,
-        razorpay_order_id,
-        razorpay_signature,
-        user_id: userId,
-        amount: order.amount,
-        status: 'captured',
-      },
+    const result = await fulfillOrder({
+      orderId: razorpay_order_id,
+      razorpayPaymentId: razorpay_payment_id,
+      razorpaySignature: razorpay_signature,
     });
 
-    if (order.order_type === 'credits' && order.credits_purchased) {
-      await prisma.user_credits.upsert({
-        where: { user_id: userId },
-        update: {
-          credits: { increment: order.credits_purchased },
-        },
-        create: {
-          user_id: userId,
-          credits: order.credits_purchased,
-        },
-      });
+    if (!result.success) {
+      return NextResponse.json({ error: result.error || 'Fulfillment failed' }, { status: result.status || 500 });
     }
-
-    if (order.order_type === 'subscription' && order.plan_id) {
-      const plan = await prisma.subscription_plans.findUnique({
-        where: { id: order.plan_id },
-      });
-
-      if (plan) {
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + plan.duration_days);
-
-        await prisma.user_subscriptions.create({
-          data: {
-            user_id: userId,
-            plan_id: plan.id,
-            status: 'active',
-            expires_at: expiresAt,
-            auto_renew: true,
-          },
-        });
-      }
-    }
-
-    await prisma.razorpay_orders.update({
-      where: { id: order.id },
-      data: { status: 'completed' },
-    });
 
     return NextResponse.json({
-      message: 'Payment verified successfully',
+      message: result.alreadyCompleted ? 'Payment already verified' : 'Payment verified successfully',
       status: 'completed',
       orderType: order.order_type,
     });

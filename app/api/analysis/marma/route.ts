@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateAuth } from "@/lib/auth";
+import { validateAuth, checkPaymentAccess } from "@/lib/auth";
 import { prisma } from "../../../../lib/db";
 import { getMarmaPoints } from "@/lib/marmaAnalysis";
 
@@ -77,7 +77,8 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    const isPremium = !!paidAnalysis || userRole === 'admin' || userRole === 'astrologer';
+    const paymentAccess = await checkPaymentAccess(uid);
+    const isPremium = !!paidAnalysis || paymentAccess.hasAccess;
 
     if (!isPremium) {
       return NextResponse.json(

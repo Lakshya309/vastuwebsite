@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { validateAuth } from '@/lib/auth'
+import { validateAuth, checkPaymentAccess } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { r2Client, BUCKET_NAME } from '@/lib/r2'
 import { GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
@@ -85,8 +85,7 @@ export async function GET(
       }
     }
 
-    // Check if the project is premium (any analysis has report_paid: true)
-    // or if the user has a special role (admin/astrologer)
+    // Check if the project is premium (any analysis has report_paid: true, active subscription, or credits)
     const paidAnalysis = await prisma.analyses.findFirst({
       where: {
         project_id: projectId,
@@ -94,12 +93,8 @@ export async function GET(
       },
     })
 
-    const profile = await prisma.profiles.findUnique({
-      where: { id: authResult.user!.id },
-      select: { role: true },
-    })
-
-    const isPremium = !!paidAnalysis || profile?.role === 'admin' || profile?.role === 'astrologer'
+    const paymentAccess = await checkPaymentAccess(authResult.user!.id)
+    const isPremium = !!paidAnalysis || paymentAccess.hasAccess
 
     return NextResponse.json(
       {

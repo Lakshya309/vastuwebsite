@@ -52,6 +52,10 @@ export async function checkPaymentAccess(userId: string): Promise<PaymentAccessR
     return { hasAccess: false, reason: 'Profile not found' };
   }
 
+  if (profile.role === 'admin') {
+    return { hasAccess: true };
+  }
+
   if (profile.role === 'astrologer') {
     const now = new Date();
     const isSubscriptionActive =
