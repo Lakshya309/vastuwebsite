@@ -58,6 +58,9 @@ interface FloorPlanCanvasProps {
   selectedWall?: Wall | null;
   onMoveBoundaryVertex?: (index: number, newPoint: Point) => void;
   canvasRotation?: number;
+  showCornerBadges?: boolean;
+  showTickLabels?: boolean;
+  showArcLengths?: boolean;
   isPremium?: boolean;
   isUnlimited?: boolean;
   onDragEnd?: (id: string) => void;
@@ -372,7 +375,10 @@ const drawCanvasContent = (
   hoverPoint?: Point | null,
   isStatic?: boolean,
   preloadedShaktiChakraImg?: HTMLImageElement | null,
-  computedLayout?: { drawX: number; drawY: number; drawWidth: number; drawHeight: number }
+  computedLayout?: { drawX: number; drawY: number; drawWidth: number; drawHeight: number },
+  showCornerBadges: boolean = true,
+  showTickLabels: boolean = true,
+  showArcLengths: boolean = true
 ) => {
   const toPx = (p: Point) => {
     if (computedLayout) {
@@ -707,7 +713,7 @@ const drawCanvasContent = (
     const centroid = toPx(plotCentroid);
     ctx.save();
     ctx.translate(centroid.x, centroid.y);
-    ctx.rotate((-northDirection * Math.PI) / 180);
+    ctx.rotate((northDirection * Math.PI) / 180);
     const imageSize = Math.min(width, height) * (shaktiChakraSize || 0.8);
     ctx.drawImage(preloadedShaktiChakraImg, -imageSize / 2, -imageSize / 2, imageSize, imageSize);
     ctx.restore();
@@ -756,6 +762,19 @@ const drawCanvasContent = (
     ctx.stroke();
 
     const center = getCentroid(pts);
+
+    // Draw center ray line from centroid to center_intersection for each zone
+    if (region.center_intersection) {
+      const cent = plotCentroid ? toPx(plotCentroid) : center;
+      const cInt = toPx(region.center_intersection);
+      ctx.beginPath();
+      ctx.moveTo(cent.x, cent.y);
+      ctx.lineTo(cInt.x, cInt.y);
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.2)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
     ctx.fillStyle = "#333";
     ctx.font = "10px sans-serif";
     ctx.textAlign = "center";
@@ -769,6 +788,11 @@ const drawCanvasContent = (
       const text = arcInfo.realArcLength !== null
         ? `${arcInfo.realArcLength.toFixed(1)}\u2032`
         : `${Math.round(arcInfo.totalLen)}px`;
+
+      const bPathPx = region.boundary_path ? region.boundary_path.map(toPx) : null;
+      const edgeStart = bPathPx && bPathPx.length > 0 ? bPathPx[0] : arcInfo.edgeStart;
+      const edgeEnd = bPathPx && bPathPx.length > 1 ? bPathPx[bPathPx.length - 1] : arcInfo.edgeEnd;
+
       zone16Arcs.push({
         text,
         lx: arcInfo.midPt.x, // Directly ON the wall boundary
@@ -778,8 +802,8 @@ const drawCanvasContent = (
         outX: arcInfo.outX,
         outY: arcInfo.outY,
         apex: arcInfo.apex,
-        edgeStart: arcInfo.edgeStart,
-        edgeEnd: arcInfo.edgeEnd,
+        edgeStart,
+        edgeEnd,
       });
     }
   });
@@ -892,8 +916,6 @@ const drawCanvasContent = (
   }
   // Draw North Indicator
   if (boundary.length > 0) {
-    ctx.save();
-
     let anchorPoint = plotCentroid;
 
     if (!anchorPoint && boundary.length > 0) {
@@ -904,8 +926,28 @@ const drawCanvasContent = (
     const xCenter = pxCentroid.x;
     const yCenter = pxCentroid.y;
 
+    ctx.save();
+    if (boundary.length >= 3) {
+      ctx.beginPath();
+      const pxB = boundary.map(toPx);
+      ctx.moveTo(pxB[0].x, pxB[0].y);
+      pxB.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
+      ctx.closePath();
+      ctx.clip();
+    }
+
     ctx.translate(xCenter, yCenter);
-    ctx.rotate(-(northDirection * Math.PI) / 180);
+    ctx.rotate((northDirection * Math.PI) / 180);
+
+    // True North-South Axis Line (perfect long-distance centerline)
+    ctx.beginPath();
+    ctx.moveTo(0, -20000);
+    ctx.lineTo(0, 20000);
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = "rgba(211, 47, 47, 0.75)";
+    ctx.setLineDash([8, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
 
     const compassSize = 40;
     const compassWidth = 10;
@@ -966,7 +1008,7 @@ const drawCanvasContent = (
       ctx.save();
       ctx.translate(0, -compassSize - 18);
       // Un-rotate the text so it's always 'upright' for readability
-      ctx.rotate((northDirection * Math.PI) / 180); 
+      ctx.rotate((-northDirection * Math.PI) / 180); 
       
       // Draw a subtle white backdrop circle for the N letter to ensure high contrast against any background
       ctx.beginPath();
@@ -1019,7 +1061,7 @@ const drawCanvasContent = (
         ctx.stroke();
 
         // Display corner reference distance tag at the tick mark
-        if (boundary.length >= 3) {
+        if (showTickLabels && boundary.length >= 3) {
           const pxB = boundary.map(toPx);
           const ref = getWallCornerReference(tp, pxB, wallLengths, realScale ?? null);
           if (ref && ref.realDist !== null && ref.t > 0.04 && ref.t < 0.96) {
@@ -1053,7 +1095,7 @@ const drawCanvasContent = (
     });
 
     // 2. Draw Corner Reference Handles (C1, C2, C3, C4...) on top of the boundary line
-    if (boundary.length > 0 && !isStatic && (drawingMode === "boundary" || drawingMode === "objects" || drawingMode === "select" || !drawingMode)) {
+    if (showCornerBadges && boundary.length > 0 && !isStatic && (drawingMode === "boundary" || drawingMode === "objects" || drawingMode === "select" || !drawingMode)) {
       const pxB = boundary.map(toPx);
       pxB.forEach((p, idx) => {
         ctx.save();
@@ -1084,57 +1126,59 @@ const drawCanvasContent = (
     }
 
     // 3. Draw Pill Labels directly on the wall boundary (and offset at corners)
-    ctx.font = "bold 9.5px 'Inter', Arial, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
+    if (showArcLengths) {
+      ctx.font = "bold 9.5px 'Inter', Arial, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
 
-    allZoneArcs.forEach(({ text, lx, ly, apex }) => {
-      let drawX = lx;
-      let drawY = ly;
+      allZoneArcs.forEach(({ text, lx, ly, apex }) => {
+        let drawX = lx;
+        let drawY = ly;
 
-      // If this label is at a corner vertex (e.g. C1, C2, C3, C4),
-      // offset it outward/upward so it never collides with the corner badge!
-      if (boundary.length > 0) {
-        const pxB = boundary.map(toPx);
-        for (const cp of pxB) {
-          if (Math.hypot(lx - cp.x, ly - cp.y) < 22) {
-            const dx = cp.x - (apex ? apex.x : lx);
-            const dy = cp.y - (apex ? apex.y : ly);
-            const mag = Math.hypot(dx, dy) || 1;
-            // 32px offset gives clean separation: 10px corner + 14px space + 8px half-pill
-            drawX = cp.x + (dx / mag) * 32;
-            drawY = cp.y + (dy / mag) * 32;
-            break;
+        // If this label is at a corner vertex (e.g. C1, C2, C3, C4),
+        // offset it outward/upward so it never collides with the corner badge!
+        if (boundary.length > 0) {
+          const pxB = boundary.map(toPx);
+          for (const cp of pxB) {
+            if (Math.hypot(lx - cp.x, ly - cp.y) < 22) {
+              const dx = cp.x - (apex ? apex.x : lx);
+              const dy = cp.y - (apex ? apex.y : ly);
+              const mag = Math.hypot(dx, dy) || 1;
+              // 32px offset gives clean separation: 10px corner + 14px space + 8px half-pill
+              drawX = cp.x + (dx / mag) * 32;
+              drawY = cp.y + (dy / mag) * 32;
+              break;
+            }
           }
         }
-      }
 
-      const metrics = ctx.measureText(text);
-      const pw = metrics.width + 10;
-      const ph = 16;
+        const metrics = ctx.measureText(text);
+        const pw = metrics.width + 10;
+        const ph = 16;
 
-      // Subtle elevation shadow so badge pops cleanly off the canvas
-      ctx.save();
-      ctx.shadowColor = "rgba(0, 0, 0, 0.2)";
-      ctx.shadowBlur = 4;
-      ctx.shadowOffsetY = 1;
+        // Subtle elevation shadow so badge pops cleanly off the canvas
+        ctx.save();
+        ctx.shadowColor = "rgba(0, 0, 0, 0.2)";
+        ctx.shadowBlur = 4;
+        ctx.shadowOffsetY = 1;
 
-      // Solid white background pill
-      ctx.fillStyle = "#FFFFFF";
-      fillRoundRect(ctx, drawX - pw / 2, drawY - ph / 2, pw, ph, 4);
-      ctx.fill();
-      ctx.restore();
+        // Solid white background pill
+        ctx.fillStyle = "#FFFFFF";
+        fillRoundRect(ctx, drawX - pw / 2, drawY - ph / 2, pw, ph, 4);
+        ctx.fill();
+        ctx.restore();
 
-      // Border matching boundary wall
-      ctx.strokeStyle = "#2563EB";
-      ctx.lineWidth = 1.2;
-      fillRoundRect(ctx, drawX - pw / 2, drawY - ph / 2, pw, ph, 4);
-      ctx.stroke();
+        // Border matching boundary wall
+        ctx.strokeStyle = "#2563EB";
+        ctx.lineWidth = 1.2;
+        fillRoundRect(ctx, drawX - pw / 2, drawY - ph / 2, pw, ph, 4);
+        ctx.stroke();
 
-      // Bold, high-contrast label text
-      ctx.fillStyle = "#1E3A8A";
-      ctx.fillText(text, drawX, drawY);
-    });
+        // Bold, high-contrast label text
+        ctx.fillStyle = "#1E3A8A";
+        ctx.fillText(text, drawX, drawY);
+      });
+    }
 
     ctx.restore();
   }
@@ -1186,6 +1230,9 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
   selectedWall,
   onMoveBoundaryVertex,
   canvasRotation = 0,
+  showCornerBadges = true,
+  showTickLabels = true,
+  showArcLengths = true,
   isPremium = false,
   isUnlimited = false,
   onDragEnd,
@@ -1348,7 +1395,10 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
       hoverPoint,
       isStatic,
       shaktiChakraType === "zones" ? shaktiChakraZonesImg : shaktiChakraBaseImg,
-      computedLayout
+      computedLayout,
+      showCornerBadges,
+      showTickLabels,
+      showArcLengths
     );
     ctx.restore();
   }, [
@@ -1357,7 +1407,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     plotCentroid, drawingObjectBoundary, drawingMode, hoveredDevta, innerPolygon,
     middlePolygon, northDirection, wallLengths, referenceWallIndex,
     walls, currentDrawingWall, selectedWall, scale, measureStart, measureEnd, measureCurrent, hoverPoint,
-    imageLoadedTrigger, shaktiChakraZonesImg, shaktiChakraBaseImg
+    imageLoadedTrigger, shaktiChakraZonesImg, shaktiChakraBaseImg, showCornerBadges, showTickLabels, showArcLengths
   ]);
 
   useLayoutEffect(() => {

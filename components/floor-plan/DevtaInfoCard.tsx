@@ -24,6 +24,27 @@ export const DevtaInfoCard: React.FC<DevtaInfoCardProps> = ({ devta, onClose }) 
         </button>
       </div>
       <div>
+        {/* Spatial Metrics & Angular vs Boundary Breakdown */}
+        {devta.startAngle !== undefined && devta.endAngle !== undefined && (
+          <div className="mb-4 p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-2">
+            <div className="flex justify-between items-center font-bold text-slate-800 border-b border-slate-200 pb-1">
+              <span>Angular Span</span>
+              <span className="text-primary font-mono">22.5° Total</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-slate-600 text-[11px]">
+              <div>Left Half: <span className="font-semibold text-slate-800">11.25°</span></div>
+              <div>Right Half: <span className="font-semibold text-slate-800">11.25°</span></div>
+            </div>
+            {devta.boundary_length !== undefined && devta.boundary_length !== null && (
+              <div className="pt-1 border-t border-slate-200 flex justify-between items-center text-slate-700 font-medium">
+                <span>Boundary Path Length:</span>
+                <span className="font-bold text-blue-700 font-mono">
+                  {devta.boundary_length.toFixed(2)} ft
+                </span>
+              </div>
+            )}
+          </div>
+        )}
         {description && (
           <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded text-blue-800 font-medium">
             <span className="text-xs font-semibold text-blue-600 block mb-1">Meaning:</span>

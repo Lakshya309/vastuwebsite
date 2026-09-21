@@ -21,16 +21,11 @@ interface ControlPanelProps {
     zone8: boolean;
     marma: boolean;
     shaktiChakra: boolean;
+    showCornerBadges?: boolean;
+    showTickLabels?: boolean;
+    showArcLengths?: boolean;
   };
-  setShowGrid: React.Dispatch<
-    React.SetStateAction<{
-      devta45: boolean;
-      zone16: boolean;
-      zone8: boolean;
-      marma: boolean;
-      shaktiChakra: boolean;
-    }>
-  >;
+  setShowGrid: React.Dispatch<React.SetStateAction<any>>;
 
   gridType: "81" | "64";
   onGridTypeChange: (type: "81" | "64") => void;
@@ -593,6 +588,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                 { id: 'zone8', label: '8 Directions', sub: 'Cardinal directions', color: 'bg-emerald-500' },
                 { id: 'marma', label: 'Energy Points', sub: 'Important energy spots', color: 'bg-rose-500' },
                 { id: 'shaktiChakra', label: 'Energy Wheel', sub: 'Elemental energy wheel', color: 'bg-amber-500' },
+                { id: 'showCornerBadges', label: 'Corner Badges (C1-C4)', sub: 'Corner vertex badges on boundary', color: 'bg-blue-500' },
+                { id: 'showTickLabels', label: 'Corner Ref Labels', sub: 'Tick mark offset tags (e.g. C1+16.0′)', color: 'bg-cyan-500' },
+                { id: 'showArcLengths', label: 'Arc / Wall Lengths', sub: 'Zone segment wall length badges', color: 'bg-indigo-500' },
               ].map((grid) => (
                 <label key={grid.id} className="relative group flex items-center p-4 glass border border-white rounded-2xl cursor-pointer hover:border-primary/30 transition-all">
                   <input

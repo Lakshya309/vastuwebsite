@@ -75,6 +75,9 @@ export default function FloorPlanPage() {
     zone8: false,
     marma: false,
     shaktiChakra: false,
+    showCornerBadges: true,
+    showTickLabels: true,
+    showArcLengths: true,
   });
   const [showVideo, setShowVideo] = useState(false);
   const [showMobileMap, setShowMobileMap] = useState(false);
@@ -543,6 +546,13 @@ export default function FloorPlanPage() {
     setAnalysisStale(true);
   }, [boundary, placedObjects, liveNorthDirection]);
 
+  // Auto-sync backend analysis when user adjusts North direction slider
+  useEffect(() => {
+    if (boundary.length >= 3 && projectId) {
+      handleSaveChanges();
+    }
+  }, [debouncedNorthDirection]);
+
   // 4. Handlers
   const handleAddObject = (objectType: string) => {
     setSelectedObjectType(objectType); // Set the selected object type
@@ -1004,6 +1014,9 @@ export default function FloorPlanPage() {
                       selectedWall={selectedWall}
                       onMoveBoundaryVertex={handleMoveBoundaryVertex}
                       canvasRotation={canvasRotation}
+                      showCornerBadges={showGrid.showCornerBadges}
+                      showTickLabels={showGrid.showTickLabels}
+                      showArcLengths={showGrid.showArcLengths}
                       isPremium={effectiveIsPremium}
                       isUnlimited={effectiveIsPremium}
                       onDragEnd={handleDragEnd}
@@ -1175,6 +1188,9 @@ export default function FloorPlanPage() {
                   selectedWall={selectedWall}
                   onMoveBoundaryVertex={handleMoveBoundaryVertex}
                   canvasRotation={canvasRotation}
+                  showCornerBadges={showGrid.showCornerBadges}
+                  showTickLabels={showGrid.showTickLabels}
+                  showArcLengths={showGrid.showArcLengths}
                   isPremium={effectiveIsPremium}
                   isUnlimited={effectiveIsPremium}
                   onDragEnd={handleDragEnd}

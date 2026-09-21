@@ -32,11 +32,19 @@ export interface AnalyzedObjectResult {
 export interface DevtaRegion {
   name: string;
   polygon: Point[]; // Renamed from boundary to polygon to match usage in FloorPlanCanvas.tsx
-  center: Point;
+  center?: Point;
   color?: string; // Optional for visualization
   description?: string; // Optional additional info
   ring?: string;
   id?: string;
+  startAngle?: number;
+  centerAngle?: number;
+  endAngle?: number;
+  left_intersection?: Point | null;
+  center_intersection?: Point | null;
+  right_intersection?: Point | null;
+  boundary_path?: Point[] | null;
+  boundary_length?: number | null;
 }
 
 // Based on the usage in hooks/useFloorPlanData.ts and app/admin/AdminProjectTable.tsx
