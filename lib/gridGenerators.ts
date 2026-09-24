@@ -51,8 +51,8 @@ function generateZones(
   const zones: ZoneRegion[] = [];
   const step = 360 / zoneNames.length;
 
-  // North zone is centered at northDirection (-step/2 to +step/2)
-  const initialAngle = northDirection - step / 2;
+  // North zone is centered at -northDirection (anti-clockwise) (-step/2 to +step/2)
+  const initialAngle = -northDirection - step / 2;
 
   for (let i = 0; i < zoneNames.length; i++) {
     const startAngle = normalizeAngle(initialAngle + i * step);

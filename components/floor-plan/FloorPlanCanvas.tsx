@@ -713,7 +713,7 @@ const drawCanvasContent = (
     const centroid = toPx(plotCentroid);
     ctx.save();
     ctx.translate(centroid.x, centroid.y);
-    ctx.rotate((northDirection * Math.PI) / 180);
+    ctx.rotate((-northDirection * Math.PI) / 180);
     const imageSize = Math.min(width, height) * (shaktiChakraSize || 0.8);
     ctx.drawImage(preloadedShaktiChakraImg, -imageSize / 2, -imageSize / 2, imageSize, imageSize);
     ctx.restore();
@@ -937,7 +937,7 @@ const drawCanvasContent = (
     }
 
     ctx.translate(xCenter, yCenter);
-    ctx.rotate((northDirection * Math.PI) / 180);
+    ctx.rotate((-northDirection * Math.PI) / 180);
 
     // True North-South Axis Line (perfect long-distance centerline)
     ctx.beginPath();
@@ -1008,7 +1008,7 @@ const drawCanvasContent = (
       ctx.save();
       ctx.translate(0, -compassSize - 18);
       // Un-rotate the text so it's always 'upright' for readability
-      ctx.rotate((-northDirection * Math.PI) / 180); 
+      ctx.rotate((northDirection * Math.PI) / 180); 
       
       // Draw a subtle white backdrop circle for the N letter to ensure high contrast against any background
       ctx.beginPath();
