@@ -588,43 +588,82 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                 { id: 'zone8', label: '8 Directions', sub: 'Cardinal directions', color: 'bg-emerald-500' },
                 { id: 'marma', label: 'Energy Points', sub: 'Important energy spots', color: 'bg-rose-500' },
                 { id: 'shaktiChakra', label: 'Energy Wheel', sub: 'Elemental energy wheel', color: 'bg-amber-500' },
-                { id: 'showCornerBadges', label: 'Corner Badges (C1-C4)', sub: 'Corner vertex badges on boundary', color: 'bg-blue-500' },
-                { id: 'showTickLabels', label: 'Corner Ref Labels', sub: 'Tick mark offset tags (e.g. C1+16.0′)', color: 'bg-cyan-500' },
-                { id: 'showArcLengths', label: 'Arc / Wall Lengths', sub: 'Zone segment wall length badges', color: 'bg-indigo-500' },
               ].map((grid) => (
-                <label key={grid.id} className="relative group flex items-center p-4 glass border border-white rounded-2xl cursor-pointer hover:border-primary/30 transition-all">
-                  <input
-                    type="checkbox"
-                    disabled={!props.isPremium && (grid.id === 'devta45' || grid.id === 'marma' || grid.id === 'shaktiChakra')}
-                    checked={(props.showGrid as any)[grid.id]}
-                    onChange={(e) => {
-                      if (!props.isPremium && (grid.id === 'devta45' || grid.id === 'marma' || grid.id === 'shaktiChakra')) return;
-                      props.setShowGrid((p: any) => ({
-                        ...p,
-                        [grid.id]: e.target.checked,
-                        ...(grid.id === 'devta45' && e.target.checked ? { zone16: false, zone8: false } : {}),
-                        ...(grid.id === 'zone16' && e.target.checked ? { devta45: false, zone8: false } : {}),
-                        ...(grid.id === 'zone8' && e.target.checked ? { devta45: false, zone16: false } : {}),
-                      }))
-                    }
-                    }
-                    className="w-5 h-5 rounded-lg border-2 border-primary/20 text-primary focus:ring-primary/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  />
-                  <div className="ml-4 flex-1">
-                    <div className="flex items-center justify-between">
-                      <span className="block text-[10px] font-bold text-primary uppercase tracking-widest">{grid.label}</span>
-                      {!props.isPremium && (grid.id === 'devta45' || grid.id === 'marma' || grid.id === 'shaktiChakra') && (
-                        <div className="scale-75 origin-right">
-                          <PremiumBadge />
-                        </div>
-                      )}
+                <React.Fragment key={grid.id}>
+                  <label className="relative group flex items-center p-4 glass border border-white rounded-2xl cursor-pointer hover:border-primary/30 transition-all">
+                    <input
+                      type="checkbox"
+                      disabled={!props.isPremium && (grid.id === 'devta45' || grid.id === 'marma' || grid.id === 'shaktiChakra')}
+                      checked={(props.showGrid as any)[grid.id]}
+                      onChange={(e) => {
+                        if (!props.isPremium && (grid.id === 'devta45' || grid.id === 'marma' || grid.id === 'shaktiChakra')) return;
+                        props.setShowGrid((p: any) => ({
+                          ...p,
+                          [grid.id]: e.target.checked,
+                          ...(grid.id === 'devta45' && e.target.checked ? { zone16: false, zone8: false } : {}),
+                          ...(grid.id === 'zone16' && e.target.checked ? { devta45: false, zone8: false } : {}),
+                          ...(grid.id === 'zone8' && e.target.checked ? { devta45: false, zone16: false } : {}),
+                        }))
+                      }}
+                      className="w-5 h-5 rounded-lg border-2 border-primary/20 text-primary focus:ring-primary/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    />
+                    <div className="ml-4 flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="block text-[10px] font-bold text-primary uppercase tracking-widest">{grid.label}</span>
+                        {!props.isPremium && (grid.id === 'devta45' || grid.id === 'marma' || grid.id === 'shaktiChakra') && (
+                          <div className="scale-75 origin-right">
+                            <PremiumBadge />
+                          </div>
+                        )}
+                      </div>
+                      <span className="block text-[8px] font-bold text-gray-400 uppercase tracking-tighter italic">{grid.sub}</span>
                     </div>
-                    <span className="block text-[8px] font-bold text-gray-400 uppercase tracking-tighter italic">{grid.sub}</span>
-                  </div>
-                  {(props.showGrid as any)[grid.id] && (
-                    <motion.div layoutId="grid-active" className={`absolute left-0 w-1 h-8 rounded-full ${grid.color}`} />
+                    {(props.showGrid as any)[grid.id] && (
+                      <motion.div layoutId="grid-active" className={`absolute left-0 w-1 h-8 rounded-full ${grid.color}`} />
+                    )}
+                  </label>
+
+                  {/* Sub-options for Corner Badges, Tick Labels, Arc/Wall Lengths nested under active zone layer */}
+                  {(props.showGrid as any)[grid.id] && (grid.id === 'zone16' || grid.id === 'zone8' || grid.id === 'devta45') && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className={`ml-4 pl-4 border-l-2 ${grid.id === 'zone16' ? 'border-teal-500/40' : grid.id === 'zone8' ? 'border-emerald-500/40' : 'border-primary/40'} space-y-2.5 py-3 glass rounded-r-2xl border-white/50 bg-white/40 shadow-inner`}
+                    >
+                      <div className="text-[8px] font-bold text-gray-400 uppercase tracking-widest italic mb-1 flex items-center gap-1">
+                        <span>↳ Zone Sub-options</span>
+                      </div>
+                      {[
+                        { id: 'showCornerBadges', label: 'Corner Badges (C1-C4)', sub: 'Corner vertex badges on boundary' },
+                        { id: 'showTickLabels', label: 'Corner Ref Labels', sub: 'Tick mark offset tags (e.g. C1+16.0′)' },
+                        { id: 'showArcLengths', label: 'Arc / Wall Lengths', sub: 'Zone segment wall length badges' },
+                      ].map((subOpt) => (
+                        <label key={subOpt.id} className="flex items-start gap-2.5 cursor-pointer group">
+                          <input
+                            type="checkbox"
+                            checked={!!(props.showGrid as any)[subOpt.id]}
+                            onChange={(e) =>
+                              props.setShowGrid((p: any) => ({
+                                ...p,
+                                [subOpt.id]: e.target.checked,
+                              }))
+                            }
+                            className="mt-0.5 w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary/20 transition-all cursor-pointer"
+                          />
+                          <div>
+                            <span className="block text-[9px] font-bold text-gray-700 uppercase tracking-wider group-hover:text-primary transition-colors">
+                              {subOpt.label}
+                            </span>
+                            <span className="block text-[7.5px] font-semibold text-gray-400 uppercase tracking-tight italic">
+                              {subOpt.sub}
+                            </span>
+                          </div>
+                        </label>
+                      ))}
+                    </motion.div>
                   )}
-                </label>
+                </React.Fragment>
               ))}
             </div>
 

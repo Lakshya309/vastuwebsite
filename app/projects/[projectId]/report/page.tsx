@@ -73,6 +73,8 @@ interface VastuAnalysisResult {
   devtas45?: any[];
   analysis_id?: string;
   plot_centroid?: Point | null;
+  north_direction?: number;
+  boundary_normalized?: Point[];
 }
 
 const ZONES_DEFINITION = [
@@ -134,6 +136,8 @@ export default function ReportPage() {
   const [zoneGraphData, setZoneGraphData] = useState<any[]>([]);
   const [highlightedZones, setHighlightedZones] = useState<string[]>([]);
   const [printing, setPrinting] = useState(false);
+  const [scale, setScale] = useState<number | null>(null);
+  const [wallLengths, setWallLengths] = useState<number[]>([]);
   const [reportSections, setReportSections] = useState({
     overallCompliance: true,
     objectDistribution: true,
@@ -287,6 +291,45 @@ export default function ReportPage() {
     };
     fetchReportData();
   }, [projectId]);
+
+  const effectiveNorth = vastuAnalysisResult?.north_direction ?? project?.north_direction ?? 0;
+  const effectiveBoundary = (vastuAnalysisResult?.boundary_normalized && vastuAnalysisResult.boundary_normalized.length >= 3)
+    ? vastuAnalysisResult.boundary_normalized
+    : (project?.boundary_normalized || []);
+
+  useEffect(() => {
+    if (!project || !effectiveBoundary || effectiveBoundary.length < 2) return;
+    const proj = project as any;
+    const isIrregular = !!(proj.plot_side_front && proj.plot_side_back && proj.plot_side_left && proj.plot_side_right);
+    const isRegular = !!(proj.plot_width && proj.plot_height);
+
+    let currentScale: number | null = null;
+    if (isIrregular) {
+      const realW = Math.max(proj.plot_side_front!, proj.plot_side_back!);
+      const pixelWidth = 0.8 * 800;
+      currentScale = realW / pixelWidth;
+    } else if (isRegular) {
+      const w = proj.plot_width || 0;
+      const pixelWidth = 0.8 * 800;
+      currentScale = w / pixelWidth;
+    }
+
+    if (currentScale) {
+      setScale(currentScale);
+      const canvasWidth = 800;
+      const canvasHeight = 600;
+      const newWallLengths = effectiveBoundary.map((_, i) => {
+        const p1 = effectiveBoundary[i];
+        const p2 = effectiveBoundary[(i + 1) % effectiveBoundary.length];
+        const lengthInPixels = Math.sqrt(
+          Math.pow((p2.x - p1.x) * canvasWidth, 2) +
+          Math.pow((p2.y - p1.y) * canvasHeight, 2)
+        );
+        return lengthInPixels * currentScale!;
+      });
+      setWallLengths(newWallLengths);
+    }
+  }, [project, vastuAnalysisResult]);
 
   if (loading && !vastuAnalysisResult) {
     return (
@@ -711,20 +754,20 @@ export default function ReportPage() {
               {/* 8 Zones */}
               <div id="report-section-canvas-8" className="flex flex-col items-center gap-6 w-full">
                 <h4 className="font-bold text-xl text-gray-500 uppercase tracking-[0.3em] glass px-12 py-5 rounded-full shadow-lg italic">8 Basic Zones</h4>
-                <div className="w-full relative glass rounded-[4rem] shadow-2xl overflow-hidden p-6 md:p-12 mx-auto border border-white min-h-[600px] flex items-center justify-center bg-white/50">
+                <div className="w-full max-w-[900px] relative glass rounded-[4rem] shadow-2xl overflow-hidden p-4 md:p-8 mx-auto border border-white min-h-[500px] h-[600px] flex items-center justify-center bg-white/50">
                   <FloorPlanCanvas
                     isStatic={true}
                     floorPlanImage={project.floor_plan_path || null}
-                    boundary={project.boundary_normalized || []}
+                    boundary={effectiveBoundary}
                     placedObjects={[]}
                     objectSvgMap={{}}
-                    northDirection={project.north_direction || 0}
+                    northDirection={effectiveNorth}
                     onMoveObject={() => { }}
                     onResizeObject={() => { }}
                     onRotateObject={() => { }}
                     onDeleteObject={() => { }}
-                    scale={null}
-                    wallLengths={[]}
+                    scale={scale}
+                    wallLengths={wallLengths}
                     setReferenceWallIndex={() => { }}
                     referenceWallIndex={null}
                     wallColors={[]}
@@ -739,11 +782,11 @@ export default function ReportPage() {
               {/* 16 Zones - Central Emphasis */}
               <div id="report-section-canvas-16" className="flex flex-col items-center gap-6 w-full relative">
                 <h4 className="font-bold text-3xl text-primary uppercase tracking-[0.4em] glass px-16 py-6 rounded-full shadow-2xl shadow-primary/10 italic">16 Maha Vastu Zones</h4>
-                <div className="w-full relative glass rounded-[5rem] shadow-[0_50px_100px_-15px_rgba(0,0,0,0.2)] overflow-hidden p-6 md:p-16 mx-auto z-20 border border-white min-h-[800px] flex items-center justify-center bg-white/50">
+                <div className="w-full max-w-[900px] relative glass rounded-[5rem] shadow-[0_50px_100px_-15px_rgba(0,0,0,0.2)] overflow-hidden p-4 md:p-8 mx-auto z-20 border border-white min-h-[500px] h-[600px] flex items-center justify-center bg-white/50">
                   <FloorPlanCanvas
                     isStatic={true}
                     floorPlanImage={project.floor_plan_path || null}
-                    boundary={project.boundary_normalized || []}
+                    boundary={effectiveBoundary}
                     placedObjects={(project.placed_objects || []).map(obj => {
                       const analysis = vastuAnalysisResult.analyzed_objects.find(ao => ao.object_id === obj.id);
                       return {
@@ -761,13 +804,13 @@ export default function ReportPage() {
                         return "/objects/generic.svg";
                       }
                     })}
-                    northDirection={project.north_direction || 0}
+                    northDirection={effectiveNorth}
                     onMoveObject={() => { }}
                     onResizeObject={() => { }}
                     onRotateObject={() => { }}
                     onDeleteObject={() => { }}
-                    scale={null}
-                    wallLengths={[]}
+                    scale={scale}
+                    wallLengths={wallLengths}
                     setReferenceWallIndex={() => { }}
                     referenceWallIndex={null}
                     wallColors={[]}
@@ -782,20 +825,20 @@ export default function ReportPage() {
               {/* 45 Devtas */}
               <div id="report-section-canvas-45" className="flex flex-col items-center gap-6 w-full">
                 <h4 className="font-bold text-xl text-gray-500 uppercase tracking-[0.3em] glass px-12 py-5 rounded-full shadow-lg italic">45 Cosmic Masters</h4>
-                <div className="w-full relative glass rounded-[4rem] shadow-2xl overflow-hidden p-6 md:p-12 mx-auto border border-white min-h-[600px] flex items-center justify-center bg-white/50">
+                <div className="w-full max-w-[900px] relative glass rounded-[4rem] shadow-2xl overflow-hidden p-4 md:p-8 mx-auto border border-white min-h-[500px] h-[600px] flex items-center justify-center bg-white/50">
                   <FloorPlanCanvas
                     isStatic={true}
                     floorPlanImage={project.floor_plan_path || null}
-                    boundary={project.boundary_normalized || []}
+                    boundary={effectiveBoundary}
                     placedObjects={[]}
                     objectSvgMap={{}}
-                    northDirection={project.north_direction || 0}
+                    northDirection={effectiveNorth}
                     onMoveObject={() => { }}
                     onResizeObject={() => { }}
                     onRotateObject={() => { }}
                     onDeleteObject={() => { }}
-                    scale={null}
-                    wallLengths={[]}
+                    scale={scale}
+                    wallLengths={wallLengths}
                     setReferenceWallIndex={() => { }}
                     referenceWallIndex={null}
                     wallColors={[]}

@@ -1,5 +1,17 @@
+import { Metadata } from "next";
 import Link from "next/link";
 import { RefreshCw, CreditCard, Clock, XCircle, CheckCircle, AlertCircle } from "lucide-react";
+import JsonLd from "@/components/seo/JsonLd";
+import { getBreadcrumbSchema, SITE_URL } from "@/lib/seo";
+
+export const metadata: Metadata = {
+  title: "Refund & Cancellation Policy | Mangalam Vastu",
+  description:
+    "Read the Cancellation and Refund Policy of Mangalam Vastu. Understand eligible refund windows, credit pack terms, and Razorpay transaction processing.",
+  alternates: {
+    canonical: `${SITE_URL}/refund`,
+  },
+};
 
 const LAST_UPDATED = "April 8, 2026";
 const BUSINESS_NAME = "Mangalam Vastu";
@@ -7,14 +19,29 @@ const REFUND_WINDOW = "7 days";
 const PROCESSING_TIME = "5-7 business days";
 
 export default function RefundPage() {
+  const breadcrumbSchema = getBreadcrumbSchema([
+    { name: "Home", url: "/" },
+    { name: "Refund Policy", url: "/refund" },
+  ]);
+
+  const webPageSchema = {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    name: "Refund & Cancellation Policy - Mangalam Vastu",
+    url: `${SITE_URL}/refund`,
+    dateModified: "2026-04-08",
+  };
+
   return (
-    <div className="min-h-screen pt-32 pb-20 px-4 md:px-8">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-16">
-          <h1 className="text-5xl md:text-6xl font-cormorant font-bold italic text-primary mb-4">
-            Refund & Cancellation Policy
-          </h1>
+    <>
+      <JsonLd data={[breadcrumbSchema, webPageSchema]} />
+      <div className="min-h-screen pt-32 pb-20 px-4 md:px-8">
+        <div className="max-w-4xl mx-auto">
+          {/* Header */}
+          <div className="text-center mb-16">
+            <h1 className="text-5xl md:text-6xl font-cormorant font-bold italic text-primary mb-4">
+              Refund & Cancellation Policy
+            </h1>
           <p className="text-gray-500 text-sm font-medium">
             Last Updated: {LAST_UPDATED}
           </p>
@@ -267,5 +294,7 @@ export default function RefundPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }
+

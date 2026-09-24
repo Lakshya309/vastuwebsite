@@ -1,7 +1,25 @@
+import { Metadata } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/db';
 import PricingClient from './PricingClient';
+import JsonLd from "@/components/seo/JsonLd";
+import { getBreadcrumbSchema, getFAQPageSchema, SITE_URL } from "@/lib/seo";
+
+export const metadata: Metadata = {
+  title: "Pricing & Membership Plans | Mangalam Vastu",
+  description:
+    "Explore transparent pricing plans for Mangalam Vastu AI. Choose from Starter, Professional, and Enterprise packages for full 16-zone floor plan Vastu analysis.",
+  alternates: {
+    canonical: `${SITE_URL}/pricing`,
+  },
+  openGraph: {
+    title: "Pricing & Membership Plans | Mangalam Vastu",
+    description:
+      "Choose the right Vastu analysis subscription or credit pack. Instant 16-zone report generation for architects and homeowners.",
+    url: `${SITE_URL}/pricing`,
+  },
+};
 
 interface SubscriptionPlan {
   id: string;
@@ -80,14 +98,40 @@ async function getUserData() {
 }
 
 export default async function PricingPage() {
-  const { user, userEmail, credits, hasActiveSubscription, subscriptions } = await getUserData();
+  const { userEmail, credits, hasActiveSubscription, subscriptions } = await getUserData();
+
+  const breadcrumbSchema = getBreadcrumbSchema([
+    { name: "Home", url: "/" },
+    { name: "Pricing", url: "/pricing" },
+  ]);
+
+  const pricingFaqSchema = getFAQPageSchema([
+    {
+      question: "What is included in the Vastu analysis plans?",
+      answer:
+        "Plans include full access to 16-zone floor plan alignment, Devta grid calculation, Marma point sensitivity detection, object compliance tracking, and PDF report downloads.",
+    },
+    {
+      question: "Can I buy additional credits as needed?",
+      answer:
+        "Yes, credit packs allow flexible pay-as-you-go Vastu analyses without requiring a recurring monthly subscription.",
+    },
+    {
+      question: "Are payment transactions secure?",
+      answer:
+        "All transactions are processed through Razorpay, a PCI-DSS Level 1 compliant secure payment gateway.",
+    },
+  ]);
 
   return (
-    <PricingClient
-      subscriptions={subscriptions}
-      hasActiveSubscription={hasActiveSubscription}
-      userCredits={credits}
-      userEmail={userEmail}
-    />
+    <>
+      <JsonLd data={[breadcrumbSchema, pricingFaqSchema]} />
+      <PricingClient
+        subscriptions={subscriptions}
+        hasActiveSubscription={hasActiveSubscription}
+        userCredits={credits}
+        userEmail={userEmail}
+      />
+    </>
   );
 }

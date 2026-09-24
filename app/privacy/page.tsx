@@ -1,18 +1,45 @@
+import { Metadata } from "next";
 import Link from "next/link";
+import JsonLd from "@/components/seo/JsonLd";
+import { getBreadcrumbSchema, SITE_URL } from "@/lib/seo";
+
+export const metadata: Metadata = {
+  title: "Privacy Policy | Mangalam Vastu Data Security",
+  description:
+    "Read the Privacy Policy of Mangalam Vastu. Learn how we collect, safeguard, and process user information in compliance with privacy regulations.",
+  alternates: {
+    canonical: `${SITE_URL}/privacy`,
+  },
+};
 
 const LAST_UPDATED = "April 8, 2026";
 const BUSINESS_NAME = "Mangalam Vastu";
 const RAZORPAY_COMPLIANCE = "Razorpay is a PCI-DSS (Payment Card Industry Data Security Standard) compliant payment gateway.";
 
 export default function PrivacyPage() {
+  const breadcrumbSchema = getBreadcrumbSchema([
+    { name: "Home", url: "/" },
+    { name: "Privacy Policy", url: "/privacy" },
+  ]);
+
+  const webPageSchema = {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    name: "Privacy Policy - Mangalam Vastu",
+    url: `${SITE_URL}/privacy`,
+    dateModified: "2026-04-08",
+  };
+
   return (
-    <div className="min-h-screen pt-32 pb-20 px-4 md:px-8">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-16">
-          <h1 className="text-5xl md:text-6xl font-cormorant font-bold italic text-primary mb-4">
-            Privacy Policy
-          </h1>
+    <>
+      <JsonLd data={[breadcrumbSchema, webPageSchema]} />
+      <div className="min-h-screen pt-32 pb-20 px-4 md:px-8">
+        <div className="max-w-4xl mx-auto">
+          {/* Header */}
+          <div className="text-center mb-16">
+            <h1 className="text-5xl md:text-6xl font-cormorant font-bold italic text-primary mb-4">
+              Privacy Policy
+            </h1>
           <p className="text-gray-500 text-sm font-medium">
             Last Updated: {LAST_UPDATED}
           </p>
@@ -247,5 +274,7 @@ export default function PrivacyPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }
+

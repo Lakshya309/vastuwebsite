@@ -1,19 +1,46 @@
+import { Metadata } from "next";
 import Link from "next/link";
+import JsonLd from "@/components/seo/JsonLd";
+import { getBreadcrumbSchema, SITE_URL } from "@/lib/seo";
+
+export const metadata: Metadata = {
+  title: "Terms & Conditions | Mangalam Vastu Terms of Service",
+  description:
+    "Review the Terms and Conditions for using Mangalam Vastu AI platform, subscription services, software licensing, and user guidelines.",
+  alternates: {
+    canonical: `${SITE_URL}/terms`,
+  },
+};
 
 const LAST_UPDATED = "April 8, 2026";
 const BUSINESS_NAME = "Mangalam Vastu";
-const STATE = "[STATE]";
+const STATE = "Delhi";
 const COUNTRY = "India";
 
 export default function TermsPage() {
+  const breadcrumbSchema = getBreadcrumbSchema([
+    { name: "Home", url: "/" },
+    { name: "Terms & Conditions", url: "/terms" },
+  ]);
+
+  const webPageSchema = {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    name: "Terms & Conditions - Mangalam Vastu",
+    url: `${SITE_URL}/terms`,
+    dateModified: "2026-04-08",
+  };
+
   return (
-    <div className="min-h-screen pt-32 pb-20 px-4 md:px-8">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-16">
-          <h1 className="text-5xl md:text-6xl font-cormorant font-bold italic text-primary mb-4">
-            Terms & Conditions
-          </h1>
+    <>
+      <JsonLd data={[breadcrumbSchema, webPageSchema]} />
+      <div className="min-h-screen pt-32 pb-20 px-4 md:px-8">
+        <div className="max-w-4xl mx-auto">
+          {/* Header */}
+          <div className="text-center mb-16">
+            <h1 className="text-5xl md:text-6xl font-cormorant font-bold italic text-primary mb-4">
+              Terms & Conditions
+            </h1>
           <p className="text-gray-500 text-sm font-medium">
             Last Updated: {LAST_UPDATED}
           </p>
@@ -209,5 +236,7 @@ export default function TermsPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }
+

@@ -34,10 +34,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 1. Fetch project_id from the analyses table using analysisId
+    // 1. Fetch project_id, boundary_normalized, and north_direction from the analyses table using analysisId
     const analysisData = await prisma.analyses.findUnique({
       where: { id: analysisId },
-      select: { project_id: true, status: true, report_paid: true }
+      select: {
+        project_id: true,
+        status: true,
+        report_paid: true,
+        boundary_normalized: true,
+        north_direction: true,
+      }
     });
 
     if (!analysisData) {
@@ -82,7 +88,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const { boundary_normalized, north_direction, project_objects } = projectData;
+    const boundary_normalized = (analysisData.boundary_normalized as any) || projectData.boundary_normalized;
+    const north_direction = (analysisData.north_direction !== null && analysisData.north_direction !== undefined)
+      ? analysisData.north_direction
+      : (projectData.north_direction ?? 0);
+    const { project_objects } = projectData;
 
     if (!boundary_normalized || north_direction === null || !project_objects) {
         return NextResponse.json(
@@ -119,7 +129,11 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json();
-    return NextResponse.json(data);
+    return NextResponse.json({
+      ...data,
+      north_direction,
+      boundary_normalized,
+    });
   } catch (error: any) {
     console.error("Error fetching full report analysis:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

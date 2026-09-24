@@ -1271,29 +1271,47 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
 
   useEffect(() => {
     const container = containerRef.current;
-    if (container) {
-      const { width, height } = container.getBoundingClientRect();
-      setDimensions({ width, height });
-    }
+    if (!container) return;
+
+    const updateDimensions = () => {
+      const rect = container.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        setDimensions({ width: rect.width, height: rect.height });
+      }
+    };
+
+    updateDimensions();
+
+    const resizeObserver = new ResizeObserver(() => {
+      updateDimensions();
+    });
+    resizeObserver.observe(container);
+
+    window.addEventListener("resize", updateDimensions);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", updateDimensions);
+    };
   }, []);
 
   // Compute Layout Logic
   const computedLayout = React.useMemo(() => {
-    if (!imageRef.current || !floorPlanImage) {
-      return { drawX: 0, drawY: 0, drawWidth: width, drawHeight: height };
+    let targetAspect = 4 / 3;
+    if (floorPlanImage && imageRef.current && imageRef.current.naturalWidth && imageRef.current.naturalHeight) {
+      targetAspect = imageRef.current.naturalWidth / imageRef.current.naturalHeight;
     }
-    const imgAspect = imageRef.current.naturalWidth / imageRef.current.naturalHeight;
     const canvasAspect = width / height;
     let drawWidth, drawHeight, drawX, drawY;
 
-    if (imgAspect > canvasAspect) {
+    if (targetAspect > canvasAspect) {
       drawWidth = width;
-      drawHeight = width / imgAspect;
+      drawHeight = width / targetAspect;
       drawX = 0;
       drawY = (height - drawHeight) / 2;
     } else {
       drawHeight = height;
-      drawWidth = height * imgAspect;
+      drawWidth = height * targetAspect;
       drawX = (width - drawWidth) / 2;
       drawY = 0;
     }
