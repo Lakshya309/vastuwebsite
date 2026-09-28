@@ -632,12 +632,58 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                       className={`ml-4 pl-4 border-l-2 ${grid.id === 'zone16' ? 'border-teal-500/40' : grid.id === 'zone8' ? 'border-emerald-500/40' : 'border-primary/40'} space-y-2.5 py-3 glass rounded-r-2xl border-white/50 bg-white/40 shadow-inner`}
                     >
                       <div className="text-[8px] font-bold text-gray-400 uppercase tracking-widest italic mb-1 flex items-center gap-1">
-                        <span>↳ Zone Sub-options</span>
+                        <span>↳ Zone Sub-options & Distances</span>
                       </div>
+
+                      {/* Distance Mode Toggle */}
+                      <div className="p-2 rounded-xl bg-white/60 border border-primary/10 space-y-1.5 mb-2">
+                        <span className="block text-[8px] font-extrabold text-primary uppercase tracking-widest">
+                          Distance View Mode
+                        </span>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              props.setShowGrid((p: any) => ({
+                                ...p,
+                                showArcLengths: true,
+                                showTickLabels: false,
+                              }))
+                            }
+                            className={`flex-1 py-1 px-2 rounded-lg text-[8.5px] font-extrabold uppercase transition-all ${
+                              (props.showGrid as any).showArcLengths && !(props.showGrid as any).showTickLabels
+                                ? "bg-primary text-white shadow-sm"
+                                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                            }`}
+                          >
+                            ⚡ Simple (ft)
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              props.setShowGrid((p: any) => ({
+                                ...p,
+                                showArcLengths: true,
+                                showTickLabels: true,
+                              }))
+                            }
+                            className={`flex-1 py-1 px-2 rounded-lg text-[8.5px] font-extrabold uppercase transition-all ${
+                              (props.showGrid as any).showArcLengths && (props.showGrid as any).showTickLabels
+                                ? "bg-primary text-white shadow-sm"
+                                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                            }`}
+                          >
+                            📐 CAD (C1+)
+                          </button>
+                        </div>
+                      </div>
+
                       {[
+                        { id: 'showArcLengths', label: 'Segment Distances (ft)', sub: 'Shows length between Devtas in feet' },
                         { id: 'showCornerBadges', label: 'Corner Badges (C1-C4)', sub: 'Corner vertex badges on boundary' },
-                        { id: 'showTickLabels', label: 'Corner Ref Labels', sub: 'Tick mark offset tags (e.g. C1+16.0′)' },
-                        { id: 'showArcLengths', label: 'Arc / Wall Lengths', sub: 'Zone segment wall length badges' },
+                        { id: 'showTickLabels', label: 'Detailed CAD Offsets', sub: 'Cumulative corner offset tags (C1+16.0 ft)' },
+                        { id: 'darkOverlay', label: '🌙 Dark High-Contrast', sub: 'Dark slate badges & dark devta outlines' },
                       ].map((subOpt) => (
                         <label key={subOpt.id} className="flex items-start gap-2.5 cursor-pointer group">
                           <input

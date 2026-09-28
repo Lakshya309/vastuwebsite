@@ -10,6 +10,8 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { useFloorPlanAnalysis } from "@/hooks/useFloorPlanAnalysis";
 import { useMarmaAnalysis } from "@/hooks/useMarmaAnalysis";
 import { FloorPlanCanvas } from "@/components/floor-plan/FloorPlanCanvas";
+import type { DevtaDistanceEntry } from "@/components/floor-plan/FloorPlanCanvas";
+import { DevtaDistancePanel } from "@/components/floor-plan/DevtaDistancePanel";
 import { ControlPanel } from "@/components/floor-plan/ControlPanel";
 import { DevtaInfoCard } from "@/components/floor-plan/DevtaInfoCard";
 import { MobileMapView } from "@/components/floor-plan/MobileMapView";
@@ -76,8 +78,9 @@ export default function FloorPlanPage() {
     marma: false,
     shaktiChakra: false,
     showCornerBadges: true,
-    showTickLabels: true,
-    showArcLengths: true,
+    showTickLabels: false, // Default: Simple view (no C1+ clutter)
+    showArcLengths: true,  // Segment lengths in feet (e.g. 18.1 ft)
+    darkOverlay: true,     // Dark high-contrast badges & devta text
   });
   const [showVideo, setShowVideo] = useState(false);
   const [showMobileMap, setShowMobileMap] = useState(false);
@@ -103,6 +106,8 @@ export default function FloorPlanPage() {
   const [selectedWall, setSelectedWall] = useState<Wall | null>(null);
   const [plotAngle, setPlotAngle] = useState<number>(90);
   const [gridType, setGridType] = useState<"81" | "64">("81");
+  const [distanceData, setDistanceData] = useState<DevtaDistanceEntry[]>([]);
+  const [distancePanelOpen, setDistancePanelOpen] = useState(true);
 
   const propertyType = (project?.metadata as any)?.property_type || "residential";
   const commercialType = (project?.metadata as any)?.commercial_type || "general";
@@ -145,6 +150,14 @@ export default function FloorPlanPage() {
       setShowTutorial(true);
     }
   }, []);
+
+  // Re-open the distance panel whenever distances are turned on
+  useEffect(() => {
+    if (showGrid.showArcLengths) {
+      setDistancePanelOpen(true);
+    }
+  }, [showGrid.showArcLengths]);
+
 
   const tutorialSteps: TutorialStep[] = [
     {
@@ -1017,28 +1030,47 @@ export default function FloorPlanPage() {
                       showCornerBadges={showGrid.showCornerBadges}
                       showTickLabels={showGrid.showTickLabels}
                       showArcLengths={showGrid.showArcLengths}
+                      darkOverlay={showGrid.darkOverlay}
                       isPremium={effectiveIsPremium}
                       isUnlimited={effectiveIsPremium}
                       onDragEnd={handleDragEnd}
+                      onDistanceDataReady={setDistanceData}
                     />
 
-                    {/* Overlay Status Indicators */}
-                    <div className="absolute top-4 left-4 flex flex-col gap-2">
-                      {showGrid.devta45 && (
-                        <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded shadow">
-                          45 Energy Zones
-                        </span>
-                      )}
-                      {showGrid.zone16 && (
-                        <span className="bg-indigo-600 text-white text-xs px-2 py-1 rounded shadow">
-                          16 Zones
-                        </span>
-                      )}
-                      {showGrid.zone8 && (
-                        <span className="bg-purple-600 text-white text-xs px-2 py-1 rounded shadow">
-                          8 Directions
-                        </span>
-                      )}
+                    {/* Floating Canvas Distance & View Mode Toolbar */}
+                    <div className="absolute top-4 left-4 z-20 flex items-center gap-2 bg-slate-900/90 backdrop-blur-md p-1.5 rounded-2xl border border-slate-700/60 shadow-xl text-white">
+                      {/* Toggle Distance Panel */}
+                      <button
+                        onClick={() => {
+                          setShowGrid((p) => ({ ...p, showArcLengths: !p.showArcLengths }));
+                          setDistancePanelOpen(true);
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                          showGrid.showArcLengths
+                            ? "bg-amber-400 text-slate-950 shadow"
+                            : "text-slate-300 hover:bg-slate-800"
+                        }`}
+                        title="Toggle distance measurements"
+                      >
+                        <span>📏 Distances</span>
+                      </button>
+
+                      <div className="w-px h-5 bg-slate-700" />
+
+                      {/* Dark Overlay Toggle */}
+                      <button
+                        onClick={() =>
+                          setShowGrid((p) => ({ ...p, darkOverlay: !p.darkOverlay }))
+                        }
+                        className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 ${
+                          showGrid.darkOverlay
+                            ? "bg-blue-600 text-white shadow"
+                            : "text-slate-400 hover:bg-slate-800"
+                        }`}
+                        title="Toggle Dark High-Contrast Badges"
+                      >
+                        <span>{showGrid.darkOverlay ? "🌙 Dark" : "☀️ Light"}</span>
+                      </button>
                     </div>
 
                     {selectedDevta && (
@@ -1051,6 +1083,15 @@ export default function FloorPlanPage() {
                       <DevtaInfoCard
                         devta={selectedZone}
                         onClose={handleCloseZoneCard}
+                      />
+                    )}
+
+                    {/* Distance Legend Panel */}
+                    {showGrid.showArcLengths && (
+                      <DevtaDistancePanel
+                        entries={distanceData}
+                        visible={distancePanelOpen}
+                        onClose={() => setDistancePanelOpen(false)}
                       />
                     )}
                   </div>
@@ -1194,6 +1235,7 @@ export default function FloorPlanPage() {
                   isPremium={effectiveIsPremium}
                   isUnlimited={effectiveIsPremium}
                   onDragEnd={handleDragEnd}
+                  onDistanceDataReady={setDistanceData}
                 />
 
                 {/* Overlay Status Indicators */}
@@ -1213,7 +1255,16 @@ export default function FloorPlanPage() {
                       8 Directions
                     </span>
                   )}
+                  {showGrid.showArcLengths && !distancePanelOpen && distanceData.length > 0 && (
+                    <button
+                      onClick={() => setDistancePanelOpen(true)}
+                      className="bg-slate-800 text-white text-xs px-2 py-1 rounded shadow border border-white/10 flex items-center gap-1 hover:bg-slate-700 transition-colors"
+                    >
+                      📏 Distances
+                    </button>
+                  )}
                 </div>
+
 
                 {selectedDevta && (
                   <DevtaInfoCard
@@ -1225,6 +1276,15 @@ export default function FloorPlanPage() {
                   <DevtaInfoCard
                     devta={selectedZone}
                     onClose={handleCloseZoneCard}
+                  />
+                )}
+
+                {/* Distance Legend Panel */}
+                {showGrid.showArcLengths && (
+                  <DevtaDistancePanel
+                    entries={distanceData}
+                    visible={distancePanelOpen}
+                    onClose={() => setDistancePanelOpen(false)}
                   />
                 )}
               </div>

@@ -61,9 +61,20 @@ interface FloorPlanCanvasProps {
   showCornerBadges?: boolean;
   showTickLabels?: boolean;
   showArcLengths?: boolean;
+  darkOverlay?: boolean;
   isPremium?: boolean;
   isUnlimited?: boolean;
   onDragEnd?: (id: string) => void;
+  onDistanceDataReady?: (data: DevtaDistanceEntry[]) => void;
+}
+
+export interface DevtaDistanceEntry {
+  index: number;
+  name: string;
+  ring: "outer" | "middle" | "center" | "inner";
+  distanceFt: number | null;
+  distancePx: number;
+  color: string;
 }
 
 const ZONE_NAMES_16 = [
@@ -378,7 +389,8 @@ const drawCanvasContent = (
   computedLayout?: { drawX: number; drawY: number; drawWidth: number; drawHeight: number },
   showCornerBadges: boolean = true,
   showTickLabels: boolean = true,
-  showArcLengths: boolean = true
+  showArcLengths: boolean = true,
+  darkOverlay: boolean = true
 ) => {
   const toPx = (p: Point) => {
     if (computedLayout) {
@@ -728,13 +740,26 @@ const drawCanvasContent = (
     ctx.closePath();
     ctx.fillStyle = devtaColors[region.name] ? `${devtaColors[region.name]}` : "rgba(200, 200, 200, 0.4)";
     ctx.fill();
-    ctx.strokeStyle = "rgba(0,0,0,0.3)";
+    ctx.strokeStyle = "rgba(15, 23, 42, 0.4)";
+    ctx.lineWidth = 1.2;
     ctx.stroke();
+
     const center = getCentroid(pts);
-    ctx.fillStyle = "#333";
-    ctx.font = "10px sans-serif";
+    ctx.save();
+    ctx.font = "bold 10.5px 'Inter', sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(region.name, center.x, center.y);
+    ctx.textBaseline = "middle";
+    if (darkOverlay) {
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.95)";
+      ctx.lineWidth = 3;
+      ctx.strokeText(region.name, center.x, center.y);
+      ctx.fillStyle = "#0F172A";
+      ctx.fillText(region.name, center.x, center.y);
+    } else {
+      ctx.fillStyle = "#1E293B";
+      ctx.fillText(region.name, center.x, center.y);
+    }
+    ctx.restore();
   });
 
   // Collect zone16 arc data for final-pass label rendering (drawn on boundary wall)
@@ -786,8 +811,8 @@ const drawCanvasContent = (
     const arcInfo = computeZoneOuterArc(pts, realScale ?? null, plotCpx);
     if (arcInfo && arcInfo.totalLen > 2) {
       const text = arcInfo.realArcLength !== null
-        ? `${arcInfo.realArcLength.toFixed(1)}\u2032`
-        : `${Math.round(arcInfo.totalLen)}px`;
+        ? `${arcInfo.realArcLength.toFixed(1)} ft`
+        : `${Math.round(arcInfo.totalLen)} px`;
 
       const bPathPx = region.boundary_path ? region.boundary_path.map(toPx) : null;
       const edgeStart = bPathPx && bPathPx.length > 0 ? bPathPx[0] : arcInfo.edgeStart;
@@ -839,8 +864,8 @@ const drawCanvasContent = (
     const arcInfo = computeZoneOuterArc(pts, realScale ?? null, plotCpx8);
     if (arcInfo && arcInfo.totalLen > 2) {
       const text = arcInfo.realArcLength !== null
-        ? `${arcInfo.realArcLength.toFixed(1)}\u2032`
-        : `${Math.round(arcInfo.totalLen)}px`;
+        ? `${arcInfo.realArcLength.toFixed(1)} ft`
+        : `${Math.round(arcInfo.totalLen)} px`;
       zone8Arcs.push({
         text,
         lx: arcInfo.midPt.x, // Directly ON the wall boundary
@@ -856,36 +881,74 @@ const drawCanvasContent = (
     }
   });
 
-  // Collect outer devta arc data for 32 outer devtas (when devtas are displayed)
+  // Collect devta arc & dimension data for Outer, Middle, and Center ring devtas
   const devtaArcs: Array<{
     text: string; lx: number; ly: number;
     nx: number; ny: number; outX: number; outY: number;
     apex: { x: number; y: number };
     edgeStart: { x: number; y: number }; edgeEnd: { x: number; y: number };
+    ring: string; name: string;
   }> = [];
 
   if (zone16Regions.length === 0 && zone8Regions.length === 0 && devtaRegions.length > 0) {
     const plotCpxD = plotCentroid ? toPx(plotCentroid) : null;
     devtaRegions.forEach((region) => {
-      if (region.ring !== "outer" || !region.polygon || region.polygon.length < 3) return;
+      if (!region.polygon || region.polygon.length < 3) return;
       const pts = region.polygon.map(toPx);
-      const arcInfo = computeZoneOuterArc(pts, realScale ?? null, plotCpxD);
-      if (arcInfo && arcInfo.totalLen > 2) {
-        const text = arcInfo.realArcLength !== null
-          ? `${arcInfo.realArcLength.toFixed(1)}\u2032`
-          : `${Math.round(arcInfo.totalLen)}px`;
+      const ringType = region.ring || "outer";
+
+      if (ringType === "center" || region.name === "Brahma") {
+        // Center / Brahma zone: compute bounding box dimensions
+        const xs = pts.map(p => p.x);
+        const ys = pts.map(p => p.y);
+        const minX = Math.min(...xs); const maxX = Math.max(...xs);
+        const minY = Math.min(...ys); const maxY = Math.max(...ys);
+        const wPx = maxX - minX;
+        const hPx = maxY - minY;
+        const cX = (minX + maxX) / 2;
+        const cY = (minY + maxY) / 2;
+        
+        const wFt = realScale ? wPx * realScale : null;
+        const hFt = realScale ? hPx * realScale : null;
+        const text = wFt !== null && hFt !== null
+          ? `Brahma: ${wFt.toFixed(1)} ft × ${hFt.toFixed(1)} ft`
+          : `Brahma: ${Math.round(wPx)}px × ${Math.round(hPx)}px`;
+
         devtaArcs.push({
           text,
-          lx: arcInfo.midPt.x,
-          ly: arcInfo.midPt.y,
-          nx: arcInfo.nx,
-          ny: arcInfo.ny,
-          outX: arcInfo.outX,
-          outY: arcInfo.outY,
-          apex: arcInfo.apex,
-          edgeStart: arcInfo.edgeStart,
-          edgeEnd: arcInfo.edgeEnd,
+          lx: cX,
+          ly: cY,
+          nx: 0, ny: -1,
+          outX: 0, outY: 1,
+          apex: { x: cX, y: cY },
+          edgeStart: { x: minX, y: minY },
+          edgeEnd: { x: maxX, y: maxY },
+          ring: "center",
+          name: region.name,
         });
+      } else {
+        // Outer & Middle ring devtas: compute outer boundary segment length
+        const arcInfo = computeZoneOuterArc(pts, realScale ?? null, plotCpxD);
+        if (arcInfo && arcInfo.totalLen > 2) {
+          const text = arcInfo.realArcLength !== null
+            ? (ringType === "middle" ? `${region.name}: ${arcInfo.realArcLength.toFixed(1)} ft` : `${arcInfo.realArcLength.toFixed(1)} ft`)
+            : `${Math.round(arcInfo.totalLen)} px`;
+
+          devtaArcs.push({
+            text,
+            lx: arcInfo.midPt.x,
+            ly: arcInfo.midPt.y,
+            nx: arcInfo.nx,
+            ny: arcInfo.ny,
+            outX: arcInfo.outX,
+            outY: arcInfo.outY,
+            apex: arcInfo.apex,
+            edgeStart: arcInfo.edgeStart,
+            edgeEnd: arcInfo.edgeEnd,
+            ring: ringType,
+            name: region.name,
+          });
+        }
       }
     });
   }
@@ -1030,157 +1093,113 @@ const drawCanvasContent = (
   }
 
   // ════════════════════════════════════════════════════════════════════════
-  // FINAL PASS: Zone outer span labels — drawn LAST so they sit above all
-  // other content (boundary stroke, compass needle, etc.)
+  // FINAL PASS: Clean boundary segment highlights + numbered marker dots
+  // Drawn LAST so they sit above all other content.
+  // The actual distance labels are rendered as an HTML overlay panel.
   // ════════════════════════════════════════════════════════════════════════
-  const allZoneArcs = [...zone16Arcs, ...zone8Arcs, ...devtaArcs];
-  if (allZoneArcs.length > 0) {
+  const allZoneArcs = [
+    ...zone16Arcs.map(a => ({ ...a, ring: "outer" as const, name: (a as any).name || "Zone" })),
+    ...zone8Arcs.map(a => ({ ...a, ring: "outer" as const, name: (a as any).name || "Zone" })),
+    ...devtaArcs,
+  ];
+
+  // Ring colors
+  const RING_COLORS: Record<string, string> = {
+    outer:  "#3B82F6", // Blue
+    middle: "#F59E0B", // Amber
+    inner:  "#A855F7", // Purple
+    center: "#10B981", // Emerald
+  };
+
+  if (allZoneArcs.length > 0 && showArcLengths) {
     ctx.save();
 
-    // 1. Draw Tick Marks along the boundary at zone division points
-    const drawnTicks = new Set<string>();
-    ctx.strokeStyle = "#1D4ED8";
-    ctx.lineWidth = 2.5;
+    allZoneArcs.forEach((item, idx) => {
+      const { edgeStart, edgeEnd, lx, ly, outX, outY } = item;
+      const ring = (item as any).ring || "outer";
+      const col = RING_COLORS[ring] || "#3B82F6";
 
-    allZoneArcs.forEach(({ apex, edgeStart, edgeEnd }) => {
-      [edgeStart, edgeEnd].forEach((tp) => {
-        const key = `${Math.round(tp.x)},${Math.round(tp.y)}`;
-        if (drawnTicks.has(key)) return;
-        drawnTicks.add(key);
+      if (!edgeStart || !edgeEnd) return;
+      const segLen = Math.hypot(edgeEnd.x - edgeStart.x, edgeEnd.y - edgeStart.y);
+      if (segLen < 4) return;
 
-        const rdx = tp.x - apex.x;
-        const rdy = tp.y - apex.y;
-        const rmag = Math.hypot(rdx, rdy) || 1;
-        const rnx = rdx / rmag;
-        const rny = rdy / rmag;
+      // 1. Draw a highlighted colored line ALONG the boundary segment
+      ctx.save();
+      ctx.strokeStyle = col;
+      ctx.lineWidth = ring === "outer" ? 4 : 2.5;
+      ctx.globalAlpha = 0.55;
+      ctx.beginPath();
+      ctx.moveTo(edgeStart.x, edgeStart.y);
+      ctx.lineTo(edgeEnd.x, edgeEnd.y);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.restore();
 
-        ctx.beginPath();
-        // Cut 8px inside and 8px outside across the 5px boundary wall
-        ctx.moveTo(tp.x - rnx * 8, tp.y - rny * 8);
-        ctx.lineTo(tp.x + rnx * 8, tp.y + rny * 8);
-        ctx.stroke();
+      // 2. Draw a small numbered circle at the midpoint of the segment
+      const midX = (edgeStart.x + edgeEnd.x) / 2;
+      const midY = (edgeStart.y + edgeEnd.y) / 2;
+      // Offset the dot outward so it doesn't sit exactly on the wall
+      const dotR = 9;
+      const ox = (outX || 0) * (dotR + 4);
+      const oy = (outY || 0) * (dotR + 4);
+      const dotX = midX + ox;
+      const dotY = midY + oy;
 
-        // Display corner reference distance tag at the tick mark
-        if (showTickLabels && boundary.length >= 3) {
-          const pxB = boundary.map(toPx);
-          const ref = getWallCornerReference(tp, pxB, wallLengths, realScale ?? null);
-          if (ref && ref.realDist !== null && ref.t > 0.04 && ref.t < 0.96) {
-            const tagText = `${ref.cornerLabel}+${ref.realDist.toFixed(1)}′`;
-            const tagX = tp.x + rnx * 14;
-            const tagY = tp.y + rny * 14;
+      // Dot fill
+      ctx.save();
+      ctx.shadowColor = "rgba(0,0,0,0.35)";
+      ctx.shadowBlur = 5;
+      ctx.beginPath();
+      ctx.arc(dotX, dotY, dotR, 0, Math.PI * 2);
+      ctx.fillStyle = col;
+      ctx.fill();
+      ctx.shadowBlur = 0;
 
-            ctx.save();
-            ctx.font = "bold 7.5px 'Inter', Arial, sans-serif";
-            const tMetrics = ctx.measureText(tagText);
-            const tw = tMetrics.width + 6;
-            const th = 12;
+      // White ring
+      ctx.strokeStyle = "rgba(255,255,255,0.9)";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.restore();
 
-            ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
-            fillRoundRect(ctx, tagX - tw / 2, tagY - th / 2, tw, th, 2);
-            ctx.fill();
-
-            ctx.strokeStyle = "rgba(37, 99, 235, 0.4)";
-            ctx.lineWidth = 0.8;
-            fillRoundRect(ctx, tagX - tw / 2, tagY - th / 2, tw, th, 2);
-            ctx.stroke();
-
-            ctx.fillStyle = "#1E40AF";
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            ctx.fillText(tagText, tagX, tagY);
-            ctx.restore();
-          }
-        }
-      });
-    });
-
-    // 2. Draw Corner Reference Handles (C1, C2, C3, C4...) on top of the boundary line
-    if (showCornerBadges && boundary.length > 0 && !isStatic && (drawingMode === "boundary" || drawingMode === "objects" || drawingMode === "select" || !drawingMode)) {
-      const pxB = boundary.map(toPx);
-      pxB.forEach((p, idx) => {
-        ctx.save();
-        ctx.shadowColor = "rgba(0, 0, 0, 0.25)";
-        ctx.shadowBlur = 4;
-        ctx.shadowOffsetY = 1;
-
-        // Solid white circular backdrop to completely mask the 5px blue boundary wall under it
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 10, 0, Math.PI * 2);
-        ctx.fillStyle = "#FFFFFF";
-        ctx.fill();
-        ctx.restore();
-
-        ctx.strokeStyle = "#1D4ED8";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 10, 0, Math.PI * 2);
-        ctx.stroke();
-
-        // High-contrast bold corner text
-        ctx.fillStyle = "#1E3A8A";
-        ctx.font = "bold 9.5px 'Inter', Arial, sans-serif";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(`C${idx + 1}`, p.x, p.y);
-      });
-    }
-
-    // 3. Draw Pill Labels directly on the wall boundary (and offset at corners)
-    if (showArcLengths) {
-      ctx.font = "bold 9.5px 'Inter', Arial, sans-serif";
+      // Number label inside dot
+      ctx.save();
+      ctx.font = `bold ${dotR < 8 ? 8 : 9}px 'Inter', Arial, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-
-      allZoneArcs.forEach(({ text, lx, ly, apex }) => {
-        let drawX = lx;
-        let drawY = ly;
-
-        // If this label is at a corner vertex (e.g. C1, C2, C3, C4),
-        // offset it outward/upward so it never collides with the corner badge!
-        if (boundary.length > 0) {
-          const pxB = boundary.map(toPx);
-          for (const cp of pxB) {
-            if (Math.hypot(lx - cp.x, ly - cp.y) < 22) {
-              const dx = cp.x - (apex ? apex.x : lx);
-              const dy = cp.y - (apex ? apex.y : ly);
-              const mag = Math.hypot(dx, dy) || 1;
-              // 32px offset gives clean separation: 10px corner + 14px space + 8px half-pill
-              drawX = cp.x + (dx / mag) * 32;
-              drawY = cp.y + (dy / mag) * 32;
-              break;
-            }
-          }
-        }
-
-        const metrics = ctx.measureText(text);
-        const pw = metrics.width + 10;
-        const ph = 16;
-
-        // Subtle elevation shadow so badge pops cleanly off the canvas
-        ctx.save();
-        ctx.shadowColor = "rgba(0, 0, 0, 0.2)";
-        ctx.shadowBlur = 4;
-        ctx.shadowOffsetY = 1;
-
-        // Solid white background pill
-        ctx.fillStyle = "#FFFFFF";
-        fillRoundRect(ctx, drawX - pw / 2, drawY - ph / 2, pw, ph, 4);
-        ctx.fill();
-        ctx.restore();
-
-        // Border matching boundary wall
-        ctx.strokeStyle = "#2563EB";
-        ctx.lineWidth = 1.2;
-        fillRoundRect(ctx, drawX - pw / 2, drawY - ph / 2, pw, ph, 4);
-        ctx.stroke();
-
-        // Bold, high-contrast label text
-        ctx.fillStyle = "#1E3A8A";
-        ctx.fillText(text, drawX, drawY);
-      });
-    }
+      ctx.fillStyle = "#FFFFFF";
+      ctx.fillText(`${idx + 1}`, dotX, dotY + 0.5);
+      ctx.restore();
+    });
 
     ctx.restore();
+  }
+
+  // Draw Corner Reference Handles (C1, C2...) — kept separate, always clean
+  if (showCornerBadges && boundary.length > 0 && !isStatic && (drawingMode === "boundary" || drawingMode === "objects" || drawingMode === "select" || !drawingMode)) {
+    const pxB = boundary.map(toPx);
+    pxB.forEach((p, idx) => {
+      ctx.save();
+      ctx.shadowColor = "rgba(0, 0, 0, 0.35)";
+      ctx.shadowBlur = 6;
+      ctx.shadowOffsetY = 2;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 11, 0, Math.PI * 2);
+      ctx.fillStyle = darkOverlay ? "#0F172A" : "#FFFFFF";
+      ctx.fill();
+      ctx.restore();
+
+      ctx.strokeStyle = darkOverlay ? "#3B82F6" : "#1D4ED8";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 11, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.fillStyle = darkOverlay ? "#FFFFFF" : "#1E3A8A";
+      ctx.font = "bold 10px 'Inter', Arial, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(`C${idx + 1}`, p.x, p.y);
+    });
   }
 };
 
@@ -1233,9 +1252,11 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
   showCornerBadges = true,
   showTickLabels = true,
   showArcLengths = true,
+  darkOverlay = true,
   isPremium = false,
   isUnlimited = false,
   onDragEnd,
+  onDistanceDataReady,
 }) => {
   const [hoveredDevta, setHoveredDevta] = useState<DevtaRegion | null>(null);
   const [currentDrawingWall, setCurrentDrawingWall] = useState<{ start: Point; end: Point } | null>(null);
@@ -1362,6 +1383,96 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     y: (p.y - computedLayout.drawY) / computedLayout.drawHeight,
   });
 
+  // Compute distance data entries for the HTML legend panel
+  const distanceData = React.useMemo((): DevtaDistanceEntry[] => {
+    const RING_COLORS: Record<string, string> = {
+      outer: "#3B82F6", middle: "#F59E0B", inner: "#A855F7", center: "#10B981",
+    };
+    const entries: DevtaDistanceEntry[] = [];
+    let idx = 0;
+
+    const toPxMemo = (p: Point) => ({
+      x: computedLayout.drawX + p.x * computedLayout.drawWidth,
+      y: computedLayout.drawY + p.y * computedLayout.drawHeight,
+    });
+    const plotCpx = plotCentroid ? toPxMemo(plotCentroid) : null;
+
+    // Zone16 regions
+    zone16Regions.forEach((region) => {
+      if (!region.polygon || region.polygon.length < 3) return;
+      const pts = region.polygon.map(toPxMemo);
+      const arcInfo = computeZoneOuterArc(pts, scale ?? null, plotCpx);
+      if (!arcInfo || arcInfo.totalLen < 2) return;
+      entries.push({
+        index: ++idx,
+        name: region.name,
+        ring: "outer",
+        distanceFt: arcInfo.realArcLength,
+        distancePx: arcInfo.totalLen,
+        color: RING_COLORS.outer,
+      });
+    });
+
+    // Zone8 regions
+    zone8Regions.forEach((region) => {
+      if (!region.polygon || region.polygon.length < 3) return;
+      const pts = region.polygon.map(toPxMemo);
+      const arcInfo = computeZoneOuterArc(pts, scale ?? null, plotCpx);
+      if (!arcInfo || arcInfo.totalLen < 2) return;
+      entries.push({
+        index: ++idx,
+        name: region.name,
+        ring: "outer",
+        distanceFt: arcInfo.realArcLength,
+        distancePx: arcInfo.totalLen,
+        color: RING_COLORS.outer,
+      });
+    });
+
+    // Devta regions (only when zone16/zone8 not active)
+    if (zone16Regions.length === 0 && zone8Regions.length === 0) {
+      devtaRegions.forEach((region) => {
+        if (!region.polygon || region.polygon.length < 3) return;
+        const pts = region.polygon.map(toPxMemo);
+        const ringType = (region.ring || "outer") as DevtaDistanceEntry["ring"];
+
+        if (ringType === "center" || region.name === "Brahma") {
+          const xs = pts.map(p => p.x); const ys = pts.map(p => p.y);
+          const wPx = Math.max(...xs) - Math.min(...xs);
+          const hPx = Math.max(...ys) - Math.min(...ys);
+          const avgPx = (wPx + hPx) / 2;
+          entries.push({
+            index: ++idx,
+            name: region.name,
+            ring: "center",
+            distanceFt: scale ? avgPx * scale : null,
+            distancePx: avgPx,
+            color: RING_COLORS.center,
+          });
+        } else {
+          const arcInfo = computeZoneOuterArc(pts, scale ?? null, plotCpx);
+          if (!arcInfo || arcInfo.totalLen < 2) return;
+          entries.push({
+            index: ++idx,
+            name: region.name,
+            ring: ringType,
+            distanceFt: arcInfo.realArcLength,
+            distancePx: arcInfo.totalLen,
+            color: RING_COLORS[ringType] || RING_COLORS.outer,
+          });
+        }
+      });
+    }
+
+    return entries;
+  }, [devtaRegions, zone16Regions, zone8Regions, plotCentroid, scale, computedLayout]);
+
+  useEffect(() => {
+    if (onDistanceDataReady) {
+      onDistanceDataReady(distanceData);
+    }
+  }, [distanceData, onDistanceDataReady]);
+
   useEffect(() => {
     if (!canvasRef.current) return;
     const canvas = canvasRef.current;
@@ -1416,7 +1527,8 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
       computedLayout,
       showCornerBadges,
       showTickLabels,
-      showArcLengths
+      showArcLengths,
+      darkOverlay
     );
     ctx.restore();
   }, [
@@ -1425,7 +1537,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     plotCentroid, drawingObjectBoundary, drawingMode, hoveredDevta, innerPolygon,
     middlePolygon, northDirection, wallLengths, referenceWallIndex,
     walls, currentDrawingWall, selectedWall, scale, measureStart, measureEnd, measureCurrent, hoverPoint,
-    imageLoadedTrigger, shaktiChakraZonesImg, shaktiChakraBaseImg, showCornerBadges, showTickLabels, showArcLengths
+    imageLoadedTrigger, shaktiChakraZonesImg, shaktiChakraBaseImg, showCornerBadges, showTickLabels, showArcLengths, darkOverlay
   ]);
 
   useLayoutEffect(() => {

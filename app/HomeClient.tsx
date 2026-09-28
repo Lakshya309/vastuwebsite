@@ -34,10 +34,10 @@ const MARQUEE_ITEMS = [
 /* ─── Section heading ─── */
 function SectionTag({ children }: { children: React.ReactNode }) {
   return (
-    <div className="inline-flex items-center gap-3 mb-6">
-      <span className="w-8 h-px bg-accent-gold" />
-      <span className="text-eyebrow text-gray-400">{children}</span>
-      <span className="w-8 h-px bg-accent-gold" />
+    <div className="inline-flex items-center gap-3 mb-6 px-4 py-1.5 rounded-full border border-primary/20 bg-white/80 shadow-sm backdrop-blur-sm">
+      <span className="w-6 h-px bg-amber-600" />
+      <span className="text-xs font-extrabold uppercase tracking-[0.2em] text-[#004b6e]">{children}</span>
+      <span className="w-6 h-px bg-amber-600" />
     </div>
   );
 }
@@ -105,18 +105,18 @@ export default function HomeClient() {
           style={{ y: heroY, opacity: heroOpacity }}
           className="relative z-10 max-w-5xl mx-auto w-full text-center"
         >
-          {/* Eyebrow tag */}
+          {/* Eyebrow tag — High contrast dark text with glass pill backdrop */}
           <motion.div
             variants={fadeUp}
             initial="hidden"
             animate="show"
-            className="inline-flex items-center gap-3 mb-10"
+            className="inline-flex items-center gap-3 mb-8 px-5 py-2 rounded-full border border-primary/25 bg-white/95 shadow-md backdrop-blur-md"
           >
-            <span className="w-6 h-px bg-accent-gold" />
-            <span className="text-eyebrow text-gray-400 tracking-[0.22em]">
+            <span className="w-5 h-px bg-amber-600" />
+            <span className="text-xs font-extrabold uppercase tracking-[0.24em] text-[#004b6e]">
               Precision Engineering · Ancient Wisdom
             </span>
-            <span className="w-6 h-px bg-accent-gold" />
+            <span className="w-5 h-px bg-amber-600" />
           </motion.div>
 
           {/* Main headline — scroll-triggered character reveal via word groups */}
