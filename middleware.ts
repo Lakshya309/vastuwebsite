@@ -22,9 +22,7 @@ export async function middleware(request: NextRequest) {
     const isAllowedOrigin = allowedOrigins.includes(origin)
 
     const corsHeaders = {
-      'Access-Control-Allow-Origin': isAllowedOrigin
-        ? origin
-        : 'https://manglamvastu.in',
+      'Access-Control-Allow-Origin': origin || '*',
 
       'Access-Control-Allow-Methods':
         'GET, POST, PATCH, DELETE, OPTIONS',
