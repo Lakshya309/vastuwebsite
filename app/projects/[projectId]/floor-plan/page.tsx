@@ -946,7 +946,7 @@ export default function FloorPlanPage() {
             minLeftWidth={typeof window !== 'undefined' && window.innerWidth < 768 ? 0 : 380}
             maxLeftWidth={typeof window !== 'undefined' && window.innerWidth < 768 ? window.innerWidth : 700}
             defaultLeftWidth={typeof window !== 'undefined' && window.innerWidth < 768 ? window.innerWidth : 500}
-            className="flex-col md:flex-row overflow-hidden"
+            className="flex-col md:flex-row flex-1 w-full overflow-hidden"
             leftPanel={
               <div className="h-full bg-gray-900 flex flex-col">
                 {showVideo && project?.video_url && (
@@ -982,7 +982,7 @@ export default function FloorPlanPage() {
               </div>
             }
             rightPanel={
-              <div className="flex h-full min-h-0">
+              <div className="flex w-full h-full min-h-0 overflow-hidden">
                 <div className="flex-1 bg-gray-50 relative overflow-hidden flex items-center justify-center p-4">
                   <div className="bg-white shadow-2xl rounded-lg overflow-hidden relative">
                     <FloorPlanCanvas
@@ -1098,7 +1098,7 @@ export default function FloorPlanPage() {
                 </div>
 
                 {/* Control Panel (Right) */}
-                <div className="h-full overflow-y-auto flex-shrink-0">
+                <div className="h-full flex-shrink-0">
                   <ControlPanel
                     projectId={projectId}
                     error={error || analysisError}
@@ -1289,7 +1289,7 @@ export default function FloorPlanPage() {
                 )}
               </div>
             </div>
-            <div className="h-full overflow-y-auto flex-shrink-0">
+            <div className="h-full flex-shrink-0">
               <ControlPanel
                 projectId={projectId}
                 error={error || analysisError}

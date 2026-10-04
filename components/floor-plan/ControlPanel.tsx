@@ -202,36 +202,36 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
         >
           {/* Section: View Controls */}
           <motion.div variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }} className="mb-8 p-4 bg-white/50 rounded-2xl border border-white shadow-sm">
-            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <Compass size={12} className="text-primary" />
+            <h3 className="text-sm font-extrabold text-slate-600 uppercase tracking-widest mb-4 flex items-center gap-2">
+              <Compass size={12} className="text-[10px]rimary" />
               View Orientation
             </h3>
             <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={() => props.setCanvasRotation && props.setCanvasRotation(prev => (prev - 90 + 360) % 360)}
-                className="flex items-center justify-center gap-2 py-3 px-4 bg-white hover:bg-gray-50 text-primary border border-gray-200 rounded-xl transition-all hover:scale-[1.02] shadow-sm group"
+                className="flex items-center justify-center gap-2 py-3 px-4 bg-white hover:bg-gray-50 text-[10px]rimary border border-gray-200 rounded-xl transition-all hover:scale-[1.02] shadow-sm group"
               >
                 <RotateCcw size={16} className="group-hover:-rotate-45 transition-transform" />
                 <span className="text-[10px] font-bold uppercase tracking-wider">Rotate Left</span>
               </button>
               <button
                 onClick={() => props.setCanvasRotation && props.setCanvasRotation(prev => (prev + 90) % 360)}
-                className="flex items-center justify-center gap-2 py-3 px-4 bg-white hover:bg-gray-50 text-primary border border-gray-200 rounded-xl transition-all hover:scale-[1.02] shadow-sm group"
+                className="flex items-center justify-center gap-2 py-3 px-4 bg-white hover:bg-gray-50 text-[10px]rimary border border-gray-200 rounded-xl transition-all hover:scale-[1.02] shadow-sm group"
               >
                 <RotateCw size={16} className="group-hover:rotate-45 transition-transform" />
                 <span className="text-[10px] font-bold uppercase tracking-wider">Rotate Right</span>
               </button>
             </div>
             <div className="mt-3 flex justify-center">
-              <span className="text-[9px] font-medium text-gray-400 italic">Current View: {props.canvasRotation || 0}°</span>
+              <span className="text-[9px] font-medium text-slate-600 italic">Current View: {props.canvasRotation || 0}°</span>
             </div>
           </motion.div>
 
           {/* Section 1: Upload */}
           {!props.isManualMode && (
             <motion.div variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }}>
-              <h3 className="text-xl font-cormorant font-bold italic text-primary mb-4 flex items-center gap-2">
-                <span className="text-xs font-sans not-italic bg-primary/10 text-primary w-6 h-6 rounded-full flex items-center justify-center">1</span>
+              <h3 className="text-2xl font-cormorant font-black italic text-slate-900 mb-4 flex items-center gap-2">
+                <span className="text-[10px]s font-sans not-italic bg-primary/10 text-[10px]rimary w-6 h-6 rounded-full flex items-center justify-center">1</span>
                 Upload Floor Plan
               </h3>
               <div className="relative group">
@@ -239,13 +239,13 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                   type="file"
                   accept="image/*"
                   onChange={props.handleImageUpload}
-                  className="block w-full text-[10px] text-gray-400 font-bold uppercase tracking-widest file:mr-4 file:py-2.5 file:px-6 file:rounded-xl file:border-0 file:text-[10px] file:font-bold file:uppercase file:tracking-widest file:bg-primary file:text-white hover:file:bg-primary/90 cursor-pointer transition-all"
+                  className="block w-full text-[10px] text-slate-600 font-bold uppercase tracking-widest file:mr-4 file:py-2.5 file:px-6 file:rounded-xl file:border-0 file:text-[10px] file:font-bold file:uppercase file:tracking-widest file:bg-primary file:text-white hover:file:bg-primary/90 cursor-pointer transition-all"
                 />
               </div>
               {props.selectedFile && (
                 <button
                   onClick={props.handleReupload}
-                  className="w-full mt-4 py-3 bg-white/50 hover:bg-white text-primary rounded-xl text-[10px] font-bold uppercase tracking-widest border border-white shadow-sm transition-all"
+                  className="w-full mt-4 py-3 bg-white/50 hover:bg-white text-[10px]rimary rounded-xl text-[10px] font-bold uppercase tracking-widest border border-white shadow-sm transition-all"
                 >
                   Upload New Image
                 </button>
@@ -255,16 +255,16 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
 
           {/* Section 2: Boundary */}
           <motion.div variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }} className="pt-2">
-            <h3 id="tutorial-boundary" className="text-xl font-cormorant font-bold italic text-primary mb-4 flex items-center gap-2">
-              <span className="text-xs font-sans not-italic bg-primary/10 text-primary w-6 h-6 rounded-full flex items-center justify-center">2</span>
+            <h3 id="tutorial-boundary" className="text-2xl font-cormorant font-black italic text-slate-900 mb-4 flex items-center gap-2">
+              <span className="text-[10px]s font-sans not-italic bg-primary/10 text-[10px]rimary w-6 h-6 rounded-full flex items-center justify-center">2</span>
               Draw Your Plot
             </h3>
             {props.isManualMode ? (
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-6 leading-relaxed">
+              <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest mb-6 leading-relaxed">
                 Your plot dimensions have been set. You can still draw a custom boundary if needed.
               </p>
             ) : (
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-6 leading-relaxed">
+              <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest mb-6 leading-relaxed">
                 Click on the image to mark the corners of your plot.
               </p>
             )}
@@ -287,7 +287,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
             <div className="flex gap-3 mb-3">
               <button
                 onClick={props.handleUndoLastPoint}
-                className="w-full py-3 bg-white/50 hover:bg-white text-gray-500 rounded-xl text-[9px] font-bold uppercase tracking-widest border border-white shadow-sm transition-all"
+                className="w-full py-3 bg-white/50 hover:bg-white text-slate-700 rounded-xl text-[9px] font-bold uppercase tracking-widest border border-white shadow-sm transition-all"
               >
                 Undo
               </button>
@@ -301,13 +301,13 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
 
             {props.isManualMode && (
               <div className="mt-6 p-6 glass rounded-2xl border border-white space-y-4">
-                <h4 className="font-cormorant font-bold italic text-primary text-lg">Plot Dimensions ({props.referenceWallUnit})</h4>
+                <h4 className="font-cormorant font-bold italic text-[10px]rimary text-lg">Plot Dimensions ({props.referenceWallUnit})</h4>
 
                 {(!props.plotSideFront && !props.plotSideBack) ? (
                   <div className="space-y-4">
                     <div className="grid grid-cols-3 gap-3">
                       <div>
-                        <label className="block text-[8px] font-bold text-gray-400 uppercase tracking-tighter mb-1">Width</label>
+                        <label className="block text-[8px] font-bold text-slate-600 uppercase tracking-tighter mb-1">Width</label>
                         <input
                           type="number"
                           value={props.plotWidth || ""}
@@ -315,11 +315,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                             const val = parseFloat(e.target.value) || 0;
                             props.setProject && props.setProject((prev: any) => ({ ...prev, plot_width: val }));
                           }}
-                          className="w-full p-2 bg-white/50 border border-white rounded-lg text-xs font-bold text-primary focus:outline-none"
+                          className="w-full p-2 bg-white/50 border border-white rounded-lg text-[10px]s font-bold text-[10px]rimary focus:outline-none"
                         />
                       </div>
                       <div>
-                        <label className="block text-[8px] font-bold text-gray-400 uppercase tracking-tighter mb-1">Length</label>
+                        <label className="block text-[8px] font-bold text-slate-600 uppercase tracking-tighter mb-1">Length</label>
                         <input
                           type="number"
                           value={props.plotHeight || ""}
@@ -327,11 +327,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                             const val = parseFloat(e.target.value) || 0;
                             props.setProject && props.setProject((prev: any) => ({ ...prev, plot_height: val }));
                           }}
-                          className="w-full p-2 bg-white/50 border border-white rounded-lg text-xs font-bold text-primary focus:outline-none"
+                          className="w-full p-2 bg-white/50 border border-white rounded-lg text-[10px]s font-bold text-[10px]rimary focus:outline-none"
                         />
                       </div>
                       <div>
-                        <label className="block text-[8px] font-bold text-gray-400 uppercase tracking-tighter mb-1">Angle</label>
+                        <label className="block text-[8px] font-bold text-slate-600 uppercase tracking-tighter mb-1">Angle</label>
                         <input
                           type="number"
                           value={props.plotAngle || 90}
@@ -339,13 +339,13 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                             const val = parseFloat(e.target.value) || 90;
                             props.setPlotAngle && props.setPlotAngle(val);
                           }}
-                          className="w-full p-2 bg-white/50 border border-white rounded-lg text-xs font-bold text-primary focus:outline-none"
+                          className="w-full p-2 bg-white/50 border border-white rounded-lg text-[10px]s font-bold text-[10px]rimary focus:outline-none"
                         />
                       </div>
                     </div>
                     <button
                       onClick={() => props.setProject && props.setProject((prev: any) => ({ ...prev, plot_side_front: prev.plot_width, plot_side_back: prev.plot_width, plot_side_left: prev.plot_height, plot_side_right: prev.plot_height, plot_diagonal: Math.sqrt(prev.plot_width ** 2 + prev.plot_height ** 2) }))}
-                      className="text-[9px] font-bold text-primary hover:underline italic uppercase tracking-widest"
+                      className="text-[9px] font-bold text-[10px]rimary hover:underline italic uppercase tracking-widest"
                     >
                       Use Different Sides
                     </button>
@@ -355,7 +355,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                     <div className="grid grid-cols-2 gap-3">
                       {['Front', 'Back', 'Left', 'Right'].map((side) => (
                         <div key={side}>
-                          <label className="block text-[8px] font-bold text-gray-400 uppercase tracking-tighter mb-1">{side}</label>
+                          <label className="block text-[8px] font-bold text-slate-600 uppercase tracking-tighter mb-1">{side}</label>
                           <input
                             type="number"
                             value={(props as any)[`plotSide${side}`] || ""}
@@ -363,13 +363,13 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                               const val = parseFloat(e.target.value) || 0;
                               props.setProject && props.setProject((prev: any) => ({ ...prev, [`plot_side_${side.toLowerCase()}`]: val }));
                             }}
-                            className="w-full p-2 bg-white/50 border border-white rounded-lg text-xs font-bold text-primary focus:outline-none"
+                            className="w-full p-2 bg-white/50 border border-white rounded-lg text-[10px]s font-bold text-[10px]rimary focus:outline-none"
                           />
                         </div>
                       ))}
                     </div>
                     <div>
-                      <label className="block text-[8px] font-bold text-gray-400 uppercase tracking-tighter mb-1">Diagonal</label>
+                      <label className="block text-[8px] font-bold text-slate-600 uppercase tracking-tighter mb-1">Diagonal</label>
                       <input
                         type="number"
                         value={props.plotDiagonal || ""}
@@ -377,7 +377,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                           const val = parseFloat(e.target.value) || 0;
                           props.setProject && props.setProject((prev: any) => ({ ...prev, plot_diagonal: val }));
                         }}
-                        className="w-full p-2 bg-white/50 border border-white rounded-lg text-xs font-bold text-primary focus:outline-none"
+                        className="w-full p-2 bg-white/50 border border-white rounded-lg text-[10px]s font-bold text-[10px]rimary focus:outline-none"
                         placeholder="Optional"
                       />
                     </div>
@@ -395,11 +395,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
 
           {/* Section 2b: Internal Walls */}
           <motion.div variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }} className="pt-2 border-t border-white/30">
-            <h3 className="text-xl font-cormorant font-bold italic text-primary mb-4 flex items-center gap-2">
-              <span className="text-xs font-sans not-italic bg-primary/10 text-primary w-6 h-6 rounded-full flex items-center justify-center">2b</span>
+            <h3 className="text-2xl font-cormorant font-black italic text-slate-900 mb-4 flex items-center gap-2">
+              <span className="text-[10px]s font-sans not-italic bg-primary/10 text-[10px]rimary w-6 h-6 rounded-full flex items-center justify-center">2b</span>
               Interior Walls
             </h3>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-6 leading-relaxed">
+            <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest mb-6 leading-relaxed">
               Draw walls inside your plot to show room divisions.
             </p>
             <button
@@ -428,7 +428,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                   </button>
                 </div>
                 <div className="space-y-2">
-                  <label className="block text-[8px] font-bold text-gray-400 uppercase tracking-widest">Wall Color</label>
+                  <label className="block text-[8px] font-bold text-slate-600 uppercase tracking-widest">Wall Color</label>
                   <input
                     type="color"
                     value={props.selectedWall.color}
@@ -453,11 +453,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
 
           {/* Section 3: North */}
           <motion.div variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }} className="pt-2 border-t border-white/30">
-            <h3 className="text-xl font-cormorant font-bold italic text-primary mb-4 flex items-center gap-2">
-              <span className="text-xs font-sans not-italic bg-primary/10 text-primary w-6 h-6 rounded-full flex items-center justify-center">3</span>
+            <h3 className="text-2xl font-cormorant font-black italic text-slate-900 mb-4 flex items-center gap-2">
+              <span className="text-[10px]s font-sans not-italic bg-primary/10 text-[10px]rimary w-6 h-6 rounded-full flex items-center justify-center">3</span>
               North Direction
             </h3>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-6 leading-relaxed">
+            <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest mb-6 leading-relaxed">
               Set which way your plot faces using a compass.
             </p>
             <div id="tutorial-north" className="px-2">
@@ -471,47 +471,47 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                 }
                 className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary"
               />
-              <div className="text-center text-4xl font-cormorant font-bold italic text-primary mt-6 tracking-tighter">
+              <div className="text-center text-4xl font-cormorant font-bold italic text-[10px]rimary mt-6 tracking-tighter">
                 {props.liveNorthDirection}°
               </div>
-              <p className="text-center text-[8px] font-bold text-gray-400 uppercase tracking-[0.3em] mt-1 italic">Rotation</p>
+              <p className="text-center text-[8px] font-bold text-slate-600 uppercase tracking-[0.3em] mt-1 italic">Rotation</p>
             </div>
           </motion.div>
 
           {/* Section 4: Scale */}
           {props.boundary && props.boundary.length > 2 && (
             <motion.div variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }} className="pt-2 border-t border-white/30">
-              <h3 id="tutorial-dimensions" className="text-xl font-cormorant font-bold italic text-primary mb-4 flex items-center gap-2">
-                <span className="text-xs font-sans not-italic bg-primary/10 text-primary w-6 h-6 rounded-full flex items-center justify-center">4</span>
+              <h3 id="tutorial-dimensions" className="text-2xl font-cormorant font-black italic text-slate-900 mb-4 flex items-center gap-2">
+                <span className="text-[10px]s font-sans not-italic bg-primary/10 text-[10px]rimary w-6 h-6 rounded-full flex items-center justify-center">4</span>
                 Set Plot Size
               </h3>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-6 leading-relaxed">
+              <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest mb-6 leading-relaxed">
                 Enter your plot dimensions to get accurate measurements.
               </p>
               {props.referenceWallIndex !== null ? (
                 <div className="glass p-6 rounded-2xl border border-white space-y-5">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-primary italic">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[10px]rimary italic">
                     Selected: <span className="text-teal-600">Side {props.referenceWallIndex + 1}</span>
                   </p>
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-[8px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Actual Length</label>
+                      <label className="block text-[8px] font-bold text-slate-600 uppercase tracking-widest mb-1.5 ml-1">Actual Length</label>
                       <input
                         type="number"
                         min="0.01"
                         step="0.01"
                         value={props.referenceWallLength ?? ""}
                         onChange={(e) => props.setReferenceWallLength(parseFloat(e.target.value) || null)}
-                        className="w-full p-3 bg-white/50 border border-white rounded-xl text-sm font-bold text-primary focus:outline-none placeholder:text-gray-300"
+                        className="w-full p-3 bg-white/50 border border-white rounded-xl text-sm font-bold text-[10px]rimary focus:outline-none placeholder:text-gray-300"
                         placeholder="Enter length..."
                       />
                     </div>
                     <div>
-                      <label className="block text-[8px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Unit</label>
+                      <label className="block text-[8px] font-bold text-slate-600 uppercase tracking-widest mb-1.5 ml-1">Unit</label>
                       <select
                         value={props.referenceWallUnit}
                         onChange={(e) => props.setReferenceWallUnit(e.target.value as any)}
-                        className="w-full p-3 bg-white/50 border border-white rounded-xl text-xs font-bold text-primary focus:outline-none"
+                        className="w-full p-3 bg-white/50 border border-white rounded-xl text-[10px]s font-bold text-[10px]rimary focus:outline-none"
                       >
                         <option value="meters">Meters</option>
                         <option value="feet">Feet</option>
@@ -528,9 +528,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                     </button>
                     {props.scale && (
                       <div className="text-center p-3 bg-primary/5 rounded-xl border border-primary/10">
-                        <p className="text-[9px] font-bold text-primary uppercase tracking-widest leading-normal">
+                        <p className="text-[9px] font-bold text-[10px]rimary uppercase tracking-widest leading-normal">
                           Scale:<br />
-                          <span className="text-xs">1px = {(props.scale / (UNIT_CONVERSIONS[props.referenceWallUnit] || 1)).toFixed(4)} {props.referenceWallUnit}</span>
+                          <span className="text-[10px]s">1px = {(props.scale / (UNIT_CONVERSIONS[props.referenceWallUnit] || 1)).toFixed(4)} {props.referenceWallUnit}</span>
                         </p>
                       </div>
                     )}
@@ -538,7 +538,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                 </div>
               ) : (
                 <div className="p-6 bg-white/30 border-2 border-dashed border-white rounded-2xl text-center">
-                  <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest italic leading-relaxed">
+                  <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest italic leading-relaxed">
                     Click on a plot edge on the canvas to select it.
                   </p>
                 </div>
@@ -551,7 +551,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
             <button
               onClick={() => props.handleSaveChanges && props.handleSaveChanges()}
               disabled={props.boundary.length < 3}
-              className="w-full py-5 bg-gradient-to-r from-primary to-teal-700 text-white rounded-[2rem] text-xs font-bold uppercase tracking-[0.3em] shadow-2xl shadow-primary/30 disabled:opacity-50 hover:scale-[1.03] active:scale-95 transition-all duration-500"
+              className="w-full py-5 bg-gradient-to-r from-primary to-teal-700 text-white rounded-[2rem] text-[10px]s font-bold uppercase tracking-[0.3em] shadow-2xl shadow-primary/30 disabled:opacity-50 hover:scale-[1.03] active:scale-95 transition-all duration-500"
             >
               Analyze Vastu
             </button>
@@ -559,16 +559,16 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
 
           {/* Energy Grids Container */}
           <motion.div variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }} className="pt-8 border-t border-white/30 space-y-8">
-            <h3 id="tutorial-layers" className="text-2xl font-cormorant font-bold italic text-primary leading-none">Energy Grids</h3>
+            <h3 id="tutorial-layers" className="text-3xl font-cormorant font-black italic text-slate-900 leading-none">Energy Grids</h3>
 
             <div className="glass p-4 rounded-2xl border border-white">
-              <label className="block text-[8px] font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">Grid Type</label>
+              <label className="block text-[8px] font-bold text-slate-600 uppercase tracking-widest mb-2 ml-1">Grid Type</label>
               <div className="relative">
                 <select
                   disabled={!props.isPremium}
                   value={props.gridType}
                   onChange={(e) => props.onGridTypeChange(e.target.value as any)}
-                  className="w-full p-3 bg-white/50 border border-white rounded-xl text-xs font-bold text-primary focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full p-3 bg-white/50 border border-white rounded-xl text-[10px]s font-bold text-[10px]rimary focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <option value="81">81 Grid (Detailed)</option>
                   <option value="64">64 Grid (Standard)</option>
@@ -605,18 +605,18 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                           ...(grid.id === 'zone8' && e.target.checked ? { devta45: false, zone16: false } : {}),
                         }))
                       }}
-                      className="w-5 h-5 rounded-lg border-2 border-primary/20 text-primary focus:ring-primary/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-5 h-5 rounded-lg border-2 border-primary/20 text-[10px]rimary focus:ring-primary/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     />
                     <div className="ml-4 flex-1">
                       <div className="flex items-center justify-between">
-                        <span className="block text-[10px] font-bold text-primary uppercase tracking-widest">{grid.label}</span>
+                        <span className="block text-[10px] font-bold text-[10px]rimary uppercase tracking-widest">{grid.label}</span>
                         {!props.isPremium && (grid.id === 'devta45' || grid.id === 'marma' || grid.id === 'shaktiChakra') && (
                           <div className="scale-75 origin-right">
                             <PremiumBadge />
                           </div>
                         )}
                       </div>
-                      <span className="block text-[8px] font-bold text-gray-400 uppercase tracking-tighter italic">{grid.sub}</span>
+                      <span className="block text-[8px] font-bold text-slate-600 uppercase tracking-tighter italic">{grid.sub}</span>
                     </div>
                     {(props.showGrid as any)[grid.id] && (
                       <motion.div layoutId="grid-active" className={`absolute left-0 w-1 h-8 rounded-full ${grid.color}`} />
@@ -631,13 +631,13 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                       exit={{ opacity: 0, height: 0 }}
                       className={`ml-4 pl-4 border-l-2 ${grid.id === 'zone16' ? 'border-teal-500/40' : grid.id === 'zone8' ? 'border-emerald-500/40' : 'border-primary/40'} space-y-2.5 py-3 glass rounded-r-2xl border-white/50 bg-white/40 shadow-inner`}
                     >
-                      <div className="text-[8px] font-bold text-gray-400 uppercase tracking-widest italic mb-1 flex items-center gap-1">
+                      <div className="text-[8px] font-bold text-slate-600 uppercase tracking-widest italic mb-1 flex items-center gap-1">
                         <span>↳ Zone Sub-options & Distances</span>
                       </div>
 
                       {/* Distance Mode Toggle */}
                       <div className="p-2 rounded-xl bg-white/60 border border-primary/10 space-y-1.5 mb-2">
-                        <span className="block text-[8px] font-extrabold text-primary uppercase tracking-widest">
+                        <span className="block text-[8px] font-extrabold text-[10px]rimary uppercase tracking-widest">
                           Distance View Mode
                         </span>
                         <div className="flex gap-2">
@@ -695,13 +695,13 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                                 [subOpt.id]: e.target.checked,
                               }))
                             }
-                            className="mt-0.5 w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary/20 transition-all cursor-pointer"
+                            className="mt-0.5 w-4 h-4 rounded border-gray-300 text-[10px]rimary focus:ring-primary/20 transition-all cursor-pointer"
                           />
                           <div>
-                            <span className="block text-[9px] font-bold text-gray-700 uppercase tracking-wider group-hover:text-primary transition-colors">
+                            <span className="block text-[9px] font-bold text-gray-700 uppercase tracking-wider group-hover:text-[10px]rimary transition-colors">
                               {subOpt.label}
                             </span>
-                            <span className="block text-[7.5px] font-semibold text-gray-400 uppercase tracking-tight italic">
+                            <span className="block text-[7.5px] font-semibold text-slate-600 uppercase tracking-tight italic">
                               {subOpt.sub}
                             </span>
                           </div>
@@ -720,7 +720,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                 className="pl-4 pt-2 space-y-6"
               >
                 <div>
-                  <label className="block text-[8px] font-bold text-gray-400 uppercase tracking-widest mb-3">Display Type</label>
+                  <label className="block text-[8px] font-bold text-slate-600 uppercase tracking-widest mb-3">Display Type</label>
                   <div className="flex gap-6">
                     {['complete', 'zones'].map((type) => (
                       <label key={type} className="flex items-center gap-2 cursor-pointer group">
@@ -739,7 +739,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                           checked={props.shaktiChakraType === type || (!props.shaktiChakraType && type === 'complete')}
                           onChange={() => props.setShaktiChakraType?.(type as any)}
                         />
-                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest group-hover:text-primary transition-colors">
+                        <span className="text-[10px] font-bold text-slate-700 uppercase tracking-widest group-hover:text-[10px]rimary transition-colors">
                           {type}
                         </span>
                       </label>
@@ -748,8 +748,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                 </div>
                 <div>
                   <div className="flex justify-between items-center mb-2">
-                    <label className="block text-[8px] font-bold text-gray-400 uppercase tracking-widest">Size</label>
-                    <span className="text-[10px] font-bold text-primary italic">{(props.shaktiChakraSize * 100).toFixed(0)}%</span>
+                    <label className="block text-[8px] font-bold text-slate-600 uppercase tracking-widest">Size</label>
+                    <span className="text-[10px] font-bold text-[10px]rimary italic">{(props.shaktiChakraSize * 100).toFixed(0)}%</span>
                   </div>
                   <input
                     type="range"
@@ -767,9 +767,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
 
           {/* Analysis Status */}
           <motion.div variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }} className="pt-8 border-t border-white/30">
-            <h3 className="text-xl font-cormorant font-bold italic text-primary mb-4 flex items-center gap-2">Analysis Status</h3>
+            <h3 className="text-2xl font-cormorant font-black italic text-slate-900 mb-4 flex items-center gap-2">Analysis Status</h3>
             <div className="flex items-center justify-between glass p-4 rounded-xl border border-white">
-              <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest italic">Status</span>
+              <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest italic">Status</span>
               {props.analysisStale ? (
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
@@ -786,7 +786,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
 
           {/* Measuring Tools */}
           <motion.div variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }} className="pt-8 border-t border-white/30 space-y-4">
-            <h3 className="text-xl font-cormorant font-bold italic text-primary">Measure Distance</h3>
+            <h3 className="text-2xl font-cormorant font-black italic text-slate-900">Measure Distance</h3>
             <button
               onClick={() => {
                 if (!props.isPremium) return;
@@ -801,7 +801,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
               {props.drawingMode === "measure" ? "Stop Measuring" : "Measure Distance"}
             </button>
             {props.drawingMode === "measure" && (
-              <p className="text-[9px] text-purple-600 font-bold uppercase tracking-widest italic text-center px-4 leading-relaxed">
+              <p className="text-[9px] text-[10px]urple-600 font-bold uppercase tracking-widest italic text-center px-4 leading-relaxed">
                 Click two points on the plot to measure the distance.
               </p>
             )}
@@ -809,7 +809,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
 
           {/* Problem Zones */}
           <motion.div variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }} className="pt-8 border-t border-white/30 space-y-4">
-            <h3 className="text-xl font-cormorant font-bold italic text-primary">Problem Areas</h3>
+            <h3 className="text-2xl font-cormorant font-black italic text-slate-900">Problem Areas</h3>
             <div className="glass p-2 rounded-2xl border border-white relative">
               <select
                 disabled={!props.isPremium}
@@ -824,7 +824,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                     props.setHighlightedZones([]);
                   }
                 }}
-                className="w-full p-3 bg-white/50 border border-white rounded-xl text-xs font-bold text-primary italic focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full p-3 bg-white/50 border border-white rounded-xl text-[10px]s font-bold text-[10px]rimary italic focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <option value="">Select a Problem...</option>
                 {Object.keys(problemZoneMapping).map((problem) => (
@@ -841,7 +841,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
 
           {/* Objects Palette */}
           <motion.div variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }} className="pt-8 border-t border-white/30">
-            <h3 id="tutorial-objects" className="text-2xl font-cormorant font-bold italic text-primary mb-6">Room Items</h3>
+            <h3 id="tutorial-objects" className="text-3xl font-cormorant font-black italic text-slate-900 mb-6">Room Items</h3>
             <div className="glass p-6 rounded-[2rem] border border-white shadow-inner">
               <ObjectPalette
                 onAddObject={props.handleAddObject}
@@ -864,7 +864,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
               {!props.isPremium && <PremiumBadge />}
               Generate Report →
             </button>
-            <p className="text-center text-[8px] font-bold text-gray-400 uppercase tracking-[0.3em] mt-4 italic">Save your analysis and view results</p>
+            <p className="text-center text-[8px] font-bold text-slate-600 uppercase tracking-[0.3em] mt-4 italic">Save your analysis and view results</p>
           </div>
         </div>
       </div>

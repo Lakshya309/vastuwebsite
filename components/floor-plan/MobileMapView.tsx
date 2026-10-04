@@ -19,7 +19,7 @@ interface MobileMapData {
     width: number;
     height: number;
     doors: { dx: number; dy: number }[];
-    mappedObjects: { name: string; addedAt?: string; compassDegree?: number }[];
+    mappedObjects: { name: string; addedAt?: string; compassDegree?: number; screenDx?: number; screenDy?: number }[];
   }[];
   north_direction?: number; 
 }
@@ -88,10 +88,17 @@ export function MobileMapView({ data, className = "", northDirection }: MobileMa
     // 2. Draw Plot Boundary
     if (data.plot_boundary) {
       const { position, scale: bScale, normalizedPoints } = data.plot_boundary;
-      const points = normalizedPoints.map((p) => ({
-        x: (position.x + p.x * bScale) * scaleX,
-        y: (position.y + p.y * bScale) * scaleY,
-      }));
+      const posX = (position as any).x ?? (position as any).dx ?? 0;
+      const posY = (position as any).y ?? (position as any).dy ?? 0;
+
+      const points = normalizedPoints.map((p: any) => {
+        const px = p.x ?? p.dx ?? 0;
+        const py = p.y ?? p.dy ?? 0;
+        return {
+          x: (posX + px * bScale) * scaleX,
+          y: (posY + py * bScale) * scaleY,
+        };
+      });
 
       if (points.length > 0) {
         ctx.beginPath();
@@ -168,8 +175,23 @@ export function MobileMapView({ data, className = "", northDirection }: MobileMa
             
             // Note: Canvas images are async. For a simple ref view, we'll try to draw if cached, 
             // but a better way is preloading. For now, we use a color dot + label.
-            const iconX = rx + (idx + 1) * (rw / (room.mappedObjects.length + 1));
-            const iconY = ry + rh - (20 / zoom);
+            let iconX, iconY;
+            const cx = rx + rw / 2;
+            const cy = ry + rh / 2;
+            
+            if (obj.compassDegree !== undefined && obj.compassDegree !== null) {
+              const angleFromUp = obj.compassDegree - currentNorth;
+              const rad = (angleFromUp * Math.PI) / 180;
+              
+              const radiusX = (rw / 2) * 0.7;
+              const radiusY = (rh / 2) * 0.7;
+              
+              iconX = cx + Math.sin(rad) * radiusX;
+              iconY = cy - Math.cos(rad) * radiusY;
+            } else {
+              iconX = rx + (idx + 1) * (rw / (room.mappedObjects.length + 1));
+              iconY = ry + rh - (20 / zoom);
+            }
 
             ctx.beginPath();
             ctx.arc(iconX, iconY, 4 / zoom, 0, Math.PI * 2);
@@ -184,10 +206,12 @@ export function MobileMapView({ data, className = "", northDirection }: MobileMa
 
         // Draw Doors
         if (room.doors) {
-          room.doors.forEach((door) => {
+          room.doors.forEach((door: any) => {
+            const doorX = door.x ?? door.dx ?? 0;
+            const doorY = door.y ?? door.dy ?? 0;
             ctx.fillStyle = "#92400e"; // Brown
             ctx.beginPath();
-            ctx.arc(rx + door.dx * scaleX, ry + door.dy * scaleY, 7 / zoom, 0, Math.PI * 2);
+            ctx.arc(rx + doorX * scaleX, ry + doorY * scaleY, 7 / zoom, 0, Math.PI * 2);
             ctx.fill();
             ctx.strokeStyle = "white";
             ctx.lineWidth = 2.5 / zoom;
