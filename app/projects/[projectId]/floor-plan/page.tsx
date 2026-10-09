@@ -84,6 +84,7 @@ export default function FloorPlanPage() {
   });
   const [showVideo, setShowVideo] = useState(false);
   const [showMobileMap, setShowMobileMap] = useState(false);
+  const [leftPanelTab, setLeftPanelTab] = useState<'video' | 'map'>('video');
   const [selectedObjectType, setSelectedObjectType] = useState("Toilet");
   const [drawingObjectBoundary, setDrawingObjectBoundary] = useState<Point[]>(
     [],
@@ -786,6 +787,99 @@ export default function FloorPlanPage() {
     setSelectedZone(null);
   };
 
+  const handleApplyMobileToCanvas = async (mobileData: any) => {
+    const boundaryType = mobileData?.boundary_type || "Rectangle";
+    const typeLower = boundaryType.toLowerCase();
+
+    let newBoundary: Point[] = [];
+    if (typeLower === "u-shape") {
+      newBoundary = [
+        { x: 0.15, y: 0.15 },
+        { x: 0.36, y: 0.15 },
+        { x: 0.36, y: 0.64 },
+        { x: 0.64, y: 0.64 },
+        { x: 0.64, y: 0.15 },
+        { x: 0.85, y: 0.15 },
+        { x: 0.85, y: 0.85 },
+        { x: 0.15, y: 0.85 },
+      ];
+    } else if (typeLower === "l-shape") {
+      newBoundary = [
+        { x: 0.15, y: 0.15 },
+        { x: 0.43, y: 0.15 },
+        { x: 0.43, y: 0.57 },
+        { x: 0.85, y: 0.57 },
+        { x: 0.85, y: 0.85 },
+        { x: 0.15, y: 0.85 },
+      ];
+    } else if (typeLower === "irregular") {
+      newBoundary = [
+        { x: 0.25, y: 0.15 },
+        { x: 0.85, y: 0.22 },
+        { x: 0.78, y: 0.85 },
+        { x: 0.15, y: 0.75 },
+      ];
+    } else {
+      newBoundary = [
+        { x: 0.15, y: 0.15 },
+        { x: 0.85, y: 0.15 },
+        { x: 0.85, y: 0.85 },
+        { x: 0.15, y: 0.85 },
+      ];
+    }
+
+    setBoundary(newBoundary);
+
+    // Map room objects to placedObjects
+    if (mobileData.rooms && Array.isArray(mobileData.rooms)) {
+      const newPlacedObjects: PlacedObject[] = [];
+      mobileData.rooms.forEach((room: any) => {
+        if (room.mappedObjects && Array.isArray(room.mappedObjects)) {
+          room.mappedObjects.forEach((obj: any, idx: number) => {
+            const normX = (room.x + (obj.screenDx ?? room.width / 2)) / 3000;
+            const normY = (room.y + (obj.screenDy ?? room.height / 2)) / 3000;
+            const cx = Math.max(0.1, Math.min(0.9, normX));
+            const cy = Math.max(0.1, Math.min(0.9, normY));
+            newPlacedObjects.push({
+              id: `${room.id}_${idx}_${Date.now()}`,
+              object_type: obj.name || "Toilet",
+              centroid: { x: cx, y: cy },
+              boundary_normalized: [
+                { x: cx - 0.04, y: cy - 0.04 },
+                { x: cx + 0.04, y: cy - 0.04 },
+                { x: cx + 0.04, y: cy + 0.04 },
+                { x: cx - 0.04, y: cy + 0.04 },
+              ],
+              rotation: 0,
+            });
+          });
+        }
+      });
+      if (newPlacedObjects.length > 0) {
+        setPlacedObjects(newPlacedObjects);
+      }
+    }
+
+    try {
+      await fetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          boundary_normalized: newBoundary,
+          north_direction: liveNorthDirection,
+        }),
+      });
+
+      const newId = await createAnalysisRequest(projectId, "devta", newBoundary, liveNorthDirection, undefined, undefined);
+      if (newId) {
+        fetchDetailedAnalysisResults(newId, "devta", gridType);
+        setAnalysisStale(false);
+      }
+    } catch (err) {
+      console.error("Error applying mobile boundary:", err);
+    }
+  };
+
   const handleSaveChanges = async () => {
     try {
       // Finish drawing if in progress
@@ -898,21 +992,22 @@ export default function FloorPlanPage() {
           </div>
         </div>
         <div className="flex items-center gap-4">
-          {project?.metadata?.mobile_map && (
-            <button
-              onClick={() => {
-                setShowMobileMap(!showMobileMap);
-              }}
-              className={`px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-2xl transition-all flex items-center gap-2 border shadow-sm ${
-                showMobileMap 
-                  ? 'bg-orange-500 text-white border-orange-600 shadow-orange-200' 
-                  : 'bg-white/70 text-primary border-white hover:bg-white'
-              }`}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
-              {showMobileMap ? 'Close Mobile Map' : 'Open Mobile Map'}
-            </button>
-          )}
+          <button
+            onClick={() => {
+              if (!showMobileMap) {
+                setRefreshKey((prev) => prev + 1);
+              }
+              setShowMobileMap(!showMobileMap);
+            }}
+            className={`px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-2xl transition-all flex items-center gap-2 border shadow-sm ${
+              showMobileMap 
+                ? 'bg-orange-500 text-white border-orange-600 shadow-orange-200' 
+                : 'bg-white/70 text-primary border-white hover:bg-white'
+            }`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+            {showMobileMap ? 'Close Mobile Map' : 'Open Mobile Map'}
+          </button>
 
           {project?.video_url && (
             <button
@@ -941,45 +1036,83 @@ export default function FloorPlanPage() {
 
       {/* Main Workspace */}
       <div className="flex-1 flex overflow-hidden min-h-0">
-        {(showVideo && project?.video_url) || (showMobileMap && project?.metadata?.mobile_map) ? (
+        {(showVideo && project?.video_url) || showMobileMap ? (
           <ResizableLayout
             minLeftWidth={typeof window !== 'undefined' && window.innerWidth < 768 ? 0 : 380}
             maxLeftWidth={typeof window !== 'undefined' && window.innerWidth < 768 ? window.innerWidth : 700}
             defaultLeftWidth={typeof window !== 'undefined' && window.innerWidth < 768 ? window.innerWidth : 500}
             className="flex-col md:flex-row flex-1 w-full overflow-hidden"
             leftPanel={
-              <div className="h-full bg-gray-900 flex flex-col">
-                {showVideo && project?.video_url && (
-                  <div className={`${showMobileMap && project?.metadata?.mobile_map ? 'h-1/2' : 'flex-1'} min-h-0 border-b border-gray-700/50 flex flex-col`}>
-                    <div className="flex-1 min-h-0">
-                      <VideoPlayer
-                        url={project.video_url}
-                        onClose={() => setShowVideo(false)}
-                        title={`Video Analysis - ${project.name}`}
-                        className="h-full"
-                      />
-                    </div>
-                    <div className="p-3 bg-gray-800/90 backdrop-blur-sm border-t border-gray-700/50">
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <span className="w-1.5 h-1.5 bg-teal-400 rounded-full animate-pulse" />
-                        <h4 className="text-white text-[10px] font-semibold">Video Analysis Mode</h4>
+              (() => {
+                const hasBoth = showVideo && project?.video_url && showMobileMap;
+                return (
+                  <div className="h-full bg-gray-900 flex flex-col">
+                    {/* Tab bar — only show when both panels are active */}
+                    {hasBoth && (
+                      <div className="flex bg-gray-800 border-b border-gray-700 shrink-0">
+                        <button
+                          onClick={() => setLeftPanelTab('video')}
+                          className={`flex-1 py-2.5 text-[11px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-colors ${
+                            leftPanelTab === 'video'
+                              ? 'text-teal-400 border-b-2 border-teal-400 bg-gray-900/50'
+                              : 'text-gray-400 hover:text-gray-200'
+                          }`}
+                        >
+                          <Video size={12} /> Video
+                        </button>
+                        <button
+                          onClick={() => setLeftPanelTab('map')}
+                          className={`flex-1 py-2.5 text-[11px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-colors ${
+                            leftPanelTab === 'map'
+                              ? 'text-orange-400 border-b-2 border-orange-400 bg-gray-900/50'
+                              : 'text-gray-400 hover:text-gray-200'
+                          }`}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+                          Mobile Map
+                        </button>
                       </div>
-                      <p className="text-gray-400 text-[9px] leading-relaxed">
-                        Pause the video to place objects on your floor plan. Use it to verify structural elements.
-                      </p>
-                    </div>
+                    )}
+
+                    {/* Video panel */}
+                    {showVideo && project?.video_url && (!hasBoth || leftPanelTab === 'video') && (
+                      <div className="flex-1 min-h-0 flex flex-col">
+                        <div className="flex-1 min-h-0">
+                          <VideoPlayer
+                            url={project.video_url}
+                            onClose={() => setShowVideo(false)}
+                            title={`Video Analysis - ${project.name}`}
+                            className="h-full"
+                          />
+                        </div>
+                        <div className="p-3 bg-gray-800/90 backdrop-blur-sm border-t border-gray-700/50 shrink-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="w-1.5 h-1.5 bg-teal-400 rounded-full animate-pulse" />
+                            <h4 className="text-white text-[10px] font-semibold">Video Analysis Mode</h4>
+                          </div>
+                          <p className="text-gray-400 text-[9px] leading-relaxed">
+                            Pause the video to place objects on your floor plan. Use it to verify structural elements.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Mobile map panel */}
+                    {showMobileMap && (!hasBoth || leftPanelTab === 'map') && (
+                      <div className="flex-1 min-h-0 p-4 overflow-hidden">
+                        <MobileMapView
+                          data={(project?.metadata?.mobile_map as any) || {}}
+                          className="h-full"
+                          northDirection={project?.north_direction}
+                          projectId={projectId}
+                          onRefresh={() => setRefreshKey((prev) => prev + 1)}
+                          onApplyToCanvas={handleApplyMobileToCanvas}
+                        />
+                      </div>
+                    )}
                   </div>
-                )}
-                {showMobileMap && project?.metadata?.mobile_map && (
-                  <div className={`${showVideo && project?.video_url ? 'h-1/2' : 'flex-1'} p-4 overflow-hidden`}>
-                    <MobileMapView 
-                      data={project!.metadata!.mobile_map as any} 
-                      className="h-full"
-                      northDirection={project?.north_direction}
-                    />
-                  </div>
-                )}
-              </div>
+                );
+              })()
             }
             rightPanel={
               <div className="flex w-full h-full min-h-0 overflow-hidden">

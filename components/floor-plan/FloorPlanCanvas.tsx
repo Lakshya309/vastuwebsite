@@ -1467,9 +1467,14 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     return entries;
   }, [devtaRegions, zone16Regions, zone8Regions, plotCentroid, scale, computedLayout]);
 
+  const prevDistanceDataRef = useRef<string>("");
   useEffect(() => {
     if (onDistanceDataReady) {
-      onDistanceDataReady(distanceData);
+      const serialized = JSON.stringify(distanceData);
+      if (prevDistanceDataRef.current !== serialized) {
+        prevDistanceDataRef.current = serialized;
+        onDistanceDataReady(distanceData);
+      }
     }
   }, [distanceData, onDistanceDataReady]);
 
