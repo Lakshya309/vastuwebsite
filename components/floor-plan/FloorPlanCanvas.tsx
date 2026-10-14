@@ -91,35 +91,46 @@ export interface ArcHitTarget {
 }
 
 const ZONE_NAMES_16 = [
-  "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S",
-  "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW", "N"
+  "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
+  "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"
 ];
-const ZONE_NAMES_8 = ["NE", "E", "SE", "S", "SW", "W", "NW", "N"];
+const ZONE_NAMES_8 = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
 
 const VASTU_BOUNDARY_COLORS: { [key: string]: string } = {
-  "N": "#C5D9F1", "NNE": "#C5D9F1", "NE": "#C5D9F1", "ENE": "#FFFFFF",
-  "E": "#92D050", "ESE": "#92D050", "SE": "#FF0000", "SSE": "#FF0000",
-  "S": "#FF0000", "SSW": "#FFFF00", "SW": "#FFFF00", "WSW": "#FFFFFF",
-  "W": "#FFFFFF", "WNW": "#FFFFFF", "NW": "#FFFFFF", "NNW": "#C5D9F1",
+  "N": "#38BDF8", "NNE": "#0EA5E9", "NE": "#6366F1", "ENE": "#10B981",
+  "E": "#22C55E", "ESE": "#84CC16", "SE": "#F97316", "SSE": "#EF4444",
+  "S": "#DC2626", "SSW": "#EAB308", "SW": "#D97706", "WSW": "#A855F7",
+  "W": "#8B5CF6", "WNW": "#94A3B8", "NW": "#64748B", "NNW": "#06B6D4",
 };
 
 const ZONE_COLORS_16: { [key: string]: string } = {
-  "NE": "#C5D9F1",
-  "NNE": "#FFFFFF",
-  "E": "#92D050",
-  "ESE": "#92D050",
-  "SE": "#FF0000",
-  "SSE": "#FF0000",
-  "S": "#FF0000",
-  "SSW": "#FFFF00",
-  "SW": "#FFFF00",
-  "WSW": "#FFFFFF",
-  "W": "#FFFFFF",
-  "WNW": "#FFFFFF",
-  "NW": "#FFFFFF",
-  "NNW": "#C5D9F1",
-  "N": "#C5D9F1",
-  "ENE": "#FFFFFF",
+  "N": "#38BDF8",   // Sky Blue (Water / Jal)
+  "NNE": "#0EA5E9", // Deep Ocean Aqua (Healing)
+  "NE": "#6366F1",  // Indigo (Clarity - Ishanya)
+  "ENE": "#10B981", // Emerald Mint (Refreshment)
+  "E": "#22C55E",   // Growth Green (Sun & Social)
+  "ESE": "#84CC16", // Lime Green (Thought & Analysis)
+  "SE": "#F97316",  // Flame Orange (Cash & Energy - Agni)
+  "SSE": "#EF4444", // Fire Red (Strength & Power)
+  "S": "#DC2626",   // Deep Crimson (Fame - Yama)
+  "SSW": "#EAB308", // Amber Ochre (Expenditure)
+  "SW": "#D97706",  // Earthy Amber (Stability & Skills - Niruthi)
+  "WSW": "#A855F7", // Lavender Purple (Knowledge)
+  "W": "#8B5CF6",   // Royal Violet (Gains & Profits - Varuna)
+  "WNW": "#94A3B8", // Slate Silver (Detox)
+  "NW": "#64748B",  // Cool Steel (Support & Banking - Vayu)
+  "NNW": "#06B6D4", // Radiant Cyan (Attraction)
+};
+
+const ZONE_COLORS_8: { [key: string]: string } = {
+  "N": "#0284C7",   // Sky Blue (Kubera / Water)
+  "NE": "#6366F1",  // Indigo (Ishanya / Water & Spirit)
+  "E": "#16A34A",   // Emerald Green (Indra / Air & Sun)
+  "SE": "#EA580C",  // Radiant Orange (Agni / Fire)
+  "S": "#DC2626",   // Crimson Red (Yama / Fire & Earth)
+  "SW": "#D97706",  // Ochre Amber (Niruthi / Earth)
+  "W": "#7C3AED",   // Royal Purple (Varuna / Space)
+  "NW": "#475569",  // Cool Steel (Vayu / Air & Space)
 };
 
 // Helper function to calculate angle from point (client-side)
@@ -169,6 +180,127 @@ const getZoneFromAngleClient = (angle: number, north_base_rotation: number, zone
     }
   }
   return null;
+};
+
+// Client-side fallback generator for 16 and 8 Vastu directional zones
+export const generateClientZones = (
+  boundary: Point[],
+  plotCentroid: Point | null,
+  northDirection: number,
+  zoneNames: string[],
+  label: "zone16" | "zone8"
+): DevtaRegion[] => {
+  if (!boundary || boundary.length < 3) return [];
+  const center = plotCentroid || getCentroid(boundary);
+  const n = zoneNames.length;
+  const step = 360 / n;
+  const absoluteStart = -(step / 2);
+
+  const vastuAngleOfPoint = (p: Point): number => {
+    const dx = p.x - center.x;
+    const dy = p.y - center.y;
+    // Screen angle (0=North/Up, clockwise)
+    const screenDeg = (Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360;
+    // Vastu angle relative to True North
+    return (screenDeg - northDirection + 360) % 360;
+  };
+
+  const isAngleBetween = (a: number, start: number, end: number): boolean => {
+    const na = (a % 360 + 360) % 360;
+    const ns = (start % 360 + 360) % 360;
+    const ne = (end % 360 + 360) % 360;
+    if (ns < ne) return na >= ns && na <= ne;
+    return na >= ns || na <= ne;
+  };
+
+  const rayIntersection = (angleDeg: number): Point | null => {
+    const screenRad = ((angleDeg + northDirection) % 360) * (Math.PI / 180);
+    const dx = Math.sin(screenRad);
+    const dy = -Math.cos(screenRad);
+
+    let closestT = Infinity;
+    let hit: Point | null = null;
+    const bLen = boundary.length;
+
+    for (let i = 0; i < bLen; i++) {
+      const p1 = boundary[i];
+      const p2 = boundary[(i + 1) % bLen];
+
+      const v1x = center.x - p1.x;
+      const v1y = center.y - p1.y;
+      const v2x = p2.x - p1.x;
+      const v2y = p2.y - p1.y;
+
+      const cross = dx * v2y - dy * v2x;
+      if (Math.abs(cross) < 1e-7) continue;
+
+      const t2 = (dx * v1y - dy * v1x) / cross;
+      const t1 = (v2x * v1y - v2y * v1x) / cross;
+
+      if (t1 > 0.0001 && t2 >= 0 && t2 <= 1) {
+        if (t1 < closestT) {
+          closestT = t1;
+          hit = { x: center.x + t1 * dx, y: center.y + t1 * dy };
+        }
+      }
+    }
+    return hit;
+  };
+
+  const regions: DevtaRegion[] = [];
+
+  for (let i = 0; i < n; i++) {
+    const name = zoneNames[i];
+    const baseStart = absoluteStart + i * step;
+    const baseCenter = baseStart + step / 2;
+    const baseEnd = absoluteStart + (i + 1) * step;
+
+    const startAngle = (baseStart + 360) % 360;
+    const centerAngle = (baseCenter + 360) % 360;
+    const endAngle = (baseEnd + 360) % 360;
+
+    const pStart = rayIntersection(startAngle);
+    const pCenter = rayIntersection(centerAngle);
+    const pEnd = rayIntersection(endAngle);
+
+    if (!pStart || !pEnd) continue;
+
+    const intermediateCorners: Point[] = [];
+    for (let k = 0; k < boundary.length; k++) {
+      const pt = boundary[k];
+      const ang = vastuAngleOfPoint(pt);
+      if (isAngleBetween(ang, startAngle, endAngle)) {
+        intermediateCorners.push(pt);
+      }
+    }
+
+    intermediateCorners.sort((a, b) => {
+      const angA = (vastuAngleOfPoint(a) - startAngle + 360) % 360;
+      const angB = (vastuAngleOfPoint(b) - startAngle + 360) % 360;
+      return angA - angB;
+    });
+
+    const polygon: Point[] = [
+      center,
+      pStart,
+      ...intermediateCorners,
+      pEnd,
+    ];
+
+    regions.push({
+      id: `${label}-${i + 1}`,
+      name,
+      polygon,
+      ring: label,
+      startAngle,
+      centerAngle,
+      endAngle,
+      source: "directional",
+      center_intersection: pCenter || undefined,
+    });
+  }
+
+  return regions;
 };
 
 // Helper function to check if a point is near a line segment
@@ -901,6 +1033,15 @@ const drawCanvasContent = (
     });
   }
 
+  // Resolve effective 16 & 8 zones (with client fallback so zones always show immediately)
+  const effectiveZone16 = (zone16Regions && zone16Regions.length > 0)
+    ? zone16Regions
+    : (boundary.length >= 3 ? generateClientZones(boundary, plotCentroid, northDirection, ZONE_NAMES_16, "zone16") : []);
+
+  const effectiveZone8 = (zone8Regions && zone8Regions.length > 0)
+    ? zone8Regions
+    : (boundary.length >= 3 ? generateClientZones(boundary, plotCentroid, northDirection, ZONE_NAMES_8, "zone8") : []);
+
   // Collect zone16 arc data for final-pass label rendering (drawn on boundary wall)
   const zone16Arcs: Array<{
     text: string; lx: number; ly: number;
@@ -910,65 +1051,90 @@ const drawCanvasContent = (
     name?: string;
   }> = [];
 
-  zone16Regions.forEach((region) => {
-    if (!region.polygon || region.polygon.length < 3) return;
-    const pts = region.polygon.map(toPx);
-    if (showZone16) {
+  if (showZone16) {
+    effectiveZone16.forEach((region) => {
+      if (!region.polygon || region.polygon.length < 3) return;
+      const pts = region.polygon.map(toPx);
+
+      ctx.save();
       ctx.beginPath();
       ctx.moveTo(pts[0].x, pts[0].y);
       pts.slice(1).forEach((p) => ctx.lineTo(p.x, p.y));
       ctx.closePath();
 
       const isHighlighted = highlightedZones?.includes(region.name);
-      const color = ZONE_COLORS_16[region.name] || "rgba(173, 216, 230, 0.4)";
-      ctx.fillStyle = isHighlighted ? `${color}CC` : `${color}99`;
+      const color = ZONE_COLORS_16[region.name] || "#38BDF8";
+      ctx.fillStyle = isHighlighted ? `${color}DD` : `${color}55`;
       ctx.fill();
-      ctx.strokeStyle = isHighlighted ? "red" : "rgba(0,0,0,0.3)";
-      ctx.lineWidth = isHighlighted ? 3 : 1;
+
+      // Sharp, distinct dividing boundary line
+      ctx.strokeStyle = isHighlighted ? "#EF4444" : (darkOverlay ? "rgba(15, 23, 42, 0.75)" : "rgba(30, 41, 59, 0.65)");
+      ctx.lineWidth = isHighlighted ? 3.5 : 2;
+      ctx.lineJoin = "round";
       ctx.stroke();
 
       const center = getCentroid(pts);
 
-      // Draw center ray line from centroid to center_intersection for each zone
+      // Draw center ray line from centroid to center_intersection
       if (region.center_intersection) {
-        const cent = plotCentroid ? toPx(plotCentroid) : center;
+        const cent = plotCentroid ? toPx(plotCentroid) : getCentroid(boundary.map(toPx));
         const cInt = toPx(region.center_intersection);
         ctx.beginPath();
         ctx.moveTo(cent.x, cent.y);
         ctx.lineTo(cInt.x, cInt.y);
-        ctx.strokeStyle = "rgba(0, 0, 0, 0.2)";
-        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = "rgba(15, 23, 42, 0.35)";
+        ctx.lineWidth = 1.2;
         ctx.stroke();
+        ctx.setLineDash([]);
       }
 
-      ctx.fillStyle = "#333";
-      ctx.font = "10px sans-serif";
+      // Zone name badge with high contrast background and color stroke
+      ctx.font = "bold 11px 'Inter', sans-serif";
+      const metrics = ctx.measureText(region.name);
+      const bw = metrics.width + 12;
+      const bh = 18;
+
+      ctx.shadowColor = "rgba(0, 0, 0, 0.25)";
+      ctx.shadowBlur = 4;
+      ctx.fillStyle = darkOverlay ? "rgba(15, 23, 42, 0.92)" : "rgba(255, 255, 255, 0.95)";
+      fillRoundRect(ctx, center.x - bw / 2, center.y - bh / 2, bw, bh, 6);
+      ctx.fill();
+
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+
+      ctx.fillStyle = darkOverlay ? "#FFFFFF" : "#0F172A";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(region.name, center.x, center.y);
-    }
 
-    // Collect for final-pass rendering directly ON the wall boundary
-    const plotCpx = plotCentroid ? toPx(plotCentroid) : null;
-    const arcInfo = computeZoneOuterArc(pts, realScale ?? null, plotCpx);
-    if (arcInfo && arcInfo.totalLen > 2) {
-      arcInfo.subSegments.forEach((subSeg) => {
-        zone16Arcs.push({
-          text: subSeg.text,
-          lx: subSeg.midPt.x,
-          ly: subSeg.midPt.y,
-          nx: subSeg.nx,
-          ny: subSeg.ny,
-          outX: subSeg.outX,
-          outY: subSeg.outY,
-          apex: arcInfo.apex,
-          edgeStart: subSeg.edgeStart,
-          edgeEnd: subSeg.edgeEnd,
-          name: region.name,
+      ctx.restore();
+
+      // Collect for final-pass rendering directly ON the wall boundary
+      const plotCpx = plotCentroid ? toPx(plotCentroid) : null;
+      const arcInfo = computeZoneOuterArc(pts, realScale ?? null, plotCpx);
+      if (arcInfo && arcInfo.totalLen > 2) {
+        arcInfo.subSegments.forEach((subSeg) => {
+          zone16Arcs.push({
+            text: subSeg.text,
+            lx: subSeg.midPt.x,
+            ly: subSeg.midPt.y,
+            nx: subSeg.nx,
+            ny: subSeg.ny,
+            outX: subSeg.outX,
+            outY: subSeg.outY,
+            apex: arcInfo.apex,
+            edgeStart: subSeg.edgeStart,
+            edgeEnd: subSeg.edgeEnd,
+            name: region.name,
+          });
         });
-      });
-    }
-  });
+      }
+    });
+  }
 
   // Collect zone8 arc data for final-pass label rendering
   const zone8Arcs: Array<{
@@ -979,47 +1145,89 @@ const drawCanvasContent = (
     name?: string;
   }> = [];
 
-  zone8Regions.forEach((region) => {
-    if (!region.polygon || region.polygon.length < 3) return;
-    const pts = region.polygon.map(toPx);
-    if (showZone8) {
+  if (showZone8) {
+    effectiveZone8.forEach((region) => {
+      if (!region.polygon || region.polygon.length < 3) return;
+      const pts = region.polygon.map(toPx);
+
+      ctx.save();
       ctx.beginPath();
       ctx.moveTo(pts[0].x, pts[0].y);
       pts.slice(1).forEach((p) => ctx.lineTo(p.x, p.y));
       ctx.closePath();
-      ctx.fillStyle = "rgba(144, 238, 144, 0.3)";
+
+      const isHighlighted = highlightedZones?.includes(region.name);
+      const color = ZONE_COLORS_8[region.name] || "#10B981";
+      ctx.fillStyle = isHighlighted ? `${color}DD` : `${color}55`;
       ctx.fill();
-      ctx.strokeStyle = "rgba(0,0,0,0.3)";
+
+      // Sharp, distinct dividing boundary line
+      ctx.strokeStyle = isHighlighted ? "#EF4444" : (darkOverlay ? "rgba(15, 23, 42, 0.75)" : "rgba(30, 41, 59, 0.65)");
+      ctx.lineWidth = isHighlighted ? 3.5 : 2;
+      ctx.lineJoin = "round";
       ctx.stroke();
 
       const center = getCentroid(pts);
-      ctx.fillStyle = "#333";
-      ctx.font = "10px sans-serif";
+
+      // Draw center ray line from centroid to center_intersection
+      if (region.center_intersection) {
+        const cent = plotCentroid ? toPx(plotCentroid) : getCentroid(boundary.map(toPx));
+        const cInt = toPx(region.center_intersection);
+        ctx.beginPath();
+        ctx.moveTo(cent.x, cent.y);
+        ctx.lineTo(cInt.x, cInt.y);
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = "rgba(15, 23, 42, 0.35)";
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // Zone name badge
+      ctx.font = "bold 11.5px 'Inter', sans-serif";
+      const metrics = ctx.measureText(region.name);
+      const bw = metrics.width + 14;
+      const bh = 19;
+
+      ctx.shadowColor = "rgba(0, 0, 0, 0.25)";
+      ctx.shadowBlur = 4;
+      ctx.fillStyle = darkOverlay ? "rgba(15, 23, 42, 0.92)" : "rgba(255, 255, 255, 0.95)";
+      fillRoundRect(ctx, center.x - bw / 2, center.y - bh / 2, bw, bh, 6);
+      ctx.fill();
+
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.fillStyle = darkOverlay ? "#FFFFFF" : "#0F172A";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(region.name, center.x, center.y);
-    }
 
-    const plotCpx8 = plotCentroid ? toPx(plotCentroid) : null;
-    const arcInfo = computeZoneOuterArc(pts, realScale ?? null, plotCpx8);
-    if (arcInfo && arcInfo.totalLen > 2) {
-      arcInfo.subSegments.forEach((subSeg) => {
-        zone8Arcs.push({
-          text: subSeg.text,
-          lx: subSeg.midPt.x,
-          ly: subSeg.midPt.y,
-          nx: subSeg.nx,
-          ny: subSeg.ny,
-          outX: subSeg.outX,
-          outY: subSeg.outY,
-          apex: arcInfo.apex,
-          edgeStart: subSeg.edgeStart,
-          edgeEnd: subSeg.edgeEnd,
-          name: region.name,
+      ctx.restore();
+
+      const plotCpx8 = plotCentroid ? toPx(plotCentroid) : null;
+      const arcInfo = computeZoneOuterArc(pts, realScale ?? null, plotCpx8);
+      if (arcInfo && arcInfo.totalLen > 2) {
+        arcInfo.subSegments.forEach((subSeg) => {
+          zone8Arcs.push({
+            text: subSeg.text,
+            lx: subSeg.midPt.x,
+            ly: subSeg.midPt.y,
+            nx: subSeg.nx,
+            ny: subSeg.ny,
+            outX: subSeg.outX,
+            outY: subSeg.outY,
+            apex: arcInfo.apex,
+            edgeStart: subSeg.edgeStart,
+            edgeEnd: subSeg.edgeEnd,
+            name: region.name,
+          });
         });
-      });
-    }
-  });
+      }
+    });
+  }
 
   // Collect devta arc & dimension data for Outer, Middle, and Center ring devtas
   const devtaArcs: Array<{
@@ -1030,7 +1238,7 @@ const drawCanvasContent = (
     ring: string; name: string;
   }> = [];
 
-  if (zone16Regions.length === 0 && zone8Regions.length === 0 && devtaRegions.length > 0) {
+  if (showDevta45 && devtaRegions.length > 0) {
     const plotCpxD = plotCentroid ? toPx(plotCentroid) : null;
     devtaRegions.forEach((region) => {
       if (!region.polygon || region.polygon.length < 3) return;
@@ -1243,9 +1451,9 @@ const drawCanvasContent = (
   // a corner) are merged so the outer length shows once, as a total.
   // ════════════════════════════════════════════════════════════════════════
   const allZoneArcs = [
-    ...zone16Arcs.map(a => ({ ...a, ring: "outer" as const, name: (a as any).name || "Zone" })),
-    ...zone8Arcs.map(a => ({ ...a, ring: "outer" as const, name: (a as any).name || "Zone" })),
-    ...devtaArcs,
+    ...(showZone16 ? zone16Arcs.map(a => ({ ...a, ring: "outer" as const, name: (a as any).name || "Zone" })) : []),
+    ...(showZone8 ? zone8Arcs.map(a => ({ ...a, ring: "outer" as const, name: (a as any).name || "Zone" })) : []),
+    ...(showDevta45 ? devtaArcs : []),
   ];
 
   interface MergedArc {
@@ -1896,6 +2104,18 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     y: (p.y - computedLayout.drawY) / computedLayout.drawHeight,
   });
 
+  const effectiveZone16 = React.useMemo(() => {
+    return (zone16Regions && zone16Regions.length > 0)
+      ? zone16Regions
+      : (boundary.length >= 3 ? generateClientZones(boundary, plotCentroid, northDirection, ZONE_NAMES_16, "zone16") : []);
+  }, [zone16Regions, boundary, plotCentroid, northDirection]);
+
+  const effectiveZone8 = React.useMemo(() => {
+    return (zone8Regions && zone8Regions.length > 0)
+      ? zone8Regions
+      : (boundary.length >= 3 ? generateClientZones(boundary, plotCentroid, northDirection, ZONE_NAMES_8, "zone8") : []);
+  }, [zone8Regions, boundary, plotCentroid, northDirection]);
+
   // Compute distance data entries for the HTML legend panel
   const distanceData = React.useMemo((): DevtaDistanceEntry[] => {
     const RING_COLORS: Record<string, string> = {
@@ -1910,50 +2130,47 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     });
     const plotCpx = plotCentroid ? toPxMemo(plotCentroid) : null;
 
-    // Zone16 regions
-    zone16Regions.forEach((region) => {
-      if (!region.polygon || region.polygon.length < 3) return;
-      const pts = region.polygon.map(toPxMemo);
-      const arcInfo = computeZoneOuterArc(pts, scale ?? null, plotCpx);
-      if (!arcInfo || arcInfo.totalLen < 2) return;
+    if (showZone16 && effectiveZone16.length > 0) {
+      effectiveZone16.forEach((region) => {
+        if (!region.polygon || region.polygon.length < 3) return;
+        const pts = region.polygon.map(toPxMemo);
+        const arcInfo = computeZoneOuterArc(pts, scale ?? null, plotCpx);
+        if (!arcInfo || arcInfo.totalLen < 2) return;
 
-      const name = arcInfo.subSegments.length > 1 && scale
-        ? `${region.name} (${arcInfo.subSegments.map(s => `${s.realArcLength?.toFixed(1)}ft`).join(" + ")})`
-        : region.name;
+        const name = arcInfo.subSegments.length > 1 && scale
+          ? `${region.name} (${arcInfo.subSegments.map(s => `${s.realArcLength?.toFixed(1)}ft`).join(" + ")})`
+          : region.name;
 
-      entries.push({
-        index: ++idx,
-        name,
-        ring: "outer",
-        distanceFt: arcInfo.realArcLength,
-        distancePx: arcInfo.totalLen,
-        color: RING_COLORS.outer,
+        entries.push({
+          index: ++idx,
+          name,
+          ring: "outer",
+          distanceFt: arcInfo.realArcLength,
+          distancePx: arcInfo.totalLen,
+          color: ZONE_COLORS_16[region.name] || RING_COLORS.outer,
+        });
       });
-    });
+    } else if (showZone8 && effectiveZone8.length > 0) {
+      effectiveZone8.forEach((region) => {
+        if (!region.polygon || region.polygon.length < 3) return;
+        const pts = region.polygon.map(toPxMemo);
+        const arcInfo = computeZoneOuterArc(pts, scale ?? null, plotCpx);
+        if (!arcInfo || arcInfo.totalLen < 2) return;
 
-    // Zone8 regions
-    zone8Regions.forEach((region) => {
-      if (!region.polygon || region.polygon.length < 3) return;
-      const pts = region.polygon.map(toPxMemo);
-      const arcInfo = computeZoneOuterArc(pts, scale ?? null, plotCpx);
-      if (!arcInfo || arcInfo.totalLen < 2) return;
+        const name = arcInfo.subSegments.length > 1 && scale
+          ? `${region.name} (${arcInfo.subSegments.map(s => `${s.realArcLength?.toFixed(1)}ft`).join(" + ")})`
+          : region.name;
 
-      const name = arcInfo.subSegments.length > 1 && scale
-        ? `${region.name} (${arcInfo.subSegments.map(s => `${s.realArcLength?.toFixed(1)}ft`).join(" + ")})`
-        : region.name;
-
-      entries.push({
-        index: ++idx,
-        name,
-        ring: "outer",
-        distanceFt: arcInfo.realArcLength,
-        distancePx: arcInfo.totalLen,
-        color: RING_COLORS.outer,
+        entries.push({
+          index: ++idx,
+          name,
+          ring: "outer",
+          distanceFt: arcInfo.realArcLength,
+          distancePx: arcInfo.totalLen,
+          color: ZONE_COLORS_8[region.name] || RING_COLORS.outer,
+        });
       });
-    });
-
-    // Devta regions (only when zone16/zone8 not active)
-    if (zone16Regions.length === 0 && zone8Regions.length === 0) {
+    } else if (showDevta45 && devtaRegions.length > 0) {
       devtaRegions.forEach((region) => {
         if (!region.polygon || region.polygon.length < 3) return;
         const pts = region.polygon.map(toPxMemo);
@@ -1993,7 +2210,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     }
 
     return entries;
-  }, [devtaRegions, zone16Regions, zone8Regions, plotCentroid, scale, computedLayout]);
+  }, [devtaRegions, effectiveZone16, effectiveZone8, plotCentroid, scale, computedLayout, showZone16, showZone8, showDevta45]);
 
   const prevDistanceDataRef = useRef<string>("");
   // Screen-space click targets for zone pills/dots (rebuilt every draw).
@@ -2039,8 +2256,8 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
       devtaRegions,
       innerPolygon,
       middlePolygon,
-      zone16Regions,
-      zone8Regions,
+      effectiveZone16,
+      effectiveZone8,
       marmaData,
       shaktiChakra,
       shaktiChakraSize,
@@ -2084,7 +2301,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     ctx.restore();
   }, [
     width, height, floorPlanImage, boundary, placedObjects, devtaRegions,
-    zone16Regions, zone8Regions, marmaData, shaktiChakra, shaktiChakraSize, shaktiChakraType,
+    effectiveZone16, effectiveZone8, marmaData, shaktiChakra, shaktiChakraSize, shaktiChakraType,
     plotCentroid, drawingObjectBoundary, drawingMode, hoveredDevta, innerPolygon,
     middlePolygon, northDirection, wallLengths, referenceWallIndex,
     walls, currentDrawingWall, selectedWall, scale, measureStart, measureEnd, measureCurrent, hoverPoint,
@@ -2326,7 +2543,11 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     }
 
     let foundRegion = null;
-    const allRegions = [...devtaRegions, ...zone16Regions, ...zone8Regions];
+    const allRegions = [
+      ...(showDevta45 ? devtaRegions : []),
+      ...(showZone16 ? effectiveZone16 : []),
+      ...(showZone8 ? effectiveZone8 : []),
+    ];
 
     for (const region of allRegions) {
       if (!region.polygon || region.polygon.length < 3) continue;
@@ -2490,7 +2711,11 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     }
 
     let regionClicked = false;
-    const allRegions = [...devtaRegions, ...zone16Regions, ...zone8Regions];
+    const allRegions = [
+      ...(showDevta45 ? devtaRegions : []),
+      ...(showZone16 ? effectiveZone16 : []),
+      ...(showZone8 ? effectiveZone8 : []),
+    ];
     for (const region of allRegions) {
       if (!region.polygon || region.polygon.length < 3) continue;
 
@@ -2507,7 +2732,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
           regionClicked = true;
           break;
         }
-        if (onZoneClick && (zone16Regions.includes(region) || zone8Regions.includes(region))) {
+        if (onZoneClick && (effectiveZone16.includes(region) || effectiveZone8.includes(region))) {
           onZoneClick(region);
           regionClicked = true;
           break;

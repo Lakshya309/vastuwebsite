@@ -599,12 +599,12 @@ export default function FloorPlanPage() {
     setAnalysisStale(true);
   }, [boundary, placedObjects, liveNorthDirection]);
 
-  // Auto-sync backend analysis when user adjusts North direction slider
+  // Auto-sync backend analysis when user adjusts boundary or North direction slider
   useEffect(() => {
     if (boundary.length >= 3 && projectId) {
       handleSaveChanges();
     }
-  }, [debouncedNorthDirection]);
+  }, [debouncedBoundary, debouncedNorthDirection]);
 
   // 4. Handlers
   const handleAddObject = (objectType: string) => {
@@ -1507,9 +1507,12 @@ export default function FloorPlanPage() {
                     onRotateObject={handleRotateObject}
                     onDeleteObject={handleDeleteObject}
                     objectSvgMap={proxiedObjectSvgMap}
-                    devtaRegions={showGrid.devta45 ? devtaRegions : []}
-                    zone16Regions={showGrid.zone16 ? zones16 : []}
-                    zone8Regions={showGrid.zone8 ? zones8 : []}
+                    devtaRegions={devtaRegions}
+                    zone16Regions={zones16}
+                    zone8Regions={zones8}
+                    showDevta45={showGrid.devta45}
+                    showZone16={showGrid.zone16}
+                    showZone8={showGrid.zone8}
                     marmaData={showGrid.marma ? marmaData : null}
                     shaktiChakra={showGrid.shaktiChakra}
                     shaktiChakraSize={shaktiChakraSize}

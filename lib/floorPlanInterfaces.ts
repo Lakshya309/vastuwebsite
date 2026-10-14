@@ -45,6 +45,7 @@ export interface DevtaRegion {
   right_intersection?: Point | null;
   boundary_path?: Point[] | null;
   boundary_length?: number | null;
+  source?: string;
 }
 
 // Based on the usage in hooks/useFloorPlanData.ts and app/admin/AdminProjectTable.tsx
