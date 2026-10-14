@@ -159,51 +159,83 @@ export const TutorialOverlay: React.FC<TutorialOverlayProps> = ({
                 />
             </svg>
 
+            {/* Glowing Focus Ring around target */}
+            {coords.width > 0 && (
+                <div
+                    className="absolute pointer-events-none rounded-xl border-2 border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.6)] animate-pulse transition-all duration-300 ease-in-out"
+                    style={{
+                        top: coords.top,
+                        left: coords.left,
+                        width: coords.width,
+                        height: coords.height,
+                    }}
+                />
+            )}
+
             {/* Tooltip Content */}
             <div
-                className="absolute bg-white p-6 rounded-xl shadow-2xl pointer-events-auto w-80 transition-all duration-300 ease-in-out border border-blue-100"
+                className="absolute bg-white/98 backdrop-blur-xl p-6 rounded-2xl shadow-2xl pointer-events-auto w-84 max-w-[92vw] transition-all duration-300 ease-in-out border border-blue-200/80 z-[110]"
                 style={getTooltipStyle()}
             >
-                <div className="flex justify-between items-center mb-4">
-                    <span className="text-xs font-bold text-blue-600 tracking-wider uppercase">
-                        Step {currentStep + 1} of {steps.length}
-                    </span>
+                {/* Step Header & Progress */}
+                <div className="flex justify-between items-center mb-3">
+                    <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100 uppercase tracking-wider">
+                            Step {currentStep + 1} of {steps.length}
+                        </span>
+                    </div>
                     <button
                         onClick={onSkip}
-                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                        className="text-xs text-gray-400 hover:text-gray-700 transition-colors font-medium px-1"
                     >
-                        Skip
+                        Skip Tour
                     </button>
                 </div>
-                <h3 className="text-xl font-bold mb-2 text-gray-900">{step.title}</h3>
-                <p className="text-gray-600 text-sm leading-relaxed mb-6">
+
+                {/* Progress Bar */}
+                <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden mb-4">
+                    <div
+                        className="bg-gradient-to-r from-blue-600 to-indigo-600 h-full rounded-full transition-all duration-300"
+                        style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}
+                    />
+                </div>
+
+                <h3 className="text-lg font-bold mb-2 text-slate-900 tracking-tight">{step.title}</h3>
+                <p className="text-slate-600 text-xs leading-relaxed mb-6">
                     {step.content}
                 </p>
+
                 <div className="flex justify-between items-center">
                     <button
                         onClick={prevStep}
                         disabled={currentStep === 0}
-                        className={`text-sm font-medium ${currentStep === 0 ? "text-gray-300" : "text-gray-600 hover:text-gray-900"
-                            }`}
+                        className={`text-xs font-semibold px-2 py-1 transition-colors ${
+                            currentStep === 0 ? "text-gray-300 cursor-not-allowed" : "text-slate-600 hover:text-slate-900"
+                        }`}
                     >
-                        Previous
+                        Back
                     </button>
                     <button
                         onClick={nextStep}
-                        className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 hover:scale-105 transition-all active:scale-95"
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md shadow-blue-200 hover:shadow-lg transition-all active:scale-95 flex items-center gap-1.5"
                     >
-                        {currentStep === steps.length - 1 ? "Get Started" : "Next Step"}
+                        <span>{currentStep === steps.length - 1 ? "Finish Tour" : "Next"}</span>
+                        <span>→</span>
                     </button>
                 </div>
 
                 {/* Arrow pointer */}
                 {step.position !== "center" && (
                     <div
-                        className={`absolute w-3 h-3 bg-white rotate-45 border-blue-100 ${step.position === "bottom" ? "top-[-6px] left-1/2 -translate-x-1/2 border-t border-l" :
-                                step.position === "top" ? "bottom-[-6px] left-1/2 -translate-x-1/2 border-b border-r" :
-                                    step.position === "left" ? "right-[-6px] top-1/2 -translate-y-1/2 border-t border-r" :
-                                        "left-[-6px] top-1/2 -translate-y-1/2 border-b border-l"
-                            }`}
+                        className={`absolute w-3 h-3 bg-white rotate-45 border-blue-200/80 ${
+                            step.position === "bottom"
+                                ? "top-[-6px] left-1/2 -translate-x-1/2 border-t border-l"
+                                : step.position === "top"
+                                ? "bottom-[-6px] left-1/2 -translate-x-1/2 border-b border-r"
+                                : step.position === "left"
+                                ? "right-[-6px] top-1/2 -translate-y-1/2 border-t border-r"
+                                : "left-[-6px] top-1/2 -translate-y-1/2 border-b border-l"
+                        }`}
                     />
                 )}
             </div>

@@ -49,7 +49,7 @@ export const WallInfoBar: React.FC<WallInfoBarProps> = ({
       : null;
 
   return (
-    <div className="w-full bg-white/95 backdrop-blur-md border-t border-gray-200 px-4 py-2.5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs shadow-sm z-10 transition-all">
+    <div id="tutorial-wall-infobar" className="w-full bg-white/95 backdrop-blur-md border-t border-gray-200 px-4 py-2.5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs shadow-sm z-10 transition-all">
       {/* Left: Interactive Wall Segment Chips */}
       <div className="flex items-center gap-2 overflow-x-auto max-w-full pb-1 sm:pb-0 scrollbar-thin">
         <div className="flex items-center gap-1.5 text-gray-500 font-medium mr-1 whitespace-nowrap">

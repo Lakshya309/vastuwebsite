@@ -17,6 +17,7 @@ import { DevtaInfoCard } from "@/components/floor-plan/DevtaInfoCard";
 import { MobileMapView } from "@/components/floor-plan/MobileMapView";
 import { PremiumUpgradeModal } from "@/components/floor-plan/PremiumUpgradeModal";
 import { WallInfoBar } from "@/components/floor-plan/WallInfoBar";
+import { VastuTutorialModal } from "@/components/floor-plan/VastuTutorialModal";
 
 import { PlacedObject, DevtaRegion, Point, Wall } from "@/lib/floorPlanInterfaces";
 import {
@@ -86,6 +87,7 @@ export default function FloorPlanPage() {
   });
   const [showVideo, setShowVideo] = useState(false);
   const [showMobileMap, setShowMobileMap] = useState(false);
+  const [showTutorialModal, setShowTutorialModal] = useState(false);
   const [leftPanelTab, setLeftPanelTab] = useState<'video' | 'map'>('video');
   const [currentVideoUrl, setCurrentVideoUrl] = useState<string | null>(null);
   const [currentVideoTitle, setCurrentVideoTitle] = useState<string>("");
@@ -173,7 +175,7 @@ export default function FloorPlanPage() {
   useEffect(() => {
     const hasCompletedTutorial = localStorage.getItem("vastu_tutorial_completed");
     if (!hasCompletedTutorial) {
-      setShowTutorial(true);
+      setShowTutorialModal(true);
     }
   }, []);
 
@@ -189,43 +191,55 @@ export default function FloorPlanPage() {
     {
       targetId: "viewport",
       title: "Welcome to Vastu Studio",
-      content: "Design your Vastu-compliant floor plan in a few simple steps.",
+      content: "Complete Vedic floor plan auditing and calibration. Let's take a quick guided tour of your studio.",
       position: "center"
     },
     {
+      targetId: "tutorial-canvas",
+      title: "1. Interactive Studio Canvas",
+      content: "Your primary design space. Supports smooth zoom, pan, and real-time energy grid projections.",
+      position: "right"
+    },
+    {
       targetId: "tutorial-boundary",
-      title: "1. Draw Your Plot",
-      content: "Use 'Start Drawing' to mark the corners of your plot boundary.",
+      title: "2. Draw or Upload Plot",
+      content: "Click 'Start Drawing' to place boundary vertices for square, rectangular, L-shaped, or irregular plots.",
       position: "left"
     },
     {
       targetId: "tutorial-north",
-      title: "2. Set North",
-      content: "Use the slider to set the North direction for accurate placement.",
+      title: "3. Align True North",
+      content: "Use the precision degree slider to match your property's exact compass orientation. All 45 Devtas rotate in sync.",
       position: "left"
     },
     {
-      targetId: "tutorial-dimensions",
-      title: "3. Scale Layout",
-      content: "Select a wall and enter its length to set the real-world scale.",
+      targetId: "tutorial-wall-infobar",
+      title: "4. Wall Segments & Scaling",
+      content: "Tap any colored wall segment on canvas or below. Calibrate real-world scale by setting its length in feet or meters.",
+      position: "top"
+    },
+    {
+      targetId: "tutorial-layers",
+      title: "5. 45 Devtas & Energy Grids",
+      content: "Toggle 45 Devta zones, 16 Directional zones, Marma points, and the Shakti Chakra to reveal cosmic energy centers.",
       position: "left"
     },
     {
       targetId: "tutorial-objects",
-      title: "4. Place Items",
-      content: "Click objects to place them on the map and check their Vastu position.",
+      title: "6. Place Rooms & Objects",
+      content: "Place toilets, kitchens, bedrooms, and pooja areas to instantly check favorable zones and avoid defects.",
       position: "left"
     },
     {
-      targetId: "tutorial-layers",
-      title: "5. Energy Grids",
-      content: "Toggle different grids to visualize energy zones and directions.",
-      position: "left"
+      targetId: "tutorial-mobile-sync",
+      title: "7. Mobile Sync & Walkthrough Videos",
+      content: "Sync surveys live from the VastuBuddy mobile app and watch room-by-room walkthrough videos right beside your canvas.",
+      position: "bottom"
     },
     {
       targetId: "tutorial-analyze",
-      title: "6. Get Report",
-      content: "Generate a detailed analysis report for your design.",
+      title: "8. Run Full Vastu Analysis",
+      content: "Generate certified Vastu scores, elemental balancing charts, and non-demolition remedies.",
       position: "left"
     }
   ];
@@ -1058,7 +1072,7 @@ export default function FloorPlanPage() {
             <span className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.2em] mt-1 italic">Vastu Studio</span>
           </div>
         </div>
-        <div className="flex items-center gap-4">
+        <div id="tutorial-mobile-sync" className="flex items-center gap-4">
           <button
             onClick={() => {
               if (!showMobileMap) {
@@ -1092,7 +1106,7 @@ export default function FloorPlanPage() {
             </button>
           )}
           <button
-            onClick={() => setShowTutorial(true)}
+            onClick={() => setShowTutorialModal(true)}
             className="px-5 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-2xl transition-all flex items-center gap-2 border shadow-sm bg-white/70 text-primary border-white hover:bg-white"
           >
             <HelpCircle size={14} />
@@ -1253,7 +1267,7 @@ export default function FloorPlanPage() {
             rightPanel={
               <div className="flex w-full h-full min-h-0 overflow-hidden">
                 <div className="flex-1 bg-gray-50 relative overflow-hidden flex items-center justify-center p-3">
-                  <div className="w-full h-full bg-white shadow-2xl rounded-lg overflow-hidden relative flex flex-col">
+                  <div id="tutorial-canvas" className="w-full h-full bg-white shadow-2xl rounded-lg overflow-hidden relative flex flex-col">
                     <div className="flex-1 relative overflow-hidden">
                       <FloorPlanCanvas
                         floorPlanImage={floorPlanImage}
@@ -1481,7 +1495,7 @@ export default function FloorPlanPage() {
         ) : (
           <div className="flex-1 flex flex-col md:flex-row h-full min-h-0 overflow-hidden">
             <div className="flex-1 bg-gray-50 relative overflow-hidden flex items-center justify-center p-3">
-              <div className="w-full h-full bg-white shadow-2xl rounded-lg overflow-hidden relative flex flex-col">
+              <div id="tutorial-canvas" className="w-full h-full bg-white shadow-2xl rounded-lg overflow-hidden relative flex flex-col">
                 <div className="flex-1 relative overflow-hidden">
                   <FloorPlanCanvas
                     floorPlanImage={floorPlanImage}
@@ -1711,6 +1725,11 @@ export default function FloorPlanPage() {
           onSkip={() => setShowTutorial(false)}
         />
       )}
+      <VastuTutorialModal
+        isOpen={showTutorialModal}
+        onClose={() => setShowTutorialModal(false)}
+        onStartInteractiveTour={() => setShowTutorial(true)}
+      />
       <PremiumUpgradeModal 
         isOpen={showUpgradeModal} 
         onClose={() => setShowUpgradeModal(false)} 
