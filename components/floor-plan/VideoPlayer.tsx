@@ -55,15 +55,22 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const hideControlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const togglePlay = useCallback(() => {
-    if (videoRef.current) {
-      if (isPlaying) {
-        videoRef.current.pause();
-      } else {
-        videoRef.current.play();
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (!video.paused) {
+      video.pause();
+    } else {
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((error: any) => {
+          if (error.name !== "AbortError" && error.name !== "NotAllowedError") {
+            console.warn("Video play error:", error);
+          }
+        });
       }
-      setIsPlaying(!isPlaying);
     }
-  }, [isPlaying]);
+  }, []);
 
   const handleProgress = useCallback(() => {
     if (videoRef.current) {
@@ -199,6 +206,16 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       if (hideControlsTimeoutRef.current) clearTimeout(hideControlsTimeoutRef.current);
     };
   }, [handleProgress]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video) {
+      video.pause();
+      setProgress(0);
+      setCurrentTime(0);
+      setIsPlaying(false);
+    }
+  }, [url]);
 
   const formatTime = (seconds: number) => {
     if (!seconds || isNaN(seconds)) return "0:00";

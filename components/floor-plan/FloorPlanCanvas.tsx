@@ -62,8 +62,14 @@ interface FloorPlanCanvasProps {
   showTickLabels?: boolean;
   showArcLengths?: boolean;
   darkOverlay?: boolean;
+  showDevta45?: boolean;
+  showZone16?: boolean;
+  showZone8?: boolean;
+  selectedDistanceEntryName?: string | null;
   isPremium?: boolean;
   isUnlimited?: boolean;
+  measurementMode?: "simple" | "focus" | "all";
+  onSelectDistanceEntry?: (name: string | null) => void;
   onDragEnd?: (id: string) => void;
   onDistanceDataReady?: (data: DevtaDistanceEntry[]) => void;
 }
@@ -75,6 +81,13 @@ export interface DevtaDistanceEntry {
   distanceFt: number | null;
   distancePx: number;
   color: string;
+}
+
+/** Click/hover target for a zone arc pill or marker dot (screen px, untransformed canvas coords). */
+export interface ArcHitTarget {
+  tagX: number; tagY: number; w: number; h: number;
+  midX: number; midY: number;
+  name: string;
 }
 
 const ZONE_NAMES_16 = [
@@ -217,9 +230,6 @@ function computeZoneOuterArc(
 ) {
   if (pts.length < 3) return null;
 
-  // 1. Find the apex vertex (the plot centroid vertex in the polygon).
-  //    If no centroid provided, fall back to the point closest to the
-  //    polygon's own centroid (innermost point).
   let apexIdx = 0;
   if (centroidPx) {
     let minDist = Infinity;
@@ -228,7 +238,6 @@ function computeZoneOuterArc(
       if (d < minDist) { minDist = d; apexIdx = i; }
     });
   } else {
-    // Fallback: vertex closest to polygon centroid = innermost
     const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
     const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
     let minDist = Infinity;
@@ -239,59 +248,82 @@ function computeZoneOuterArc(
   }
 
   const n = pts.length;
-
-  // 2. Extract the outer arc: consecutive vertices going from apexIdx+1
-  //    all the way around back to apexIdx (wrapping), i.e., every vertex
-  //    except the apex itself.
   const arcPts: { x: number; y: number }[] = [];
   for (let i = 1; i < n; i++) {
     arcPts.push(pts[(apexIdx + i) % n]);
   }
-  // arcPts now has n-1 vertices forming the outer arc
+  if (arcPts.length < 2) return null;
 
-  // 3. Compute total arc length
-  let totalLen = 0;
-  const cumulative = [0];
-  for (let i = 0; i < arcPts.length - 1; i++) {
-    const dx = arcPts[i + 1].x - arcPts[i].x;
-    const dy = arcPts[i + 1].y - arcPts[i].y;
-    totalLen += Math.sqrt(dx * dx + dy * dy);
-    cumulative.push(totalLen);
-  }
-  if (totalLen < 1) return null;
-
-  // 4. Interpolate midpoint along the arc
-  const halfLen = totalLen / 2;
-  let midPt = arcPts[0];
-  for (let i = 0; i < arcPts.length - 1; i++) {
-    if (cumulative[i + 1] >= halfLen) {
-      const t = (halfLen - cumulative[i]) / (cumulative[i + 1] - cumulative[i]);
-      midPt = {
-        x: arcPts[i].x + t * (arcPts[i + 1].x - arcPts[i].x),
-        y: arcPts[i].y + t * (arcPts[i + 1].y - arcPts[i].y),
-      };
-      break;
-    }
-  }
-
-  // 5. Outward unit normal: from apex → midPt, then inverted for
-  //    slight inward offset (so label sits INSIDE the boundary wall)
   const apex = pts[apexIdx];
+  const subSegments: Array<{
+    edgeStart: { x: number; y: number };
+    edgeEnd: { x: number; y: number };
+    midPt: { x: number; y: number };
+    nx: number;
+    ny: number;
+    outX: number;
+    outY: number;
+    lenPx: number;
+    realArcLength: number | null;
+    text: string;
+  }> = [];
+
+  let totalLen = 0;
+  for (let i = 0; i < arcPts.length - 1; i++) {
+    const pStart = arcPts[i];
+    const pEnd = arcPts[i + 1];
+    const dx = pEnd.x - pStart.x;
+    const dy = pEnd.y - pStart.y;
+    const segLen = Math.hypot(dx, dy);
+    if (segLen < 1) continue;
+
+    totalLen += segLen;
+    const midPt = { x: (pStart.x + pEnd.x) / 2, y: (pStart.y + pEnd.y) / 2 };
+    const odx = midPt.x - apex.x;
+    const ody = midPt.y - apex.y;
+    const mag = Math.hypot(odx, ody) || 1;
+    const realSegLen = realScale ? segLen * realScale : null;
+
+    subSegments.push({
+      edgeStart: pStart,
+      edgeEnd: pEnd,
+      midPt,
+      nx: -(odx / mag),
+      ny: -(ody / mag),
+      outX: odx / mag,
+      outY: ody / mag,
+      lenPx: segLen,
+      realArcLength: realSegLen,
+      text: realSegLen !== null ? `${realSegLen.toFixed(1)} ft` : `${Math.round(segLen)} px`,
+    });
+  }
+
+  if (subSegments.length === 0) return null;
+
+  const midPt = subSegments.length === 1
+    ? subSegments[0].midPt
+    : {
+        x: (subSegments[0].edgeStart.x + subSegments[subSegments.length - 1].edgeEnd.x) / 2,
+        y: (subSegments[0].edgeStart.y + subSegments[subSegments.length - 1].edgeEnd.y) / 2,
+      };
+
   const dx = midPt.x - apex.x;
   const dy = midPt.y - apex.y;
-  const mag = Math.sqrt(dx * dx + dy * dy) || 1;
+  const mag = Math.hypot(dx, dy) || 1;
+  const totalRealLen = realScale ? totalLen * realScale : null;
 
   return {
-    midPt,                                     // ON the boundary wall
-    nx: -(dx / mag),                           // inward direction
+    midPt,
+    nx: -(dx / mag),
     ny: -(dy / mag),
-    outX: dx / mag,                            // outward direction
+    outX: dx / mag,
     outY: dy / mag,
     apex,
     totalLen,
-    realArcLength: realScale ? totalLen * realScale : null,
-    edgeStart: arcPts[0],
-    edgeEnd: arcPts[arcPts.length - 1],
+    realArcLength: totalRealLen,
+    edgeStart: subSegments[0].edgeStart,
+    edgeEnd: subSegments[subSegments.length - 1].edgeEnd,
+    subSegments,
   };
 }
 
@@ -390,7 +422,15 @@ const drawCanvasContent = (
   showCornerBadges: boolean = true,
   showTickLabels: boolean = true,
   showArcLengths: boolean = true,
-  darkOverlay: boolean = true
+  darkOverlay: boolean = true,
+  showDevta45: boolean = true,
+  showZone16: boolean = false,
+  showZone8: boolean = false,
+  selectedDistanceEntryName?: string | null,
+  measurementMode?: "simple" | "focus" | "all",
+  entryIndexByName?: Map<string, number>,
+  hitCollector?: ArcHitTarget[],
+  selectedPieceHint?: { name: string; x: number; y: number } | null
 ) => {
   const toPx = (p: Point) => {
     if (computedLayout) {
@@ -401,6 +441,16 @@ const drawCanvasContent = (
     }
     return { x: p.x * width, y: p.y * height };
   };
+
+  // Selection isolates the outer sides: when a zone is selected, the base
+  // boundary drops to neutral gray so ONLY the selected outer pieces (final
+  // pass) read as highlighted. Matches cleanSelected used in the final pass.
+  const cleanSelected = (selectedDistanceEntryName ?? "").split(" (")[0].trim().toLowerCase();
+  const selectionActive = cleanSelected.length > 0 &&
+    [...devtaRegions, ...zone16Regions, ...zone8Regions].some((r) => {
+      const n = (r.name || "").toLowerCase();
+      return n === cleanSelected || cleanSelected.includes(n) || n.includes(cleanSelected);
+    });
 
   if (floorPlanImage && imageRef.current && computedLayout) {
     ctx.drawImage(
@@ -467,11 +517,9 @@ const drawCanvasContent = (
     ctx.setLineDash([]);
 
     // Draw length preview
-    const canvasWidth = 800;
-    const canvasHeight = 600;
     const pixelLength = Math.sqrt(
-      Math.pow((currentDrawingWall.end.x - currentDrawingWall.start.x) * canvasWidth, 2) +
-      Math.pow((currentDrawingWall.end.y - currentDrawingWall.start.y) * canvasHeight, 2)
+      Math.pow((currentDrawingWall.end.x - currentDrawingWall.start.x) * width, 2) +
+      Math.pow((currentDrawingWall.end.y - currentDrawingWall.start.y) * height, 2)
     );
     if (realScale) {
       const realLength = pixelLength * realScale;
@@ -567,24 +615,82 @@ const drawCanvasContent = (
 
   if (boundary.length > 0) {
     const pxBoundary = boundary.map(toPx);
-    ctx.beginPath();
-    ctx.moveTo(pxBoundary[0].x, pxBoundary[0].y);
-    pxBoundary.slice(1).forEach((p) => ctx.lineTo(p.x, p.y));
-    ctx.closePath();
-    ctx.lineWidth = 5;
-    ctx.strokeStyle = "#2563EB";
-    ctx.stroke();
+    const SEGMENT_PALETTE = [
+      "#2563EB", // 0: Blue (Front)
+      "#10B981", // 1: Emerald (Right)
+      "#F59E0B", // 2: Amber (Back)
+      "#8B5CF6", // 3: Purple (Left)
+      "#EC4899", // 4: Pink
+      "#06B6D4", // 5: Cyan
+      "#F97316", // 6: Orange
+      "#14B8A6", // 7: Teal
+    ];
 
-    // Draw Wall Lengths on Boundary
+    // 1. Draw each wall segment with distinct colors and highlighting
+    for (let i = 0; i < pxBoundary.length; i++) {
+      const p1 = pxBoundary[i];
+      const p2 = pxBoundary[(i + 1) % pxBoundary.length];
+      const isSelected = i === referenceWallIndex;
+      const segColor = wallColors?.[i] || SEGMENT_PALETTE[i % SEGMENT_PALETTE.length];
+
+      ctx.save();
+      ctx.lineCap = "round";
+
+      if (isSelected) {
+        // Outer glowing halo for the selected wall segment
+        ctx.shadowColor = segColor;
+        ctx.shadowBlur = 18;
+        ctx.strokeStyle = "#FFFFFF";
+        ctx.lineWidth = 10;
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+
+        ctx.strokeStyle = segColor;
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+
+        // Distinct corner end caps for selected wall
+        ctx.fillStyle = "#FFFFFF";
+        ctx.beginPath();
+        ctx.arc(p1.x, p1.y, 6, 0, Math.PI * 2);
+        ctx.arc(p2.x, p2.y, 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = segColor;
+        ctx.beginPath();
+        ctx.arc(p1.x, p1.y, 4, 0, Math.PI * 2);
+        ctx.arc(p2.x, p2.y, 4, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        // Unselected wall segment with distinct color
+        ctx.strokeStyle = selectionActive ? "#94A3B8" : segColor;
+        ctx.lineWidth = selectionActive ? 3 : 4;
+        ctx.globalAlpha = selectionActive ? 0.55 : 0.85;
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // 2. Draw Wall Length Badges on Boundary
     if (wallLengths && wallLengths.length === boundary.length) {
-      ctx.fillStyle = "black";
-      ctx.font = "bold 14px Arial";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
+      const WALL_NAMES_4 = ["Front", "Right", "Back", "Left"];
 
       for (let i = 0; i < boundary.length; i++) {
         const p1 = pxBoundary[i];
         const p2 = pxBoundary[(i + 1) % boundary.length];
+        const length = wallLengths[i];
+        if (!length) continue;
+
+        const isSelected = i === referenceWallIndex;
+        const segColor = wallColors?.[i] || SEGMENT_PALETTE[i % SEGMENT_PALETTE.length];
 
         // Midpoint
         const midX = (p1.x + p2.x) / 2;
@@ -594,48 +700,79 @@ const drawCanvasContent = (
         const dx = p2.x - p1.x;
         const dy = p2.y - p1.y;
         let angle = Math.atan2(dy, dx);
-
-        // Calculate the normal vector pointing outwards
-        // Perpendicular vector: (-dy, dx) or (dy, -dx)
-        // To point "outside" usually depends on polygon winding order.
-        // Try (dy, -dx) which points "up/left" in clockwise coords
         const segmentLength = Math.sqrt(dx * dx + dy * dy);
+        if (segmentLength < 1) continue;
         let nx = dy / segmentLength;
         let ny = -dx / segmentLength;
 
-        // Offset distance
-        const offset = 20;
+        // Offset distance — selected badge is pushed out slightly with leader line
+        const offset = isSelected ? 32 : 24;
         const offsetX = nx * offset;
         const offsetY = ny * offset;
 
         if (angle > Math.PI / 2 || angle < -Math.PI / 2) {
           angle += Math.PI; // Keep text upright
-          // When we flip the text, we might also want to flip the normal so it stays on the same side
           nx = -nx;
           ny = -ny;
         }
 
-        const length = wallLengths[i];
-        if (length) {
+        ctx.save();
+        ctx.translate(midX + offsetX, midY + offsetY);
+        ctx.rotate(angle);
+
+        // Text formulation
+        const wallName = boundary.length === 4 ? WALL_NAMES_4[i] : `W${i + 1}`;
+        const text = `${wallName}: ${length.toFixed(1)}`;
+        ctx.font = isSelected ? "bold 13px 'Inter', Arial, sans-serif" : "600 11.5px 'Inter', Arial, sans-serif";
+        const metrics = ctx.measureText(text);
+        const bw = metrics.width + (isSelected ? 20 : 14);
+        const bh = isSelected ? 24 : 20;
+
+        if (isSelected) {
+          ctx.shadowColor = "rgba(0, 0, 0, 0.35)";
+          ctx.shadowBlur = 8;
+          ctx.fillStyle = segColor;
+          ctx.strokeStyle = "#FFFFFF";
+          ctx.lineWidth = 2;
+        } else {
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = darkOverlay ? "rgba(15, 23, 42, 0.92)" : "rgba(255, 255, 255, 0.92)";
+          ctx.strokeStyle = segColor;
+          ctx.lineWidth = 1.2;
+        }
+
+        fillRoundRect(ctx, -bw / 2, -bh / 2, bw, bh, isSelected ? 8 : 6);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = isSelected ? "#FFFFFF" : (darkOverlay ? "#F8FAFC" : "#0F172A");
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(text, 0, 0.5);
+        ctx.restore();
+
+        // Selected wall: draw leader line and anchor dot
+        if (isSelected) {
           ctx.save();
-          // Translate to the offset midpoint
-          ctx.translate(midX + offsetX, midY + offsetY);
-          ctx.rotate(angle);
+          ctx.strokeStyle = segColor;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(midX, midY);
+          ctx.lineTo(midX + offsetX, midY + offsetY);
+          ctx.stroke();
 
-          // Background for text
-          const text = length.toFixed(2);
-          const metrics = ctx.measureText(text);
-          ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
-          ctx.fillRect(-metrics.width / 2 - 4, -10, metrics.width + 8, 20);
-
-          ctx.fillStyle = "black";
-          ctx.fillText(text, 0, 0);
+          ctx.beginPath();
+          ctx.arc(midX, midY, 5, 0, Math.PI * 2);
+          ctx.fillStyle = "#FFFFFF";
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(midX, midY, 3, 0, Math.PI * 2);
+          ctx.fillStyle = segColor;
+          ctx.fill();
           ctx.restore();
         }
       }
     }
-
-
   }
 
   // Draw measurement line
@@ -731,36 +868,38 @@ const drawCanvasContent = (
     ctx.restore();
   }
 
-  devtaRegions.forEach((region) => {
-    if (!region.polygon || region.polygon.length < 3) return;
-    const pts = region.polygon.map(toPx);
-    ctx.beginPath();
-    ctx.moveTo(pts[0].x, pts[0].y);
-    pts.slice(1).forEach((p) => ctx.lineTo(p.x, p.y));
-    ctx.closePath();
-    ctx.fillStyle = devtaColors[region.name] ? `${devtaColors[region.name]}` : "rgba(200, 200, 200, 0.4)";
-    ctx.fill();
-    ctx.strokeStyle = "rgba(15, 23, 42, 0.4)";
-    ctx.lineWidth = 1.2;
-    ctx.stroke();
+  if (showDevta45) {
+    devtaRegions.forEach((region) => {
+      if (!region.polygon || region.polygon.length < 3) return;
+      const pts = region.polygon.map(toPx);
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      pts.slice(1).forEach((p) => ctx.lineTo(p.x, p.y));
+      ctx.closePath();
+      ctx.fillStyle = devtaColors[region.name] ? `${devtaColors[region.name]}` : "rgba(200, 200, 200, 0.4)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(15, 23, 42, 0.4)";
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
 
-    const center = getCentroid(pts);
-    ctx.save();
-    ctx.font = "bold 10.5px 'Inter', sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    if (darkOverlay) {
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.95)";
-      ctx.lineWidth = 3;
-      ctx.strokeText(region.name, center.x, center.y);
-      ctx.fillStyle = "#0F172A";
-      ctx.fillText(region.name, center.x, center.y);
-    } else {
-      ctx.fillStyle = "#1E293B";
-      ctx.fillText(region.name, center.x, center.y);
-    }
-    ctx.restore();
-  });
+      const center = getCentroid(pts);
+      ctx.save();
+      ctx.font = "bold 10.5px 'Inter', sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      if (darkOverlay) {
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.95)";
+        ctx.lineWidth = 3;
+        ctx.strokeText(region.name, center.x, center.y);
+        ctx.fillStyle = "#0F172A";
+        ctx.fillText(region.name, center.x, center.y);
+      } else {
+        ctx.fillStyle = "#1E293B";
+        ctx.fillText(region.name, center.x, center.y);
+      }
+      ctx.restore();
+    });
+  }
 
   // Collect zone16 arc data for final-pass label rendering (drawn on boundary wall)
   const zone16Arcs: Array<{
@@ -768,67 +907,65 @@ const drawCanvasContent = (
     nx: number; ny: number; outX: number; outY: number;
     apex: { x: number; y: number };
     edgeStart: { x: number; y: number }; edgeEnd: { x: number; y: number };
+    name?: string;
   }> = [];
 
   zone16Regions.forEach((region) => {
     if (!region.polygon || region.polygon.length < 3) return;
     const pts = region.polygon.map(toPx);
-    ctx.beginPath();
-    ctx.moveTo(pts[0].x, pts[0].y);
-    pts.slice(1).forEach((p) => ctx.lineTo(p.x, p.y));
-    ctx.closePath();
-
-    const isHighlighted = highlightedZones?.includes(region.name);
-    const color = ZONE_COLORS_16[region.name] || "rgba(173, 216, 230, 0.4)";
-    ctx.fillStyle = isHighlighted ? `${color}CC` : `${color}99`;
-    ctx.fill();
-    ctx.strokeStyle = isHighlighted ? "red" : "rgba(0,0,0,0.3)";
-    ctx.lineWidth = isHighlighted ? 3 : 1;
-    ctx.stroke();
-
-    const center = getCentroid(pts);
-
-    // Draw center ray line from centroid to center_intersection for each zone
-    if (region.center_intersection) {
-      const cent = plotCentroid ? toPx(plotCentroid) : center;
-      const cInt = toPx(region.center_intersection);
+    if (showZone16) {
       ctx.beginPath();
-      ctx.moveTo(cent.x, cent.y);
-      ctx.lineTo(cInt.x, cInt.y);
-      ctx.strokeStyle = "rgba(0, 0, 0, 0.2)";
-      ctx.lineWidth = 1;
-      ctx.stroke();
-    }
+      ctx.moveTo(pts[0].x, pts[0].y);
+      pts.slice(1).forEach((p) => ctx.lineTo(p.x, p.y));
+      ctx.closePath();
 
-    ctx.fillStyle = "#333";
-    ctx.font = "10px sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(region.name, center.x, center.y);
+      const isHighlighted = highlightedZones?.includes(region.name);
+      const color = ZONE_COLORS_16[region.name] || "rgba(173, 216, 230, 0.4)";
+      ctx.fillStyle = isHighlighted ? `${color}CC` : `${color}99`;
+      ctx.fill();
+      ctx.strokeStyle = isHighlighted ? "red" : "rgba(0,0,0,0.3)";
+      ctx.lineWidth = isHighlighted ? 3 : 1;
+      ctx.stroke();
+
+      const center = getCentroid(pts);
+
+      // Draw center ray line from centroid to center_intersection for each zone
+      if (region.center_intersection) {
+        const cent = plotCentroid ? toPx(plotCentroid) : center;
+        const cInt = toPx(region.center_intersection);
+        ctx.beginPath();
+        ctx.moveTo(cent.x, cent.y);
+        ctx.lineTo(cInt.x, cInt.y);
+        ctx.strokeStyle = "rgba(0, 0, 0, 0.2)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = "#333";
+      ctx.font = "10px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(region.name, center.x, center.y);
+    }
 
     // Collect for final-pass rendering directly ON the wall boundary
     const plotCpx = plotCentroid ? toPx(plotCentroid) : null;
     const arcInfo = computeZoneOuterArc(pts, realScale ?? null, plotCpx);
     if (arcInfo && arcInfo.totalLen > 2) {
-      const text = arcInfo.realArcLength !== null
-        ? `${arcInfo.realArcLength.toFixed(1)} ft`
-        : `${Math.round(arcInfo.totalLen)} px`;
-
-      const bPathPx = region.boundary_path ? region.boundary_path.map(toPx) : null;
-      const edgeStart = bPathPx && bPathPx.length > 0 ? bPathPx[0] : arcInfo.edgeStart;
-      const edgeEnd = bPathPx && bPathPx.length > 1 ? bPathPx[bPathPx.length - 1] : arcInfo.edgeEnd;
-
-      zone16Arcs.push({
-        text,
-        lx: arcInfo.midPt.x, // Directly ON the wall boundary
-        ly: arcInfo.midPt.y,
-        nx: arcInfo.nx,
-        ny: arcInfo.ny,
-        outX: arcInfo.outX,
-        outY: arcInfo.outY,
-        apex: arcInfo.apex,
-        edgeStart,
-        edgeEnd,
+      arcInfo.subSegments.forEach((subSeg) => {
+        zone16Arcs.push({
+          text: subSeg.text,
+          lx: subSeg.midPt.x,
+          ly: subSeg.midPt.y,
+          nx: subSeg.nx,
+          ny: subSeg.ny,
+          outX: subSeg.outX,
+          outY: subSeg.outY,
+          apex: arcInfo.apex,
+          edgeStart: subSeg.edgeStart,
+          edgeEnd: subSeg.edgeEnd,
+          name: region.name,
+        });
       });
     }
   });
@@ -839,44 +976,47 @@ const drawCanvasContent = (
     nx: number; ny: number; outX: number; outY: number;
     apex: { x: number; y: number };
     edgeStart: { x: number; y: number }; edgeEnd: { x: number; y: number };
+    name?: string;
   }> = [];
 
   zone8Regions.forEach((region) => {
     if (!region.polygon || region.polygon.length < 3) return;
     const pts = region.polygon.map(toPx);
-    ctx.beginPath();
-    ctx.moveTo(pts[0].x, pts[0].y);
-    pts.slice(1).forEach((p) => ctx.lineTo(p.x, p.y));
-    ctx.closePath();
-    ctx.fillStyle = "rgba(144, 238, 144, 0.3)";
-    ctx.fill();
-    ctx.strokeStyle = "rgba(0,0,0,0.3)";
-    ctx.stroke();
+    if (showZone8) {
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      pts.slice(1).forEach((p) => ctx.lineTo(p.x, p.y));
+      ctx.closePath();
+      ctx.fillStyle = "rgba(144, 238, 144, 0.3)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,0.3)";
+      ctx.stroke();
 
-    const center = getCentroid(pts);
-    ctx.fillStyle = "#333";
-    ctx.font = "10px sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(region.name, center.x, center.y);
+      const center = getCentroid(pts);
+      ctx.fillStyle = "#333";
+      ctx.font = "10px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(region.name, center.x, center.y);
+    }
 
     const plotCpx8 = plotCentroid ? toPx(plotCentroid) : null;
     const arcInfo = computeZoneOuterArc(pts, realScale ?? null, plotCpx8);
     if (arcInfo && arcInfo.totalLen > 2) {
-      const text = arcInfo.realArcLength !== null
-        ? `${arcInfo.realArcLength.toFixed(1)} ft`
-        : `${Math.round(arcInfo.totalLen)} px`;
-      zone8Arcs.push({
-        text,
-        lx: arcInfo.midPt.x, // Directly ON the wall boundary
-        ly: arcInfo.midPt.y,
-        nx: arcInfo.nx,
-        ny: arcInfo.ny,
-        outX: arcInfo.outX,
-        outY: arcInfo.outY,
-        apex: arcInfo.apex,
-        edgeStart: arcInfo.edgeStart,
-        edgeEnd: arcInfo.edgeEnd,
+      arcInfo.subSegments.forEach((subSeg) => {
+        zone8Arcs.push({
+          text: subSeg.text,
+          lx: subSeg.midPt.x,
+          ly: subSeg.midPt.y,
+          nx: subSeg.nx,
+          ny: subSeg.ny,
+          outX: subSeg.outX,
+          outY: subSeg.outY,
+          apex: arcInfo.apex,
+          edgeStart: subSeg.edgeStart,
+          edgeEnd: subSeg.edgeEnd,
+          name: region.name,
+        });
       });
     }
   });
@@ -926,27 +1066,25 @@ const drawCanvasContent = (
           ring: "center",
           name: region.name,
         });
-      } else {
-        // Outer & Middle ring devtas: compute outer boundary segment length
+      } else if (ringType === "outer") {
+        // Outer ring devtas ONLY: compute outer boundary segment length
         const arcInfo = computeZoneOuterArc(pts, realScale ?? null, plotCpxD);
         if (arcInfo && arcInfo.totalLen > 2) {
-          const text = arcInfo.realArcLength !== null
-            ? (ringType === "middle" ? `${region.name}: ${arcInfo.realArcLength.toFixed(1)} ft` : `${arcInfo.realArcLength.toFixed(1)} ft`)
-            : `${Math.round(arcInfo.totalLen)} px`;
-
-          devtaArcs.push({
-            text,
-            lx: arcInfo.midPt.x,
-            ly: arcInfo.midPt.y,
-            nx: arcInfo.nx,
-            ny: arcInfo.ny,
-            outX: arcInfo.outX,
-            outY: arcInfo.outY,
-            apex: arcInfo.apex,
-            edgeStart: arcInfo.edgeStart,
-            edgeEnd: arcInfo.edgeEnd,
-            ring: ringType,
-            name: region.name,
+          arcInfo.subSegments.forEach((subSeg) => {
+            devtaArcs.push({
+              text: subSeg.text,
+              lx: subSeg.midPt.x,
+              ly: subSeg.midPt.y,
+              nx: subSeg.nx,
+              ny: subSeg.ny,
+              outX: subSeg.outX,
+              outY: subSeg.outY,
+              apex: arcInfo.apex,
+              edgeStart: subSeg.edgeStart,
+              edgeEnd: subSeg.edgeEnd,
+              ring: ringType,
+              name: region.name,
+            });
           });
         }
       }
@@ -967,14 +1105,18 @@ const drawCanvasContent = (
     ctx.stroke();
   }
 
+  // NOTE: selection highlight is drawn ONLY on the outer boundary sides
+  // (final pass below). The region-interior fill + center badge were removed
+  // per client request — no wedge fills, no duplicate labels inside the plot.
+
   if (boundary.length > 0) {
     const pxBoundary = boundary.map(toPx);
     ctx.beginPath();
     ctx.moveTo(pxBoundary[0].x, pxBoundary[0].y);
     pxBoundary.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
     ctx.closePath();
-    ctx.lineWidth = 5;
-    ctx.strokeStyle = "#2563EB";
+    ctx.lineWidth = selectionActive ? 3 : 5;
+    ctx.strokeStyle = selectionActive ? "#94A3B8" : "#2563EB";
     ctx.stroke();
   }
   // Draw North Indicator
@@ -1093,15 +1235,95 @@ const drawCanvasContent = (
   }
 
   // ════════════════════════════════════════════════════════════════════════
-  // FINAL PASS: Clean boundary segment highlights + numbered marker dots
-  // Drawn LAST so they sit above all other content.
-  // The actual distance labels are rendered as an HTML overlay panel.
+  // FINAL PASS: progressive-disclosure measurement overlay.
+  // simple → no zone pills (wall badges above are enough, list is source of truth)
+  // focus  → dots for all zones + ONE full pill for the selected list entry
+  // all    → every pill, with collision-culling so short walls stay readable
+  // One pill per zone: sub-segments of the same zone (e.g. Jayant split across
+  // a corner) are merged so the outer length shows once, as a total.
   // ════════════════════════════════════════════════════════════════════════
   const allZoneArcs = [
     ...zone16Arcs.map(a => ({ ...a, ring: "outer" as const, name: (a as any).name || "Zone" })),
     ...zone8Arcs.map(a => ({ ...a, ring: "outer" as const, name: (a as any).name || "Zone" })),
     ...devtaArcs,
   ];
+
+  interface MergedArc {
+    name: string; ring: string; text: string; origText?: string;
+    outX: number; outY: number;
+    apex: { x: number; y: number };
+    edgeStart: { x: number; y: number }; edgeEnd: { x: number; y: number };
+    segments: Array<{
+      edgeStart: { x: number; y: number }; edgeEnd: { x: number; y: number };
+      midX: number; midY: number; outX: number; outY: number; lenPx: number;
+    }>;
+    totalPx: number;
+    /** Display piece (pill + highlight). Longest by default, or the clicked piece. */
+    repIdx: number;
+  }
+  const mergedArcs: MergedArc[] = [];
+  {
+    const byKey = new Map<string, MergedArc & { origText: string }>();
+    allZoneArcs.forEach((a: any) => {
+      const ring = a.ring || "outer";
+      const name = a.name || "Zone";
+      // Center/Brahma pseudo-arcs are not boundary pieces — never merge them.
+      const key = ring === "center"
+        ? `center:${name.toLowerCase()}:${mergedArcs.length}`
+        : `${ring}:${name.toLowerCase()}`;
+      const lenPx = a.edgeStart && a.edgeEnd
+        ? Math.hypot(a.edgeEnd.x - a.edgeStart.x, a.edgeEnd.y - a.edgeStart.y) : 0;
+      const midX = a.edgeStart && a.edgeEnd ? (a.edgeStart.x + a.edgeEnd.x) / 2 : a.lx;
+      const midY = a.edgeStart && a.edgeEnd ? (a.edgeStart.y + a.edgeEnd.y) / 2 : a.ly;
+      let m = byKey.get(key);
+      if (!m) {
+        m = {
+          name, ring, text: "", origText: a.text,
+          outX: a.outX, outY: a.outY, apex: a.apex,
+          edgeStart: a.edgeStart, edgeEnd: a.edgeEnd,
+          segments: [], totalPx: 0, repIdx: 0,
+        };
+        byKey.set(key, m);
+        mergedArcs.push(m);
+      }
+      m.segments.push({ edgeStart: a.edgeStart, edgeEnd: a.edgeEnd, midX, midY, outX: a.outX, outY: a.outY, lenPx });
+      m.totalPx += lenPx;
+    });
+    // Finalize: pill + highlight sit on the display piece — the longest piece
+    // by default, or the exact piece the user clicked (selectedPieceHint).
+    // Text is the OUTER total for multi-piece zones, exact label otherwise.
+    mergedArcs.forEach((m) => {
+      let rep = 0;
+      for (let i = 1; i < m.segments.length; i++) {
+        if (m.segments[i] && m.segments[rep] && m.segments[i].lenPx > m.segments[rep].lenPx) rep = i;
+      }
+      if (
+        selectedPieceHint && m.segments.length > 1 &&
+        (m.name || "").toLowerCase() === (selectedPieceHint.name || "").toLowerCase()
+      ) {
+        let best = rep;
+        let bestD = Infinity;
+        m.segments.forEach((s, i) => {
+          if (!s) return;
+          const d = Math.hypot(s.midX - selectedPieceHint.x, s.midY - selectedPieceHint.y);
+          if (d < bestD) { bestD = d; best = i; }
+        });
+        rep = best;
+      }
+      m.repIdx = rep;
+      const repSeg = m.segments[rep];
+      if (repSeg) {
+        m.edgeStart = repSeg.edgeStart; m.edgeEnd = repSeg.edgeEnd;
+        m.outX = repSeg.outX; m.outY = repSeg.outY;
+      }
+      if (m.segments.length <= 1) {
+        m.text = m.origText ?? m.text;
+      } else {
+        const totalReal = realScale ? m.totalPx * realScale : null;
+        m.text = totalReal != null ? `${totalReal.toFixed(1)} ft` : `${Math.round(m.totalPx)} px`;
+      }
+    });
+  }
 
   // Ring colors
   const RING_COLORS: Record<string, string> = {
@@ -1111,63 +1333,345 @@ const drawCanvasContent = (
     center: "#10B981", // Emerald
   };
 
-  if (allZoneArcs.length > 0 && showArcLengths) {
+  const mode: "simple" | "focus" | "all" =
+    measurementMode ?? (showArcLengths ? "all" : "simple");
+  const isArcSelected = (name: string) => {
+    if (!cleanSelected) return false;
+    const n = (name || "").toLowerCase();
+    return n === cleanSelected || cleanSelected.includes(n) || n.includes(cleanSelected);
+  };
+
+  const drawPillBadge = (
+    item: { text: string; name?: string },
+    tagX: number, tagY: number, col: string, idxLabel: string
+  ) => {
+    ctx.save();
+    ctx.font = "bold 9.5px 'Inter', system-ui, sans-serif";
+    const zoneName = (item as any).name || "";
+    const labelText = zoneName ? `${zoneName}: ${item.text}` : item.text;
+    const metrics = ctx.measureText(labelText);
+    const textWidth = metrics.width;
+
+    const circleRadius = 7;
+    const badgeHeight = 17;
+    const badgeWidth = textWidth + 24;
+
+    // Pill shadow
+    ctx.shadowColor = "rgba(0, 0, 0, 0.35)";
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetY = 1;
+
+    // Pill background fill
+    ctx.fillStyle = darkOverlay ? "#0F172A" : "#FFFFFF";
+    fillRoundRect(ctx, tagX - badgeWidth / 2, tagY - badgeHeight / 2, badgeWidth, badgeHeight, 8.5);
+    ctx.fill();
+
+    // Pill border (matching zone ring color)
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Number circle inside pill (left side of pill)
+    const dotX = tagX - badgeWidth / 2 + 10;
+    const dotY = tagY;
+    ctx.beginPath();
+    ctx.arc(dotX, dotY, circleRadius, 0, Math.PI * 2);
+    ctx.fillStyle = col;
+    ctx.fill();
+
+    // Index number text inside circle
+    ctx.fillStyle = "#FFFFFF";
+    ctx.font = `bold ${idxLabel.length > 2 ? 7 : 8}px 'Inter', sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(idxLabel, dotX, dotY + 0.5);
+
+    // Devta / Zone Name + Length text inside pill (right side of circle)
+    ctx.font = "bold 9.5px 'Inter', system-ui, sans-serif";
+    ctx.fillStyle = darkOverlay ? "#F8FAFC" : "#0F172A";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText(labelText, dotX + circleRadius + 4, tagY + 0.5);
+
+    ctx.restore();
+    return { badgeWidth, badgeHeight };
+  };
+
+  const FOCUS_CLEAR_PX = 78;
+  let focusTag: { x: number; y: number } | null = null;
+
+  // Stale click targets must never survive a frame that draws no pills.
+  if (hitCollector) hitCollector.length = 0;
+
+  if (allZoneArcs.length > 0 && showArcLengths && mode !== "simple") {
     ctx.save();
 
-    allZoneArcs.forEach((item, idx) => {
-      const { edgeStart, edgeEnd, lx, ly, outX, outY } = item;
-      const ring = (item as any).ring || "outer";
+    // Pre-compute tag boxes for culling in "all" mode
+    const boxes: { x: number; y: number; w: number; h: number }[] = [];
+    const overlaps = (x: number, y: number, w: number, h: number) =>
+      boxes.some((b) => Math.abs(b.x - x) < (b.w + w) / 2 + 12 && Math.abs(b.y - y) < (b.h + h) / 2 + 10);
+
+    // Longest zones first so important labels win the space (one pill per zone)
+    const ordered = mergedArcs
+      .map((item, idx) => ({ item, idx }))
+      .filter(({ item }) => item.edgeStart && item.edgeEnd && item.totalPx >= 4)
+      .sort((a, b) => b.item.totalPx - a.item.totalPx);
+
+    // In "all" mode cap full pills so the canvas never fills up; rest become clean dots
+    const MAX_PILLS_ALL = 8;
+    let pillsDrawn = 0;
+
+    // Focus mode: locate the selected tag first so neighbours can be cleared
+    // out of an exclusion zone around it (fixes the stacked-pill clutter).
+    // Hoisted assignment — focusTag is reused by the tick-label pass below.
+    focusTag = null;
+    if (mode === "focus" && cleanSelected) {
+      for (const { item } of ordered) {
+        if (!isArcSelected(item.name || "")) continue;
+        const { edgeStart, edgeEnd, outX, outY } = item;
+        if (!edgeStart || !edgeEnd) continue;
+        const midX = (edgeStart.x + edgeEnd.x) / 2;
+        const midY = (edgeStart.y + edgeEnd.y) / 2;
+        focusTag = { x: midX + (outX || 0) * 44, y: midY + (outY || 0) * 44 };
+        break;
+      }
+    }
+
+    const pillNumberFor = (name: string, fallbackIdx: number): string => {
+      const n = entryIndexByName?.get((name || "").toLowerCase());
+      return `${n ?? fallbackIdx + 1}`;
+    };
+
+    // Extra click targets for the non-display pieces of a multi-piece zone,
+    // so clicking any side of the zone selects it AND moves the highlight there.
+    const pushExtraPieceTargets = (item: MergedArc) => {
+      if (!hitCollector || item.segments.length <= 1) return;
+      item.segments.forEach((s, i) => {
+        if (i === item.repIdx || !s.edgeStart || !s.edgeEnd) return;
+        hitCollector.push({ tagX: s.midX, tagY: s.midY, w: 18, h: 18, midX: s.midX, midY: s.midY, name: item.name });
+      });
+    };
+
+    ordered.forEach(({ item, idx }) => {
+      const { edgeStart, edgeEnd, outX, outY } = item;
+      const ring = item.ring || "outer";
       const col = RING_COLORS[ring] || "#3B82F6";
 
       if (!edgeStart || !edgeEnd) return;
-      const segLen = Math.hypot(edgeEnd.x - edgeStart.x, edgeEnd.y - edgeStart.y);
-      if (segLen < 4) return;
+      if (item.totalPx < 4) return;
 
-      // 1. Draw a highlighted colored line ALONG the boundary segment
-      ctx.save();
-      ctx.strokeStyle = col;
-      ctx.lineWidth = ring === "outer" ? 4 : 2.5;
-      ctx.globalAlpha = 0.55;
-      ctx.beginPath();
-      ctx.moveTo(edgeStart.x, edgeStart.y);
-      ctx.lineTo(edgeEnd.x, edgeEnd.y);
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-      ctx.restore();
-
-      // 2. Draw a small numbered circle at the midpoint of the segment
+      const selected = isArcSelected(item.name || "");
       const midX = (edgeStart.x + edgeEnd.x) / 2;
       const midY = (edgeStart.y + edgeEnd.y) / 2;
-      // Offset the dot outward so it doesn't sit exactly on the wall
-      const dotR = 9;
-      const ox = (outX || 0) * (dotR + 4);
-      const oy = (outY || 0) * (dotR + 4);
-      const dotX = midX + ox;
-      const dotY = midY + oy;
 
-      // Dot fill
+      // focus mode: only the selected entry gets a full pill + highlight.
+      // Everything inside the exclusion zone around the selected pill is
+      // hidden so the data can't pile up on the highlight.
+      if (mode === "focus" && !selected) {
+        if (focusTag) {
+          const nearTag =
+            Math.hypot(midX - focusTag.x, midY - focusTag.y) < FOCUS_CLEAR_PX ||
+            Math.hypot(
+              midX + (outX || 0) * 18 - focusTag.x,
+              midY + (outY || 0) * 18 - focusTag.y
+            ) < FOCUS_CLEAR_PX;
+          if (nearTag) return; // cleared — discoverable via the list
+        }
+        ctx.save();
+        ctx.globalAlpha = 0.35;
+        ctx.beginPath();
+        ctx.arc(midX, midY, 3, 0, Math.PI * 2);
+        ctx.fillStyle = col;
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255,255,255,0.7)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.restore();
+        hitCollector?.push({ tagX: midX, tagY: midY, w: 14, h: 14, midX, midY, name: item.name });
+        pushExtraPieceTargets(item);
+        return;
+      }
+
+      // 1. Highlight lines ALONG the boundary pieces.
+      // Selected zone → ONLY the single longest outer side (the piece the
+      // pill sits on). Other pieces of the same zone stay unlit so a
+      // corner-spanning zone never lights up two walls at once.
+      // Unselected zones (all-mode) keep faint extent lines on all pieces.
+      const drawPiece = (s: { edgeStart: { x: number; y: number }; edgeEnd: { x: number; y: number } }) => {
+        if (!s.edgeStart || !s.edgeEnd) return;
+        if (selected) {
+          ctx.save();
+          ctx.lineCap = "round";
+          ctx.shadowColor = "rgba(0,0,0,0.5)";
+          ctx.shadowBlur = 12;
+          ctx.strokeStyle = "#FFFFFF";
+          ctx.lineWidth = 10;
+          ctx.globalAlpha = 0.95;
+          ctx.beginPath();
+          ctx.moveTo(s.edgeStart.x, s.edgeStart.y);
+          ctx.lineTo(s.edgeEnd.x, s.edgeEnd.y);
+          ctx.stroke();
+          ctx.restore();
+        }
+        ctx.save();
+        ctx.lineCap = "round";
+        ctx.strokeStyle = col;
+        ctx.lineWidth = selected ? 6 : ring === "outer" ? 4 : 2.5;
+        ctx.globalAlpha = selected ? 1 : 0.55;
+        if (selected) {
+          ctx.shadowColor = col;
+          ctx.shadowBlur = 16;
+        }
+        ctx.beginPath();
+        ctx.moveTo(s.edgeStart.x, s.edgeStart.y);
+        ctx.lineTo(s.edgeEnd.x, s.edgeEnd.y);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        ctx.restore();
+      };
+      if (selected) {
+        drawPiece({ edgeStart: item.edgeStart, edgeEnd: item.edgeEnd });
+      } else {
+        item.segments.forEach(drawPiece);
+      }
+
+      // 2. Pill badge (culled in "all" mode)
+      // Selected pill sits further out with a leader line so it never
+      // sits on top of neighbour dots.
+      const offsetDist = selected ? 44 : 18;
+      const tagX = midX + (outX || 0) * offsetDist;
+      const tagY = midY + (outY || 0) * offsetDist;
+
+      if (selected && (outX || outY)) {
+        ctx.save();
+        ctx.strokeStyle = "rgba(255,255,255,0.95)";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(midX, midY);
+        ctx.lineTo(tagX, tagY);
+        ctx.stroke();
+        ctx.strokeStyle = col;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(midX, midY);
+        ctx.lineTo(tagX, tagY);
+        ctx.stroke();
+        // Anchor dot on the wall
+        ctx.beginPath();
+        ctx.arc(midX, midY, 5, 0, Math.PI * 2);
+        ctx.fillStyle = "#FFFFFF";
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(midX, midY, 3, 0, Math.PI * 2);
+        ctx.fillStyle = col;
+        ctx.fill();
+        ctx.restore();
+      }
+
+      if (mode === "all" && !selected) {
+        // Estimate box then cull overlaps / cap
+        ctx.save();
+        ctx.font = "bold 9.5px 'Inter', system-ui, sans-serif";
+        const zoneName = item.name || "";
+        const labelText = zoneName ? `${zoneName}: ${item.text}` : item.text;
+        const estW = ctx.measureText(labelText).width + 24;
+        ctx.restore();
+        if (pillsDrawn >= MAX_PILLS_ALL || overlaps(tagX, tagY, estW, 17)) {
+          // Fallback: quiet dot so the zone is still discoverable via the list
+          ctx.save();
+          ctx.globalAlpha = 0.9;
+          ctx.beginPath();
+          ctx.arc(midX, midY, 3, 0, Math.PI * 2);
+          ctx.fillStyle = col;
+          ctx.fill();
+          ctx.strokeStyle = "rgba(255,255,255,0.9)";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          ctx.restore();
+          hitCollector?.push({ tagX: midX, tagY: midY, w: 14, h: 14, midX, midY, name: item.name });
+          pushExtraPieceTargets(item);
+          return;
+        }
+        boxes.push({ x: tagX, y: tagY, w: estW, h: 17 });
+        pillsDrawn += 1;
+        hitCollector?.push({ tagX, tagY, w: estW, h: 17, midX, midY, name: item.name });
+        pushExtraPieceTargets(item);
+      } else {
+        // Pill (or selected dot fallback target) is clickable
+        ctx.save();
+        ctx.font = "bold 9.5px 'Inter', system-ui, sans-serif";
+        const zoneName = item.name || "";
+        const labelText = zoneName ? `${zoneName}: ${item.text}` : item.text;
+        const haloW = ctx.measureText(labelText).width + 24;
+        ctx.restore();
+        hitCollector?.push({ tagX, tagY, w: haloW, h: 17, midX, midY, name: item.name });
+        pushExtraPieceTargets(item);
+      }
+
+      if (selected) {
+        // White halo behind the selected pill so it pops off the plot
+        ctx.save();
+        ctx.font = "bold 9.5px 'Inter', system-ui, sans-serif";
+        const zoneName = item.name || "";
+        const labelText = zoneName ? `${zoneName}: ${item.text}` : item.text;
+        const haloW = ctx.measureText(labelText).width + 24;
+        ctx.strokeStyle = "rgba(255,255,255,0.95)";
+        ctx.lineWidth = 5;
+        fillRoundRect(ctx, tagX - haloW / 2, tagY - 17 / 2, haloW, 17, 8.5);
+        ctx.stroke();
+        ctx.restore();
+      }
+      drawPillBadge(item, tagX, tagY, col, pillNumberFor(item.name, idx));
+    });
+
+    ctx.restore();
+  }
+
+  // Draw Corner Wall Offset Tags (e.g., C1+16.0 ft) — kept as-is, only in focus/all so Simple stays clean
+  if (showTickLabels && mode !== "simple" && allZoneArcs.length > 0 && boundary.length > 0) {
+    const pxB = boundary.map(toPx);
+    ctx.save();
+
+    allZoneArcs.forEach((item) => {
+      if (!item.edgeStart) return;
+      const ref = getWallCornerReference(item.edgeStart, pxB, wallLengths, realScale ?? null);
+      if (!ref || ref.realDist === null) return;
+
+      const tagText = `${ref.cornerLabel}+${ref.realDist.toFixed(1)}ft`;
+      const pt = item.edgeStart;
+      const ox = (item.outX || 0) * 26;
+      const oy = (item.outY || 0) * 26;
+      const tx = pt.x + ox;
+      const ty = pt.y + oy;
+
+      // In focus mode, hide tick tags crowding the selected pill's exclusion zone
+      if (mode === "focus" && focusTag && Math.hypot(tx - focusTag.x, ty - focusTag.y) < FOCUS_CLEAR_PX) {
+        return;
+      }
+
       ctx.save();
-      ctx.shadowColor = "rgba(0,0,0,0.35)";
-      ctx.shadowBlur = 5;
-      ctx.beginPath();
-      ctx.arc(dotX, dotY, dotR, 0, Math.PI * 2);
-      ctx.fillStyle = col;
+      ctx.font = "bold 8.5px 'Inter', Arial, sans-serif";
+      const metrics = ctx.measureText(tagText);
+      const tw = metrics.width;
+      const th = 11;
+
+      ctx.shadowColor = "rgba(0,0,0,0.3)";
+      ctx.shadowBlur = 4;
+      ctx.fillStyle = darkOverlay ? "rgba(15, 23, 42, 0.95)" : "rgba(241, 245, 249, 0.95)";
+      fillRoundRect(ctx, tx - tw / 2 - 3, ty - th / 2, tw + 6, th + 2, 3);
       ctx.fill();
+
       ctx.shadowBlur = 0;
-
-      // White ring
-      ctx.strokeStyle = "rgba(255,255,255,0.9)";
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = darkOverlay ? "#3B82F6" : "#2563EB";
+      ctx.lineWidth = 1;
       ctx.stroke();
-      ctx.restore();
 
-      // Number label inside dot
-      ctx.save();
-      ctx.font = `bold ${dotR < 8 ? 8 : 9}px 'Inter', Arial, sans-serif`;
+      ctx.fillStyle = darkOverlay ? "#FFFFFF" : "#0F172A";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillStyle = "#FFFFFF";
-      ctx.fillText(`${idx + 1}`, dotX, dotY + 0.5);
+      ctx.fillText(tagText, tx, ty + 0.5);
       ctx.restore();
     });
 
@@ -1253,8 +1757,14 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
   showTickLabels = true,
   showArcLengths = true,
   darkOverlay = true,
+  showDevta45 = true,
+  showZone16 = false,
+  showZone8 = false,
+  selectedDistanceEntryName,
   isPremium = false,
   isUnlimited = false,
+  measurementMode,
+  onSelectDistanceEntry,
   onDragEnd,
   onDistanceDataReady,
 }) => {
@@ -1266,6 +1776,9 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
   const [hoverPoint, setHoverPoint] = useState<Point | null>(null);
   const [draggingVertexIndex, setDraggingVertexIndex] = useState<number | null>(null);
   const [imageLoadedTrigger, setImageLoadedTrigger] = useState(0); // Add this state
+  // Which exact wall piece of a multi-piece zone the user clicked — the pill
+  // and highlight both move to that piece instead of the longest one.
+  const [selectedPieceHint, setSelectedPieceHint] = useState<{ name: string; x: number; y: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -1403,9 +1916,14 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
       const pts = region.polygon.map(toPxMemo);
       const arcInfo = computeZoneOuterArc(pts, scale ?? null, plotCpx);
       if (!arcInfo || arcInfo.totalLen < 2) return;
+
+      const name = arcInfo.subSegments.length > 1 && scale
+        ? `${region.name} (${arcInfo.subSegments.map(s => `${s.realArcLength?.toFixed(1)}ft`).join(" + ")})`
+        : region.name;
+
       entries.push({
         index: ++idx,
-        name: region.name,
+        name,
         ring: "outer",
         distanceFt: arcInfo.realArcLength,
         distancePx: arcInfo.totalLen,
@@ -1419,9 +1937,14 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
       const pts = region.polygon.map(toPxMemo);
       const arcInfo = computeZoneOuterArc(pts, scale ?? null, plotCpx);
       if (!arcInfo || arcInfo.totalLen < 2) return;
+
+      const name = arcInfo.subSegments.length > 1 && scale
+        ? `${region.name} (${arcInfo.subSegments.map(s => `${s.realArcLength?.toFixed(1)}ft`).join(" + ")})`
+        : region.name;
+
       entries.push({
         index: ++idx,
-        name: region.name,
+        name,
         ring: "outer",
         distanceFt: arcInfo.realArcLength,
         distancePx: arcInfo.totalLen,
@@ -1452,9 +1975,14 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
         } else {
           const arcInfo = computeZoneOuterArc(pts, scale ?? null, plotCpx);
           if (!arcInfo || arcInfo.totalLen < 2) return;
+
+          const name = arcInfo.subSegments.length > 1 && scale
+            ? `${region.name} (${arcInfo.subSegments.map(s => `${s.realArcLength?.toFixed(1)}ft`).join(" + ")})`
+            : region.name;
+
           entries.push({
             index: ++idx,
-            name: region.name,
+            name,
             ring: ringType,
             distanceFt: arcInfo.realArcLength,
             distancePx: arcInfo.totalLen,
@@ -1468,6 +1996,16 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
   }, [devtaRegions, zone16Regions, zone8Regions, plotCentroid, scale, computedLayout]);
 
   const prevDistanceDataRef = useRef<string>("");
+  // Screen-space click targets for zone pills/dots (rebuilt every draw).
+  const arcHitRef = useRef<ArcHitTarget[]>([]);
+  // Pill numbers must match the side-list numbers, keyed by clean zone name.
+  const entryIndexByName = React.useMemo(() => {
+    const m = new Map<string, number>();
+    distanceData.forEach((e) => {
+      m.set(e.name.split(" (")[0].trim().toLowerCase(), e.index);
+    });
+    return m;
+  }, [distanceData]);
   useEffect(() => {
     if (onDistanceDataReady) {
       const serialized = JSON.stringify(distanceData);
@@ -1533,7 +2071,15 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
       showCornerBadges,
       showTickLabels,
       showArcLengths,
-      darkOverlay
+      darkOverlay,
+      showDevta45,
+      showZone16,
+      showZone8,
+      selectedDistanceEntryName,
+      measurementMode,
+      entryIndexByName,
+      arcHitRef.current,
+      selectedPieceHint
     );
     ctx.restore();
   }, [
@@ -1542,7 +2088,7 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     plotCentroid, drawingObjectBoundary, drawingMode, hoveredDevta, innerPolygon,
     middlePolygon, northDirection, wallLengths, referenceWallIndex,
     walls, currentDrawingWall, selectedWall, scale, measureStart, measureEnd, measureCurrent, hoverPoint,
-    imageLoadedTrigger, shaktiChakraZonesImg, shaktiChakraBaseImg, showCornerBadges, showTickLabels, showArcLengths, darkOverlay
+    imageLoadedTrigger, shaktiChakraZonesImg, shaktiChakraBaseImg, showCornerBadges, showTickLabels, showArcLengths, darkOverlay, showDevta45, showZone16, showZone8, selectedDistanceEntryName, measurementMode, entryIndexByName, selectedPieceHint
   ]);
 
   useLayoutEffect(() => {
@@ -1750,6 +2296,16 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     const normalizedPoint = toNormalized(point);
     setHoverPoint(normalizedPoint);
 
+    // Pointer cursor over clickable zone pills/dots
+    if (!drawingMode && canvasRef.current && arcHitRef.current.length > 0) {
+      const overPill = arcHitRef.current.some(
+        (t) =>
+          Math.abs(point.x - t.tagX) <= t.w / 2 + 6 &&
+          Math.abs(point.y - t.tagY) <= t.h / 2 + 6
+      );
+      canvasRef.current.style.cursor = overPill ? "pointer" : "";
+    }
+
     if (draggingVertexIndex !== null && onMoveBoundaryVertex) {
       // Allow dragging out of bounds safely with Math.max/min if desired, but here we just pass pure normalized
       onMoveBoundaryVertex(draggingVertexIndex, normalizedPoint);
@@ -1877,6 +2433,62 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
       }
     }
 
+    // Click on a zone pill / marker dot / boundary piece → select that zone's
+    // outer length (highlights the wall pieces + pill, syncs the side list).
+    // Works in any non-drawing mode so the mouse always highlights something.
+    if (!isStatic && !drawingMode && arcHitRef.current.length > 0) {
+      const nearestBoundaryWall = (x: number, y: number): number | null => {
+        if (boundary.length < 2) return null;
+        const pxB = boundary.map(toPx);
+        let best = -1;
+        let bestD = Infinity;
+        for (let i = 0; i < pxB.length; i++) {
+          const p1 = pxB[i];
+          const p2 = pxB[(i + 1) % pxB.length];
+          if (isPointNearLineSegment(x, y, p1.x, p1.y, p2.x, p2.y, 22)) {
+            const d = Math.hypot((p1.x + p2.x) / 2 - x, (p1.y + p2.y) / 2 - y);
+            if (d < bestD) { bestD = d; best = i; }
+          }
+        }
+        return best >= 0 ? best : null;
+      };
+
+      // 1. Direct hit on a pill badge (topmost = last drawn)
+      for (let i = arcHitRef.current.length - 1; i >= 0; i--) {
+        const t = arcHitRef.current[i];
+        if (
+          Math.abs(point.x - t.tagX) <= t.w / 2 + 6 &&
+          Math.abs(point.y - t.tagY) <= t.h / 2 + 6
+        ) {
+          setSelectedPieceHint({ name: t.name, x: t.midX, y: t.midY });
+          if (onSelectDistanceEntry) onSelectDistanceEntry(t.name);
+          if (setReferenceWallIndex) {
+            const w = nearestBoundaryWall(t.midX, t.midY);
+            if (w !== null) setReferenceWallIndex(w);
+          }
+          return;
+        }
+      }
+      // 2. Click near a zone's boundary piece → select nearest zone AND move
+      // the pill/highlight onto that exact piece.
+      let bestName: string | null = null;
+      let bestMid = { x: 0, y: 0 };
+      let bestD = 20;
+      for (const t of arcHitRef.current) {
+        const d = Math.hypot(point.x - t.midX, point.y - t.midY);
+        if (d < bestD) { bestD = d; bestName = t.name; bestMid = { x: t.midX, y: t.midY }; }
+      }
+      if (bestName) {
+        setSelectedPieceHint({ name: bestName, x: bestMid.x, y: bestMid.y });
+        if (onSelectDistanceEntry) onSelectDistanceEntry(bestName);
+        if (setReferenceWallIndex) {
+          const w = nearestBoundaryWall(bestMid.x, bestMid.y);
+          if (w !== null) setReferenceWallIndex(w);
+        }
+        return;
+      }
+    }
+
     let regionClicked = false;
     const allRegions = [...devtaRegions, ...zone16Regions, ...zone8Regions];
     for (const region of allRegions) {
@@ -1906,16 +2518,12 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
     if (regionClicked) return;
 
     if (!isStatic && (drawingMode === null || drawingMode === "select") && setReferenceWallIndex) {
-      if (!isPremium) {
-        setReferenceWallIndex(null);
-        return;
-      }
       const pxBoundary = boundary.map(toPx);
       let wallClicked = false;
       for (let i = 0; i < pxBoundary.length; i++) {
         const p1 = pxBoundary[i];
         const p2 = pxBoundary[(i + 1) % pxBoundary.length];
-        if (isPointNearLineSegment(point.x, point.y, p1.x, p1.y, p2.x, p2.y)) {
+        if (isPointNearLineSegment(point.x, point.y, p1.x, p1.y, p2.x, p2.y, 16)) {
           setReferenceWallIndex(i);
           wallClicked = true;
           break;
@@ -1924,6 +2532,13 @@ export const FloorPlanCanvas: React.FC<FloorPlanCanvasProps> = ({
       }
       if (!wallClicked) {
         setReferenceWallIndex(null);
+        // Clicked empty space → clear zone selection so only the base plot shows.
+        setSelectedPieceHint(null);
+        if (onSelectDistanceEntry) onSelectDistanceEntry(null);
+      } else if (onSelectDistanceEntry) {
+        // Explicit wall click takes over → drop any zone selection for a clean view.
+        setSelectedPieceHint(null);
+        onSelectDistanceEntry(null);
       }
     }
   };

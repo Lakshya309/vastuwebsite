@@ -16,6 +16,7 @@ import { ControlPanel } from "@/components/floor-plan/ControlPanel";
 import { DevtaInfoCard } from "@/components/floor-plan/DevtaInfoCard";
 import { MobileMapView } from "@/components/floor-plan/MobileMapView";
 import { PremiumUpgradeModal } from "@/components/floor-plan/PremiumUpgradeModal";
+import { WallInfoBar } from "@/components/floor-plan/WallInfoBar";
 
 import { PlacedObject, DevtaRegion, Point, Wall } from "@/lib/floorPlanInterfaces";
 import {
@@ -81,10 +82,14 @@ export default function FloorPlanPage() {
     showTickLabels: false, // Default: Simple view (no C1+ clutter)
     showArcLengths: true,  // Segment lengths in feet (e.g. 18.1 ft)
     darkOverlay: true,     // Dark high-contrast badges & devta text
+    showDistanceTable: true, // Summary distance table overlay
   });
   const [showVideo, setShowVideo] = useState(false);
   const [showMobileMap, setShowMobileMap] = useState(false);
   const [leftPanelTab, setLeftPanelTab] = useState<'video' | 'map'>('video');
+  const [currentVideoUrl, setCurrentVideoUrl] = useState<string | null>(null);
+  const [currentVideoTitle, setCurrentVideoTitle] = useState<string>("");
+  const [selectedRoomVideoId, setSelectedRoomVideoId] = useState<string | null>(null);
   const [selectedObjectType, setSelectedObjectType] = useState("Toilet");
   const [drawingObjectBoundary, setDrawingObjectBoundary] = useState<Point[]>(
     [],
@@ -109,6 +114,26 @@ export default function FloorPlanPage() {
   const [gridType, setGridType] = useState<"81" | "64">("81");
   const [distanceData, setDistanceData] = useState<DevtaDistanceEntry[]>([]);
   const [distancePanelOpen, setDistancePanelOpen] = useState(true);
+  const [selectedDistanceEntryName, setSelectedDistanceEntryName] = useState<string | null>(null);
+  // Progressive-disclosure measurement mode: simple (4 walls) → focus (1 selected) → all (expert)
+  const [measurementMode, setMeasurementMode] = useState<"simple" | "focus" | "all">(() => {
+    if (typeof window === "undefined") return "simple";
+    const saved = window.localStorage.getItem("vastu_measure_mode");
+    return saved === "focus" || saved === "all" ? saved : "simple";
+  });
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("vastu_measure_mode", measurementMode);
+    } catch { /* ignore */ }
+    // Keep legacy canvas flags in sync so existing toggles/report still work
+    setShowGrid((p: any) => ({
+      ...p,
+      showArcLengths: measurementMode !== "simple" ? true : p.showArcLengths,
+      showDistanceTable: true,
+    }));
+    if (measurementMode !== "focus") setSelectedDistanceEntryName(null);
+  }, [measurementMode]);
 
   const propertyType = (project?.metadata as any)?.property_type || "residential";
   const commercialType = (project?.metadata as any)?.commercial_type || "general";
@@ -409,8 +434,8 @@ export default function FloorPlanPage() {
         const adjustedAspect = shapeAspect / canvasAspect;
 
         let normWidth;
-        if (adjustedAspect > 1) normWidth = 0.8;
-        else normWidth = 0.8 * adjustedAspect;
+        if (adjustedAspect > 1) normWidth = 0.86;
+        else normWidth = 0.86 * adjustedAspect;
 
         const pixelWidth = normWidth * 800;
         const currentScale = realW / pixelWidth;
@@ -441,8 +466,8 @@ export default function FloorPlanPage() {
         const adjustedAspect = shapeAspect / canvasAspect;
 
         let normWidth;
-        if (adjustedAspect > 1) normWidth = 0.8;
-        else normWidth = 0.8 * adjustedAspect;
+        if (adjustedAspect > 1) normWidth = 0.86;
+        else normWidth = 0.86 * adjustedAspect;
 
         const pixelWidth = normWidth * 800;
         const currentScale = (w * unitFactor) / pixelWidth;
@@ -830,33 +855,75 @@ export default function FloorPlanPage() {
 
     setBoundary(newBoundary);
 
-    // Map room objects to placedObjects
+    // Automatically create room objects, room perimeter walls, and interior placed objects
     if (mobileData.rooms && Array.isArray(mobileData.rooms)) {
       const newPlacedObjects: PlacedObject[] = [];
-      mobileData.rooms.forEach((room: any) => {
+      const newWalls: Wall[] = [];
+
+      mobileData.rooms.forEach((room: any, rIdx: number) => {
+        const roomW = room.width || 400;
+        const roomH = room.height || 400;
+        const roomNormX = (room.x + roomW / 2) / 3000;
+        const roomNormY = (room.y + roomH / 2) / 3000;
+        const roomCx = Math.max(0.08, Math.min(0.92, roomNormX));
+        const roomCy = Math.max(0.08, Math.min(0.92, roomNormY));
+        const halfW = Math.max(0.04, Math.min(0.25, (roomW / 3000) / 2));
+        const halfH = Math.max(0.04, Math.min(0.25, (roomH / 3000) / 2));
+
+        // 1. Create Room placed object
+        newPlacedObjects.push({
+          id: `room_${room.id || rIdx}_${Date.now()}`,
+          object_type: room.name || "Family Lounge",
+          centroid: { x: roomCx, y: roomCy },
+          boundary_normalized: [
+            { x: Math.max(0.02, roomCx - halfW), y: Math.max(0.02, roomCy - halfH) },
+            { x: Math.min(0.98, roomCx + halfW), y: Math.max(0.02, roomCy - halfH) },
+            { x: Math.min(0.98, roomCx + halfW), y: Math.min(0.98, roomCy + halfH) },
+            { x: Math.max(0.02, roomCx - halfW), y: Math.min(0.98, roomCy + halfH) },
+          ],
+          rotation: 0,
+        });
+
+        // 2. Create room perimeter wall segments
+        const rx1 = Math.max(0.02, roomCx - halfW);
+        const ry1 = Math.max(0.02, roomCy - halfH);
+        const rx2 = Math.min(0.98, roomCx + halfW);
+        const ry2 = Math.min(0.98, roomCy + halfH);
+        newWalls.push(
+          { id: `rw_${room.id || rIdx}_1`, start: { x: rx1, y: ry1 }, end: { x: rx2, y: ry1 }, color: "#3B82F6", thickness: 2 },
+          { id: `rw_${room.id || rIdx}_2`, start: { x: rx2, y: ry1 }, end: { x: rx2, y: ry2 }, color: "#3B82F6", thickness: 2 },
+          { id: `rw_${room.id || rIdx}_3`, start: { x: rx2, y: ry2 }, end: { x: rx1, y: ry2 }, color: "#3B82F6", thickness: 2 },
+          { id: `rw_${room.id || rIdx}_4`, start: { x: rx1, y: ry2 }, end: { x: rx1, y: ry1 }, color: "#3B82F6", thickness: 2 }
+        );
+
+        // 3. Create interior objects inside room
         if (room.mappedObjects && Array.isArray(room.mappedObjects)) {
           room.mappedObjects.forEach((obj: any, idx: number) => {
-            const normX = (room.x + (obj.screenDx ?? room.width / 2)) / 3000;
-            const normY = (room.y + (obj.screenDy ?? room.height / 2)) / 3000;
-            const cx = Math.max(0.1, Math.min(0.9, normX));
-            const cy = Math.max(0.1, Math.min(0.9, normY));
+            const normX = (room.x + (obj.screenDx ?? roomW / 2)) / 3000;
+            const normY = (room.y + (obj.screenDy ?? roomH / 2)) / 3000;
+            const cx = Math.max(0.05, Math.min(0.95, normX));
+            const cy = Math.max(0.05, Math.min(0.95, normY));
             newPlacedObjects.push({
               id: `${room.id}_${idx}_${Date.now()}`,
               object_type: obj.name || "Toilet",
               centroid: { x: cx, y: cy },
               boundary_normalized: [
-                { x: cx - 0.04, y: cy - 0.04 },
-                { x: cx + 0.04, y: cy - 0.04 },
-                { x: cx + 0.04, y: cy + 0.04 },
-                { x: cx - 0.04, y: cy + 0.04 },
+                { x: cx - 0.035, y: cy - 0.035 },
+                { x: cx + 0.035, y: cy - 0.035 },
+                { x: cx + 0.035, y: cy + 0.035 },
+                { x: cx - 0.035, y: cy + 0.035 },
               ],
               rotation: 0,
             });
           });
         }
       });
+
       if (newPlacedObjects.length > 0) {
         setPlacedObjects(newPlacedObjects);
+      }
+      if (newWalls.length > 0) {
+        setWalls((prev) => [...prev, ...newWalls]);
       }
     }
 
@@ -1009,7 +1076,7 @@ export default function FloorPlanPage() {
             {showMobileMap ? 'Close Mobile Map' : 'Open Mobile Map'}
           </button>
 
-          {project?.video_url && (
+          {(project?.video_url || ((project?.metadata?.mobile_map as any)?.rooms?.some((r: any) => r.videoR2Key))) && (
             <button
               onClick={() => {
                 setShowVideo(!showVideo);
@@ -1036,62 +1103,131 @@ export default function FloorPlanPage() {
 
       {/* Main Workspace */}
       <div className="flex-1 flex overflow-hidden min-h-0">
-        {(showVideo && project?.video_url) || showMobileMap ? (
+        {(showVideo && (project?.video_url || (project?.metadata?.mobile_map as any)?.rooms?.some((r: any) => r.videoR2Key))) || showMobileMap ? (
           <ResizableLayout
             minLeftWidth={typeof window !== 'undefined' && window.innerWidth < 768 ? 0 : 380}
             maxLeftWidth={typeof window !== 'undefined' && window.innerWidth < 768 ? window.innerWidth : 700}
-            defaultLeftWidth={typeof window !== 'undefined' && window.innerWidth < 768 ? window.innerWidth : 500}
+            defaultLeftWidth={typeof window !== 'undefined' && window.innerWidth < 768 ? window.innerWidth : 480}
             className="flex-col md:flex-row flex-1 w-full overflow-hidden"
             leftPanel={
               (() => {
-                const hasBoth = showVideo && project?.video_url && showMobileMap;
+                const mobileRooms = (project?.metadata?.mobile_map as any)?.rooms || [];
+                const hasVideo = project?.video_url || mobileRooms.some((r: any) => r.videoR2Key);
+                const hasBoth = showVideo && hasVideo && showMobileMap;
+
                 return (
-                  <div className="h-full bg-gray-900 flex flex-col">
+                  <div className="h-full bg-slate-900 border-r border-slate-800 flex flex-col">
                     {/* Tab bar — only show when both panels are active */}
                     {hasBoth && (
-                      <div className="flex bg-gray-800 border-b border-gray-700 shrink-0">
+                      <div className="flex bg-slate-950/80 border-b border-slate-800 shrink-0 p-1 gap-1">
                         <button
                           onClick={() => setLeftPanelTab('video')}
-                          className={`flex-1 py-2.5 text-[11px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-colors ${
+                          className={`flex-1 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${
                             leftPanelTab === 'video'
-                              ? 'text-teal-400 border-b-2 border-teal-400 bg-gray-900/50'
-                              : 'text-gray-400 hover:text-gray-200'
+                              ? 'text-white bg-slate-800 shadow-sm border border-slate-700/60'
+                              : 'text-slate-400 hover:text-slate-200'
                           }`}
                         >
-                          <Video size={12} /> Video
+                          <Video size={13} className="text-teal-400" /> Walkthrough Video
                         </button>
                         <button
                           onClick={() => setLeftPanelTab('map')}
-                          className={`flex-1 py-2.5 text-[11px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-colors ${
+                          className={`flex-1 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${
                             leftPanelTab === 'map'
-                              ? 'text-orange-400 border-b-2 border-orange-400 bg-gray-900/50'
-                              : 'text-gray-400 hover:text-gray-200'
+                              ? 'text-white bg-slate-800 shadow-sm border border-slate-700/60'
+                              : 'text-slate-400 hover:text-slate-200'
                           }`}
                         >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-orange-400"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
                           Mobile Map
                         </button>
                       </div>
                     )}
 
                     {/* Video panel */}
-                    {showVideo && project?.video_url && (!hasBoth || leftPanelTab === 'video') && (
-                      <div className="flex-1 min-h-0 flex flex-col">
-                        <div className="flex-1 min-h-0">
+                    {showVideo && hasVideo && (!hasBoth || leftPanelTab === 'video') && (
+                      <div className="flex-1 min-h-0 flex flex-col bg-slate-950">
+                        {/* Room-wise Video Selector Strip */}
+                        {mobileRooms.length > 0 && (
+                          <div className="bg-slate-900/90 border-b border-slate-800 px-3 py-2 flex items-center gap-2 overflow-x-auto scrollbar-thin shrink-0">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1 flex items-center gap-1 flex-shrink-0">
+                              <Video className="w-3 h-3 text-teal-400" /> Rooms:
+                            </span>
+
+                            {project?.video_url && (
+                              <button
+                                onClick={() => {
+                                  setSelectedRoomVideoId(null);
+                                  setCurrentVideoUrl(project?.video_url || null);
+                                  setCurrentVideoTitle(`Full Property - ${project.name}`);
+                                }}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                                  selectedRoomVideoId === null
+                                    ? "bg-teal-500 text-white shadow-sm"
+                                    : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                                }`}
+                              >
+                                <span>Full Walkthrough</span>
+                              </button>
+                            )}
+
+                            {mobileRooms.map((room: any) => {
+                              const isSelected = selectedRoomVideoId === room.id;
+                              const hasRoomVid = !!room.videoR2Key;
+                              return (
+                                <button
+                                  key={room.id}
+                                  disabled={!hasRoomVid}
+                                  onClick={async () => {
+                                    if (!hasRoomVid) return;
+                                    setSelectedRoomVideoId(room.id);
+                                    setCurrentVideoTitle(`${room.name} Walkthrough`);
+                                    try {
+                                      const res = await fetch(`/api/projects/${projectId}/video-stream-url`, {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ r2Key: room.videoR2Key }),
+                                      });
+                                      if (res.ok) {
+                                        const data = await res.json();
+                                        if (data.url) setCurrentVideoUrl(data.url);
+                                      }
+                                    } catch (e) {
+                                      console.error("Failed to load room video", e);
+                                    }
+                                  }}
+                                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                                    isSelected
+                                      ? "bg-purple-600 text-white shadow-sm ring-1 ring-purple-400"
+                                      : hasRoomVid
+                                      ? "bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
+                                      : "bg-slate-850 text-slate-600 cursor-not-allowed opacity-50"
+                                  }`}
+                                  title={hasRoomVid ? `Play ${room.name} video` : `No video uploaded for ${room.name}`}
+                                >
+                                  {hasRoomVid && <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />}
+                                  <span>{room.name}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        <div className="flex-1 min-h-0 relative">
                           <VideoPlayer
-                            url={project.video_url}
+                            url={currentVideoUrl || project?.video_url || ""}
                             onClose={() => setShowVideo(false)}
-                            title={`Video Analysis - ${project.name}`}
+                            title={currentVideoTitle || `Video Analysis - ${project?.name}`}
                             className="h-full"
                           />
                         </div>
-                        <div className="p-3 bg-gray-800/90 backdrop-blur-sm border-t border-gray-700/50 shrink-0">
+                        <div className="p-3 bg-slate-900 border-t border-slate-800 shrink-0">
                           <div className="flex items-center gap-2 mb-1">
                             <span className="w-1.5 h-1.5 bg-teal-400 rounded-full animate-pulse" />
-                            <h4 className="text-white text-[10px] font-semibold">Video Analysis Mode</h4>
+                            <h4 className="text-white text-[10px] font-semibold">Room Analysis Mode</h4>
                           </div>
-                          <p className="text-gray-400 text-[9px] leading-relaxed">
-                            Pause the video to place objects on your floor plan. Use it to verify structural elements.
+                          <p className="text-slate-400 text-[10px] leading-relaxed">
+                            Tap any room video above to inspect individual zones. Pause the video to place objects or align walls.
                           </p>
                         </div>
                       </div>
@@ -1099,7 +1235,7 @@ export default function FloorPlanPage() {
 
                     {/* Mobile map panel */}
                     {showMobileMap && (!hasBoth || leftPanelTab === 'map') && (
-                      <div className="flex-1 min-h-0 p-4 overflow-hidden">
+                      <div className="flex-1 min-h-0 p-3 overflow-hidden">
                         <MobileMapView
                           data={(project?.metadata?.mobile_map as any) || {}}
                           className="h-full"
@@ -1116,117 +1252,135 @@ export default function FloorPlanPage() {
             }
             rightPanel={
               <div className="flex w-full h-full min-h-0 overflow-hidden">
-                <div className="flex-1 bg-gray-50 relative overflow-hidden flex items-center justify-center p-4">
-                  <div className="bg-white shadow-2xl rounded-lg overflow-hidden relative">
-                    <FloorPlanCanvas
-                      floorPlanImage={floorPlanImage}
-                      boundary={boundary}
-                      onDrawBoundary={handleDrawBoundary}
-                      placedObjects={placedObjects}
-                      onMoveObject={handleMoveObject}
-                      onResizeObject={handleResizeObject}
-                      onRotateObject={handleRotateObject}
-                      onDeleteObject={handleDeleteObject}
-                      objectSvgMap={proxiedObjectSvgMap}
-                      devtaRegions={showGrid.devta45 ? devtaRegions : []}
-                      zone16Regions={showGrid.zone16 ? zones16 : []}
-                      zone8Regions={showGrid.zone8 ? zones8 : []}
-                      marmaData={showGrid.marma ? marmaData : null}
-                      shaktiChakra={showGrid.shaktiChakra}
-                      shaktiChakraSize={shaktiChakraSize}
-                      shaktiChakraType={shaktiChakraType}
-                      plotCentroid={plotCentroid}
-                      onDevtaClick={handleDevtaClick}
-                      onZoneClick={handleZoneClick}
-                      drawingMode={drawingMode}
-                      setDrawingMode={setDrawingMode}
-                      onPlaceObject={handlePlaceObject}
-                      onCanvasClick={handleCanvasClick}
-                      drawingObjectBoundary={drawingObjectBoundary}
-                      setDrawingObjectBoundary={setDrawingObjectBoundary}
-                      selectedObjectType={selectedObjectType}
-                      northDirection={liveNorthDirection}
-                      scale={scale ? scale / unitFactor : null}
-                      wallLengths={wallLengths}
-                      setReferenceWallIndex={setReferenceWallIndex}
-                      referenceWallIndex={referenceWallIndex}
-                      wallColors={wallColors}
-                      plotWidth={project?.plot_width}
-                      plotHeight={project?.plot_height}
-                      highlightedZones={highlightedZones}
-                      walls={walls}
-                      onAddWall={handleAddWall}
-                      onSelectWall={setSelectedWall}
-                      selectedWall={selectedWall}
-                      onMoveBoundaryVertex={handleMoveBoundaryVertex}
-                      canvasRotation={canvasRotation}
-                      showCornerBadges={showGrid.showCornerBadges}
-                      showTickLabels={showGrid.showTickLabels}
-                      showArcLengths={showGrid.showArcLengths}
-                      darkOverlay={showGrid.darkOverlay}
-                      isPremium={effectiveIsPremium}
-                      isUnlimited={effectiveIsPremium}
-                      onDragEnd={handleDragEnd}
-                      onDistanceDataReady={setDistanceData}
-                    />
+                <div className="flex-1 bg-gray-50 relative overflow-hidden flex items-center justify-center p-3">
+                  <div className="w-full h-full bg-white shadow-2xl rounded-lg overflow-hidden relative flex flex-col">
+                    <div className="flex-1 relative overflow-hidden">
+                      <FloorPlanCanvas
+                        floorPlanImage={floorPlanImage}
+                        boundary={boundary}
+                        onDrawBoundary={handleDrawBoundary}
+                        placedObjects={placedObjects}
+                        onMoveObject={handleMoveObject}
+                        onResizeObject={handleResizeObject}
+                        onRotateObject={handleRotateObject}
+                        onDeleteObject={handleDeleteObject}
+                        objectSvgMap={proxiedObjectSvgMap}
+                        devtaRegions={devtaRegions}
+                        zone16Regions={zones16}
+                        zone8Regions={zones8}
+                        showDevta45={showGrid.devta45}
+                        showZone16={showGrid.zone16}
+                        showZone8={showGrid.zone8}
+                        marmaData={showGrid.marma ? marmaData : null}
+                        shaktiChakra={showGrid.shaktiChakra}
+                        shaktiChakraSize={shaktiChakraSize}
+                        shaktiChakraType={shaktiChakraType}
+                        plotCentroid={plotCentroid}
+                        onDevtaClick={handleDevtaClick}
+                        onZoneClick={handleZoneClick}
+                        drawingMode={drawingMode}
+                        setDrawingMode={setDrawingMode}
+                        onPlaceObject={handlePlaceObject}
+                        onCanvasClick={handleCanvasClick}
+                        drawingObjectBoundary={drawingObjectBoundary}
+                        setDrawingObjectBoundary={setDrawingObjectBoundary}
+                        selectedObjectType={selectedObjectType}
+                        northDirection={liveNorthDirection}
+                        scale={scale ? scale / unitFactor : null}
+                        wallLengths={wallLengths}
+                        setReferenceWallIndex={setReferenceWallIndex}
+                        referenceWallIndex={referenceWallIndex}
+                        wallColors={wallColors}
+                        plotWidth={project?.plot_width}
+                        plotHeight={project?.plot_height}
+                        highlightedZones={highlightedZones}
+                        walls={walls}
+                        onAddWall={handleAddWall}
+                        onSelectWall={setSelectedWall}
+                        selectedWall={selectedWall}
+                        onMoveBoundaryVertex={handleMoveBoundaryVertex}
+                        canvasRotation={canvasRotation}
+                        showCornerBadges={showGrid.showCornerBadges}
+                        showTickLabels={showGrid.showTickLabels}
+                        showArcLengths={measurementMode === "simple" ? false : showGrid.showArcLengths}
+                        measurementMode={measurementMode}
+                        onSelectDistanceEntry={setSelectedDistanceEntryName}
+                        darkOverlay={showGrid.darkOverlay}
+                        selectedDistanceEntryName={selectedDistanceEntryName}
+                        isPremium={effectiveIsPremium}
+                        isUnlimited={effectiveIsPremium}
+                        onDragEnd={handleDragEnd}
+                        onDistanceDataReady={setDistanceData}
+                      />
 
-                    {/* Floating Canvas Distance & View Mode Toolbar */}
-                    <div className="absolute top-4 left-4 z-20 flex items-center gap-2 bg-slate-900/90 backdrop-blur-md p-1.5 rounded-2xl border border-slate-700/60 shadow-xl text-white">
-                      {/* Toggle Distance Panel */}
-                      <button
-                        onClick={() => {
-                          setShowGrid((p) => ({ ...p, showArcLengths: !p.showArcLengths }));
-                          setDistancePanelOpen(true);
-                        }}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                          showGrid.showArcLengths
-                            ? "bg-amber-400 text-slate-950 shadow"
-                            : "text-slate-300 hover:bg-slate-800"
-                        }`}
-                        title="Toggle distance measurements"
-                      >
-                        <span>📏 Distances</span>
-                      </button>
+                      {/* Floating Canvas View Mode Toolbar */}
+                      <div className="absolute top-4 left-4 z-20 flex items-center gap-1 bg-slate-900/90 backdrop-blur-md p-1.5 rounded-2xl border border-slate-700/60 shadow-xl text-white">
+                        {/* Measurement mode: Simple / Focus / All */}
+                        {([
+                          { id: "simple", label: "Simple", title: "Show only 4 wall sizes (cleanest)" },
+                          { id: "focus", label: "Focus", title: "Tap a length in the list to show it on the plot" },
+                          { id: "all", label: "All", title: "Show every zone length (expert)" },
+                        ] as const).map((m) => (
+                          <button
+                            key={m.id}
+                            onClick={() => setMeasurementMode(m.id)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                              measurementMode === m.id
+                                ? "bg-amber-400 text-slate-950 shadow"
+                                : "text-slate-300 hover:bg-slate-800"
+                            }`}
+                            title={m.title}
+                          >
+                            {m.id === "simple" ? "📏 " : ""}{m.label}
+                          </button>
+                        ))}
 
-                      <div className="w-px h-5 bg-slate-700" />
+                        <div className="w-px h-5 bg-slate-700" />
 
-                      {/* Dark Overlay Toggle */}
-                      <button
-                        onClick={() =>
-                          setShowGrid((p) => ({ ...p, darkOverlay: !p.darkOverlay }))
-                        }
-                        className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 ${
-                          showGrid.darkOverlay
-                            ? "bg-blue-600 text-white shadow"
-                            : "text-slate-400 hover:bg-slate-800"
-                        }`}
-                        title="Toggle Dark High-Contrast Badges"
-                      >
-                        <span>{showGrid.darkOverlay ? "🌙 Dark" : "☀️ Light"}</span>
-                      </button>
+                        {/* Dark Overlay Toggle */}
+                        <button
+                          onClick={() =>
+                            setShowGrid((p) => ({ ...p, darkOverlay: !p.darkOverlay }))
+                          }
+                          className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 ${
+                            showGrid.darkOverlay
+                              ? "bg-blue-600 text-white shadow"
+                              : "text-slate-400 hover:bg-slate-800"
+                          }`}
+                          title="Toggle Dark High-Contrast Badges"
+                        >
+                          <span>{showGrid.darkOverlay ? "🌙 Dark" : "☀️ Light"}</span>
+                        </button>
+                      </div>
+
+                      {selectedDevta && (
+                        <DevtaInfoCard
+                          devta={selectedDevta}
+                          onClose={handleCloseDevtaCard}
+                        />
+                      )}
+                      {selectedZone && (
+                        <DevtaInfoCard
+                          devta={selectedZone}
+                          onClose={handleCloseZoneCard}
+                        />
+                      )}
                     </div>
 
-                    {selectedDevta && (
-                      <DevtaInfoCard
-                        devta={selectedDevta}
-                        onClose={handleCloseDevtaCard}
-                      />
-                    )}
-                    {selectedZone && (
-                      <DevtaInfoCard
-                        devta={selectedZone}
-                        onClose={handleCloseZoneCard}
-                      />
-                    )}
-
-                    {/* Distance Legend Panel */}
-                    {showGrid.showArcLengths && (
-                      <DevtaDistancePanel
-                        entries={distanceData}
-                        visible={distancePanelOpen}
-                        onClose={() => setDistancePanelOpen(false)}
-                      />
-                    )}
+                    {/* Wall Info Bar outside canvas below */}
+                    <WallInfoBar
+                      boundary={boundary}
+                      wallLengths={wallLengths}
+                      unit={referenceWallUnit}
+                      selectedIndex={referenceWallIndex}
+                      onSelectWall={setReferenceWallIndex}
+                      onSetReferenceWall={(idx) => {
+                        setReferenceWallIndex(idx);
+                        if (wallLengths && wallLengths[idx]) {
+                          setReferenceWallLength(wallLengths[idx]);
+                        }
+                      }}
+                    />
                   </div>
                 </div>
 
@@ -1243,6 +1397,14 @@ export default function FloorPlanPage() {
                     showGrid={showGrid}
                     setShowGrid={setShowGrid}
                     gridType={gridType}
+                    distanceData={distanceData}
+                    selectedDistanceEntryName={selectedDistanceEntryName}
+                    onSelectDistanceEntryName={(name) => {
+                      setSelectedDistanceEntryName(name);
+                      if (name && measurementMode === "simple") setMeasurementMode("focus");
+                    }}
+                    measurementMode={measurementMode}
+                    onMeasurementModeChange={setMeasurementMode}
                     onGridTypeChange={(val) => {
                       setGridType(val);
                       if (currentAnalysisId) {
@@ -1318,108 +1480,136 @@ export default function FloorPlanPage() {
           />
         ) : (
           <div className="flex-1 flex flex-col md:flex-row h-full min-h-0 overflow-hidden">
-            <div className="flex-1 bg-gray-50 relative overflow-hidden flex items-center justify-center p-4">
-              <div className="bg-white shadow-2xl rounded-lg overflow-hidden relative">
-                <FloorPlanCanvas
-                  floorPlanImage={floorPlanImage}
-                  boundary={boundary}
-                  onDrawBoundary={handleDrawBoundary}
-                  placedObjects={placedObjects}
-                  onMoveObject={handleMoveObject}
-                  onResizeObject={handleResizeObject}
-                  onRotateObject={handleRotateObject}
-                  onDeleteObject={handleDeleteObject}
-                  objectSvgMap={proxiedObjectSvgMap}
-                  devtaRegions={showGrid.devta45 ? devtaRegions : []}
-                  zone16Regions={showGrid.zone16 ? zones16 : []}
-                  zone8Regions={showGrid.zone8 ? zones8 : []}
-                  marmaData={showGrid.marma ? marmaData : null}
-                  shaktiChakra={showGrid.shaktiChakra}
-                  shaktiChakraSize={shaktiChakraSize}
-                  shaktiChakraType={shaktiChakraType}
-                  plotCentroid={plotCentroid}
-                  onDevtaClick={handleDevtaClick}
-                  onZoneClick={handleZoneClick}
-                  drawingMode={drawingMode}
-                  setDrawingMode={setDrawingMode}
-                  onPlaceObject={handlePlaceObject}
-                  onCanvasClick={handleCanvasClick}
-                  drawingObjectBoundary={drawingObjectBoundary}
-                  setDrawingObjectBoundary={setDrawingObjectBoundary}
-                  selectedObjectType={selectedObjectType}
-                  northDirection={liveNorthDirection}
-                  scale={scale ? scale / unitFactor : null}
-                  wallLengths={wallLengths}
-                  setReferenceWallIndex={setReferenceWallIndex}
-                  referenceWallIndex={referenceWallIndex}
-                  wallColors={wallColors}
-                  plotWidth={project?.plot_width}
-                  plotHeight={project?.plot_height}
-                  highlightedZones={highlightedZones}
-                  walls={walls}
-                  onAddWall={handleAddWall}
-                  onSelectWall={setSelectedWall}
-                  selectedWall={selectedWall}
-                  onMoveBoundaryVertex={handleMoveBoundaryVertex}
-                  canvasRotation={canvasRotation}
-                  showCornerBadges={showGrid.showCornerBadges}
-                  showTickLabels={showGrid.showTickLabels}
-                  showArcLengths={showGrid.showArcLengths}
-                  isPremium={effectiveIsPremium}
-                  isUnlimited={effectiveIsPremium}
-                  onDragEnd={handleDragEnd}
-                  onDistanceDataReady={setDistanceData}
-                />
+            <div className="flex-1 bg-gray-50 relative overflow-hidden flex items-center justify-center p-3">
+              <div className="w-full h-full bg-white shadow-2xl rounded-lg overflow-hidden relative flex flex-col">
+                <div className="flex-1 relative overflow-hidden">
+                  <FloorPlanCanvas
+                    floorPlanImage={floorPlanImage}
+                    boundary={boundary}
+                    onDrawBoundary={handleDrawBoundary}
+                    placedObjects={placedObjects}
+                    onMoveObject={handleMoveObject}
+                    onResizeObject={handleResizeObject}
+                    onRotateObject={handleRotateObject}
+                    onDeleteObject={handleDeleteObject}
+                    objectSvgMap={proxiedObjectSvgMap}
+                    devtaRegions={showGrid.devta45 ? devtaRegions : []}
+                    zone16Regions={showGrid.zone16 ? zones16 : []}
+                    zone8Regions={showGrid.zone8 ? zones8 : []}
+                    marmaData={showGrid.marma ? marmaData : null}
+                    shaktiChakra={showGrid.shaktiChakra}
+                    shaktiChakraSize={shaktiChakraSize}
+                    shaktiChakraType={shaktiChakraType}
+                    plotCentroid={plotCentroid}
+                    onDevtaClick={handleDevtaClick}
+                    onZoneClick={handleZoneClick}
+                    drawingMode={drawingMode}
+                    setDrawingMode={setDrawingMode}
+                    onPlaceObject={handlePlaceObject}
+                    onCanvasClick={handleCanvasClick}
+                    drawingObjectBoundary={drawingObjectBoundary}
+                    setDrawingObjectBoundary={setDrawingObjectBoundary}
+                    selectedObjectType={selectedObjectType}
+                    northDirection={liveNorthDirection}
+                    scale={scale ? scale / unitFactor : null}
+                    wallLengths={wallLengths}
+                    setReferenceWallIndex={setReferenceWallIndex}
+                    referenceWallIndex={referenceWallIndex}
+                    wallColors={wallColors}
+                    plotWidth={project?.plot_width}
+                    plotHeight={project?.plot_height}
+                    highlightedZones={highlightedZones}
+                    walls={walls}
+                    onAddWall={handleAddWall}
+                    onSelectWall={setSelectedWall}
+                    selectedWall={selectedWall}
+                    onMoveBoundaryVertex={handleMoveBoundaryVertex}
+                    canvasRotation={canvasRotation}
+                    showCornerBadges={showGrid.showCornerBadges}
+                    showTickLabels={showGrid.showTickLabels}
+                    showArcLengths={measurementMode === "simple" ? false : showGrid.showArcLengths}
+                    measurementMode={measurementMode}
+                    onSelectDistanceEntry={setSelectedDistanceEntryName}
+                    selectedDistanceEntryName={selectedDistanceEntryName}
+                    isPremium={effectiveIsPremium}
+                    isUnlimited={effectiveIsPremium}
+                    onDragEnd={handleDragEnd}
+                    onDistanceDataReady={setDistanceData}
+                  />
 
-                {/* Overlay Status Indicators */}
-                <div className="absolute top-4 left-4 flex flex-col gap-2">
-                  {showGrid.devta45 && (
-                    <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded shadow">
-                      45 Energy Zones
-                    </span>
+                  {/* Overlay Status Indicators */}
+                  <div className="absolute top-4 left-4 flex flex-col gap-2">
+                    {showGrid.devta45 && (
+                      <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded shadow">
+                        45 Energy Zones
+                      </span>
+                    )}
+                    {showGrid.zone16 && (
+                      <span className="bg-indigo-600 text-white text-xs px-2 py-1 rounded shadow">
+                        16 Zones
+                      </span>
+                    )}
+                    {showGrid.zone8 && (
+                      <span className="bg-purple-600 text-white text-xs px-2 py-1 rounded shadow">
+                        8 Directions
+                      </span>
+                    )}
+                    {showGrid.showArcLengths && !distancePanelOpen && distanceData.length > 0 && (
+                      <button
+                        onClick={() => setDistancePanelOpen(true)}
+                        className="bg-slate-800 text-white text-xs px-2 py-1 rounded shadow border border-white/10 flex items-center gap-1 hover:bg-slate-700 transition-colors"
+                      >
+                        📏 Distances
+                      </button>
+                    )}
+                  </div>
+
+
+                  {selectedDevta && (
+                    <DevtaInfoCard
+                      devta={selectedDevta}
+                      onClose={handleCloseDevtaCard}
+                    />
                   )}
-                  {showGrid.zone16 && (
-                    <span className="bg-indigo-600 text-white text-xs px-2 py-1 rounded shadow">
-                      16 Zones
-                    </span>
+                  {selectedZone && (
+                    <DevtaInfoCard
+                      devta={selectedZone}
+                      onClose={handleCloseZoneCard}
+                    />
                   )}
-                  {showGrid.zone8 && (
-                    <span className="bg-purple-600 text-white text-xs px-2 py-1 rounded shadow">
-                      8 Directions
-                    </span>
-                  )}
-                  {showGrid.showArcLengths && !distancePanelOpen && distanceData.length > 0 && (
-                    <button
-                      onClick={() => setDistancePanelOpen(true)}
-                      className="bg-slate-800 text-white text-xs px-2 py-1 rounded shadow border border-white/10 flex items-center gap-1 hover:bg-slate-700 transition-colors"
-                    >
-                      📏 Distances
-                    </button>
+
+                  {/* Distance Legend Panel */}
+                  {showGrid.showDistanceTable && (
+                    <DevtaDistancePanel
+                      entries={distanceData}
+                      visible={distancePanelOpen}
+                      selectedEntryName={selectedDistanceEntryName}
+                      onSelectEntry={(name) => {
+                        setSelectedDistanceEntryName(name);
+                        if (name && measurementMode === "simple") setMeasurementMode("focus");
+                      }}
+                      onClose={() => {
+                        setDistancePanelOpen(false);
+                        setShowGrid(p => ({ ...p, showDistanceTable: false }));
+                      }}
+                    />
                   )}
                 </div>
 
-
-                {selectedDevta && (
-                  <DevtaInfoCard
-                    devta={selectedDevta}
-                    onClose={handleCloseDevtaCard}
-                  />
-                )}
-                {selectedZone && (
-                  <DevtaInfoCard
-                    devta={selectedZone}
-                    onClose={handleCloseZoneCard}
-                  />
-                )}
-
-                {/* Distance Legend Panel */}
-                {showGrid.showArcLengths && (
-                  <DevtaDistancePanel
-                    entries={distanceData}
-                    visible={distancePanelOpen}
-                    onClose={() => setDistancePanelOpen(false)}
-                  />
-                )}
+                {/* Wall Info Bar outside canvas below */}
+                <WallInfoBar
+                  boundary={boundary}
+                  wallLengths={wallLengths}
+                  unit={referenceWallUnit}
+                  selectedIndex={referenceWallIndex}
+                  onSelectWall={setReferenceWallIndex}
+                  onSetReferenceWall={(idx) => {
+                    setReferenceWallIndex(idx);
+                    if (wallLengths && wallLengths[idx]) {
+                      setReferenceWallLength(wallLengths[idx]);
+                    }
+                  }}
+                />
               </div>
             </div>
             <div className="h-full flex-shrink-0">
@@ -1434,6 +1624,14 @@ export default function FloorPlanPage() {
                 showGrid={showGrid}
                 setShowGrid={setShowGrid}
                 gridType={gridType}
+                distanceData={distanceData}
+                selectedDistanceEntryName={selectedDistanceEntryName}
+                onSelectDistanceEntryName={(name) => {
+                  setSelectedDistanceEntryName(name);
+                  if (name && measurementMode === "simple") setMeasurementMode("focus");
+                }}
+                measurementMode={measurementMode}
+                onMeasurementModeChange={setMeasurementMode}
                 onGridTypeChange={(val) => {
                   setGridType(val);
                   if (currentAnalysisId) {

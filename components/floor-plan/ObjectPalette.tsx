@@ -29,7 +29,7 @@ const ObjectPaletteItem: React.FC<ObjectPaletteItemProps> = ({
     >
       {isLocked && (
         <div className="absolute top-1 right-1 z-10 scale-[0.6] origin-top-right">
-          <span className="flex items-center gap-1.5 px-2 py-1 bg-amber-400 text-white text-[10px] font-black uppercase tracking-widest rounded-lg shadow-sm">
+          <span className="flex items-center gap-1.5 px-2 py-1 bg-amber-400 text-white text-xs font-black uppercase tracking-widest rounded-lg shadow-sm">
             <Crown size={10} />
             PRO
           </span>
@@ -38,7 +38,7 @@ const ObjectPaletteItem: React.FC<ObjectPaletteItemProps> = ({
       <div className="w-10 h-10 mb-2 flex items-center justify-center">
         <img src={icon} alt={objectType} className="w-full h-full object-contain opacity-80" />
       </div>
-      <span className="text-[9px] font-bold text-gray-500 text-center uppercase tracking-tighter leading-tight">{objectType}</span>
+      <span className="text-xs font-bold text-gray-500 text-center uppercase tracking-tighter leading-tight">{objectType}</span>
     </div>
   );
 };
@@ -265,7 +265,7 @@ export const ObjectPalette: React.FC<ObjectPaletteProps> = ({
     <div className="flex flex-col space-y-6">
       {/* Property Type Toggles */}
       <div className="flex flex-col gap-3">
-        <label className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-1 flex items-center gap-1.5">
+        <label className="text-xs font-black text-primary uppercase tracking-[0.2em] mb-1 flex items-center gap-1.5">
           <Layers size={11} className="text-primary" />
           Environment Scope
         </label>
@@ -273,7 +273,7 @@ export const ObjectPalette: React.FC<ObjectPaletteProps> = ({
           <button
             type="button"
             onClick={() => handleToggleProperty("residential")}
-            className={`py-2 px-3 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all ${
+            className={`py-2 px-3 text-xs font-bold uppercase tracking-wider rounded-xl transition-all ${
               propertyType === "residential"
                 ? "bg-white text-primary shadow-sm"
                 : "text-gray-500 hover:text-gray-700"
@@ -284,7 +284,7 @@ export const ObjectPalette: React.FC<ObjectPaletteProps> = ({
           <button
             type="button"
             onClick={() => handleToggleProperty("commercial")}
-            className={`py-2 px-3 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all ${
+            className={`py-2 px-3 text-xs font-bold uppercase tracking-wider rounded-xl transition-all ${
               propertyType === "commercial"
                 ? "bg-white text-primary shadow-sm"
                 : "text-gray-500 hover:text-gray-700"
@@ -301,7 +301,7 @@ export const ObjectPalette: React.FC<ObjectPaletteProps> = ({
           <select
             value={commercialType}
             onChange={handleSubtypeChange}
-            className="w-full p-3 bg-white/70 hover:bg-white border border-gray-200 rounded-xl text-[10px] font-bold uppercase tracking-widest text-primary focus:outline-none focus:ring-2 focus:ring-primary/10 shadow-sm transition-all cursor-pointer"
+            className="w-full p-3 bg-white/70 hover:bg-white border border-gray-200 rounded-xl text-xs font-bold uppercase tracking-widest text-primary focus:outline-none focus:ring-2 focus:ring-primary/10 shadow-sm transition-all cursor-pointer"
           >
             <option value="general">General Commercial</option>
             <option value="commercial_kitchen">Commercial Kitchen</option>
@@ -327,7 +327,7 @@ export const ObjectPalette: React.FC<ObjectPaletteProps> = ({
                 onClick={() => setExpandedCategory(isExpanded ? null : category.title)}
                 className="w-full flex items-center justify-between p-4 text-left hover:bg-white/50 transition-colors"
               >
-                <span className="text-[10px] font-bold text-gray-700 uppercase tracking-widest flex items-center gap-2">
+                <span className="text-xs font-bold text-gray-700 uppercase tracking-widest flex items-center gap-2">
                   <span className="w-1.5 h-1.5 bg-primary/60 rounded-full" />
                   {category.title}
                 </span>

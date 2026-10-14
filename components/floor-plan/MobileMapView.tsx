@@ -502,9 +502,25 @@ export function MobileMapView({
       </div>
 
       {hasRoomVideos && (
-        <div className="px-5 py-2 bg-purple-50 border-b border-purple-100 text-[10px] text-purple-700 font-semibold flex items-center gap-1.5">
-          <Video size={11} />
-          Click a room to play its walkthrough video
+        <div className="px-4 py-2 bg-purple-50/90 border-b border-purple-100 flex items-center gap-2 overflow-x-auto scrollbar-thin shrink-0">
+          <span className="text-[10px] font-bold text-purple-700 flex items-center gap-1 shrink-0 uppercase tracking-wider">
+            <Video size={12} className="text-purple-600" />
+            Room Videos:
+          </span>
+          {data.rooms
+            ?.filter((r) => r.videoR2Key)
+            .map((room) => (
+              <button
+                key={room.id}
+                onClick={() => handleRoomVideoClick(room)}
+                className="px-2.5 py-1 bg-white hover:bg-purple-100/80 text-purple-900 border border-purple-200 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 shadow-xs"
+                title={`Play walkthrough for ${room.name}`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
+                <span>{room.name}</span>
+                <span className="text-[10px] text-purple-500 font-normal">▶</span>
+              </button>
+            ))}
         </div>
       )}
 
@@ -582,7 +598,9 @@ export function MobileMapView({
               src={activeRoomVideo.url}
               controls
               autoPlay
+              playsInline
               className="w-full rounded-xl object-contain max-h-[75%] bg-black"
+              onError={(e) => console.warn("Room video playback error:", e)}
             />
           </div>
         </div>
